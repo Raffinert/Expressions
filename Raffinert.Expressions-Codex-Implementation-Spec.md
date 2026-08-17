@@ -7,11 +7,11 @@ Implement a new aggregated library named **`Raffinert.Expressions`** by consolid
 - `Raffinert.Spec`
 - `Raffinert.Proj`
 
-The new library must preserve `Spec<T>` and `Proj<TIn,TOut>` as first-class semantic APIs, while moving their shared behavior onto a single reusable expression-composition core.
+The new library must preserve the semantics of the source packages under the first-class `Specification<T>` and `Projection<TSource,TResult>` APIs, while moving their shared behavior onto a single reusable expression-composition core.
 
 The primary architectural idea is:
 
-> `Spec<T>` and `Proj<TIn,TOut>` are specialized typed wrappers around reusable LINQ expression trees. They must be composable with each other, expandable into pure `Expression<TDelegate>` trees, executable in memory, and consumable by EF Core or other LINQ providers without a custom query provider or `AsExpandable()`-style interception.
+> `Specification<T>` and `Projection<TSource,TResult>` are specialized typed wrappers around reusable LINQ expression trees. They must be composable with each other, expandable into pure `Expression<TDelegate>` trees, executable in memory, and consumable by EF Core or other LINQ providers without a custom query provider or `AsExpandable()`-style interception.
 
 The implementation should favor **small, explicit expression-tree transformations** over framework magic.
 
@@ -25,6 +25,8 @@ Use the current public repositories as the behavioral source material:
 - `https://github.com/Raffinert/Raffinert.Proj`
 
 Important existing behavior to preserve unless this specification explicitly changes it:
+
+The source repositories use the short type names `Spec<T>` and `Proj<TIn,TOut>`; the aggregate API deliberately expands those names to `Specification<T>` and `Projection<TSource,TResult>`.
 
 ## `Raffinert.Spec`
 
@@ -111,32 +113,32 @@ Nullable reference types must remain enabled.
 
 # 3. Core conceptual model
 
-Introduce an internal/shared abstraction representing a reusable expression from `TIn` to `TOut`.
+Introduce an internal/shared abstraction representing a reusable expression from `TSource` to `TResult`.
 
-The public design may expose `Expr<TIn,TOut>` if doing so materially improves usability, but **do not require users to know or use it** for normal `Spec`/`Proj` scenarios.
+The public design exposes `ComposableExpression<TSource,TResult>` as a supported base for custom semantic wrappers, but **does not require users to know or use it** for normal `Specification`/`Projection` scenarios.
 
 Preferred design:
 
 ```csharp
-public abstract class Expr<TIn, TOut>
+public abstract class ComposableExpression<TSource, TResult>
 {
-    public abstract Expression<Func<TIn, TOut>> GetExpression();
+    public abstract Expression<Func<TSource, TResult>> GetExpression();
 
-    public Expression<Func<TIn, TOut>> GetExpandedExpression();
+    public Expression<Func<TSource, TResult>> GetExpandedExpression();
 
-    public TOut Invoke(TIn value);
+    public TResult Invoke(TSource value);
 }
 ```
 
 Then:
 
 ```csharp
-public abstract class Spec<T> : Expr<T, bool>
+public abstract class Specification<T> : ComposableExpression<T, bool>
 {
     // specification-specific API
 }
 
-public abstract class Proj<TIn, TOut> : Expr<TIn, TOut>
+public abstract class Projection<TSource, TResult> : ComposableExpression<TSource, TResult>
 {
     // projection-specific API
 }
@@ -144,7 +146,7 @@ public abstract class Proj<TIn, TOut> : Expr<TIn, TOut>
 
 If inheritance introduces unacceptable API or implementation complexity, use an internal interface/base class instead, but the following invariant is mandatory:
 
-> `Spec` and `Proj` must share one expansion engine and one generalized expression-node abstraction.
+> `Specification` and `Projection` must share one expansion engine and one generalized expression-node abstraction.
 
 There must not be separate near-duplicate `IsSatisfiedByCallVisitor` and `MapCallVisitor` implementations in the final architecture.
 
@@ -157,22 +159,22 @@ Introduce **`Invoke`** as the canonical expression-composition marker.
 ## Core behavior
 
 ```csharp
-TOut Invoke(TIn value)
+TResult Invoke(TSource value)
 ```
 
 At runtime, outside an expression tree, this executes the compiled expression.
 
-Inside a parent expression tree, calls to `Invoke(...)` on a supported `Expr`/`Spec`/`Proj` instance must be **inlined** by `GetExpandedExpression()`.
+Inside a parent expression tree, calls to `Invoke(...)` on a supported `ComposableExpression`/`Specification`/`Projection` instance must be **inlined** by `GetExpandedExpression()`.
 
 Example:
 
 ```csharp
-var categoryProjection = Proj<Category, CategoryDto>.Create(c => new CategoryDto
+var categoryProjection = Projection<Category, CategoryDto>.Create(c => new CategoryDto
 {
     Name = c.Name
 });
 
-var productProjection = Proj<Product, ProductDto>.Create(p => new ProductDto
+var productProjection = Projection<Product, ProductDto>.Create(p => new ProductDto
 {
     Name = p.Name,
     Category = categoryProjection.Invoke(p.Category)
@@ -201,7 +203,7 @@ public bool IsSatisfiedBy(T value) => Invoke(value);
 ```
 
 ```csharp
-public TOut Map(TIn value) => Invoke(value);
+public TResult Map(TSource value) => Invoke(value);
 ```
 
 The expansion engine must recognize both the canonical `Invoke` API and legacy semantic aliases during the migration period.
@@ -214,16 +216,16 @@ The expansion engine must recognize both the canonical `Invoke` API and legacy s
 
 This is one of the primary goals of the aggregation.
 
-## 5.1 `Spec` inside `Proj`
+## 5.1 `Specification` inside `Projection`
 
 Required:
 
 ```csharp
-Spec<Product> expensive =
-    Spec<Product>.Create(p => p.Price > 100m);
+Specification<Product> expensive =
+    Specification<Product>.Create(p => p.Price > 100m);
 
-Proj<Product, ProductDto> projection =
-    Proj<Product, ProductDto>.Create(p => new ProductDto
+Projection<Product, ProductDto> projection =
+    Projection<Product, ProductDto>.Create(p => new ProductDto
     {
         Name = p.Name,
         IsExpensive = expensive.Invoke(p)
@@ -240,17 +242,17 @@ p => new ProductDto
 }
 ```
 
-## 5.2 `Proj` inside `Spec`
+## 5.2 `Projection` inside `Specification`
 
 Required:
 
 ```csharp
-Proj<Order, decimal> total =
-    Proj<Order, decimal>.Create(o =>
+Projection<Order, decimal> total =
+    Projection<Order, decimal>.Create(o =>
         o.Lines.Sum(x => x.Price * x.Quantity));
 
-Spec<Order> expensive =
-    Spec<Order>.Create(o => total.Invoke(o) > 1000m);
+Specification<Order> expensive =
+    Specification<Order>.Create(o => total.Invoke(o) > 1000m);
 ```
 
 Expanded expression must be equivalent to:
@@ -266,7 +268,7 @@ The expansion engine must recursively expand until the resulting tree has no rec
 Example chain:
 
 ```text
-Spec -> Proj -> Proj -> Spec
+Specification -> Projection -> Projection -> Specification
 ```
 
 must be supported when type-compatible.
@@ -284,16 +286,16 @@ Implement typed composition as a first-class feature after core invocation expan
 Conceptually:
 
 ```csharp
-Proj<TIn, TNext> Then<TNext>(Proj<TOut, TNext> next);
+Projection<TSource, TNext> Then<TNext>(Projection<TResult, TNext> next);
 ```
 
 and:
 
 ```csharp
-Spec<TIn> Then(Spec<TOut> next);
+Specification<TSource> Then(Specification<TResult> next);
 ```
 
-for `Proj<TIn,TOut>`.
+for `Projection<TSource,TResult>`.
 
 Meaning:
 
@@ -316,17 +318,17 @@ A -> bool
 Examples:
 
 ```csharp
-Proj<Order, Customer> customer = ...;
-Proj<Customer, string> name = ...;
+Projection<Order, Customer> customer = ...;
+Projection<Customer, string> name = ...;
 
-Proj<Order, string> customerName = customer.Then(name);
+Projection<Order, string> customerName = customer.Then(name);
 ```
 
 ```csharp
-Proj<Order, Customer> customer = ...;
-Spec<Customer> active = ...;
+Projection<Order, Customer> customer = ...;
+Specification<Customer> active = ...;
 
-Spec<Order> orderWithActiveCustomer = customer.Then(active);
+Specification<Order> orderWithActiveCustomer = customer.Then(active);
 ```
 
 The resulting expressions must be direct composed expression trees, not delegate invocation expressions unsupported by common LINQ providers.
@@ -342,10 +344,11 @@ Implement one generalized expansion engine.
 Suggested internal abstraction:
 
 ```csharp
-internal interface IExpandableExpression
+internal interface IExpressionExpansionSource
 {
-    LambdaExpression GetExpressionUntyped();
-    LambdaExpression GetExpandedExpressionUntyped();
+    LambdaExpression GetExpression();
+    LambdaExpression? GetCachedExpandedExpression();
+    LambdaExpression CacheExpandedExpression(LambdaExpression expression);
 }
 ```
 
@@ -386,7 +389,7 @@ Support at least:
 - captured variables/fields;
 - readonly fields;
 - static fields where possible;
-- direct `new SomeSpec(...)` / `new SomeProj(...)` cases already supported by current libraries;
+- direct `new SomeSpecification(...)` / `new SomeProjection(...)` cases already supported by current libraries;
 - method-group scenarios generated by C# for `Any(spec.Invoke)` / `Select(proj.Invoke)`;
 - closure member access chains where safely resolvable.
 
@@ -402,35 +405,35 @@ The final expanded tree must inline composition. It must not rely on `Invocation
 
 ---
 
-# 8. `Spec<T>` API
+# 8. `Specification<T>` API
 
 Preserve the semantic specification type.
 
 Required public API shape:
 
 ```csharp
-public abstract class Spec<T> : Expr<T, bool>
+public abstract class Specification<T> : ComposableExpression<T, bool>
 {
     public abstract override Expression<Func<T, bool>> GetExpression();
 
-    public static Spec<T> Create(Expression<Func<T, bool>> expression);
+    public static Specification<T> Create(Expression<Func<T, bool>> expression);
 
-    public static Spec<T> True();
-    public static Spec<T> False();
+    public static Specification<T> True();
+    public static Specification<T> False();
 
     public bool IsSatisfiedBy(T candidate);
 
-    public Spec<T> And(Spec<T> spec);
-    public Spec<T> And(Expression<Func<T, bool>> expression);
+    public Specification<T> And(Specification<T> spec);
+    public Specification<T> And(Expression<Func<T, bool>> expression);
 
-    public Spec<T> Or(Spec<T> spec);
-    public Spec<T> Or(Expression<Func<T, bool>> expression);
+    public Specification<T> Or(Specification<T> spec);
+    public Specification<T> Or(Expression<Func<T, bool>> expression);
 
-    public Spec<T> Not();
+    public Specification<T> Not();
 
-    public static Spec<T> operator &(Spec<T> left, Spec<T> right);
-    public static Spec<T> operator |(Spec<T> left, Spec<T> right);
-    public static Spec<T> operator !(Spec<T> spec);
+    public static Specification<T> operator &(Specification<T> left, Specification<T> right);
+    public static Specification<T> operator |(Specification<T> left, Specification<T> right);
+    public static Specification<T> operator !(Specification<T> spec);
 }
 ```
 
@@ -454,29 +457,29 @@ Thread safety does not need elaborate locking; duplicate compilation under a ben
 
 ---
 
-# 9. `Proj<TIn,TOut>` API
+# 9. `Projection<TSource,TResult>` API
 
 Preserve the semantic projection type.
 
 Required core API:
 
 ```csharp
-public abstract class Proj<TIn, TOut> : Expr<TIn, TOut>
+public abstract class Projection<TSource, TResult> : ComposableExpression<TSource, TResult>
 {
-    public abstract override Expression<Func<TIn, TOut>> GetExpression();
+    public abstract override Expression<Func<TSource, TResult>> GetExpression();
 
-    public static Proj<TIn, TOut> Create(Expression<Func<TIn, TOut>> expression);
+    public static Projection<TSource, TResult> Create(Expression<Func<TSource, TResult>> expression);
 
-    public TOut Map(TIn value);
+    public TResult Map(TSource value);
 
-    public TOut? MapIfNotNull(TIn? value);
+    public TResult? MapIfNotNull(TSource? value);
 
-    public Proj<TIn, TOut> MergeBindings(Proj<TIn, TOut> other);
-    public Proj<TIn, TOut> MergeBindings(Expression<Func<TIn, TOut>> other);
+    public Projection<TSource, TResult> MergeBindings(Projection<TSource, TResult> other);
+    public Projection<TSource, TResult> MergeBindings(Expression<Func<TSource, TResult>> other);
 
-    public Expression<Action<TIn, TOut>> GetMapToExistingExpression();
-    public Action<TIn, TOut> GetMapToExistingAction();
-    public void MapToExisting(TIn source, ref TOut? destination);
+    public Expression<Action<TSource, TResult>> GetMapToExistingExpression();
+    public Action<TSource, TResult> GetMapToExistingAction();
+    public void MapToExisting(TSource source, ref TResult? destination);
 }
 ```
 
@@ -626,7 +629,7 @@ Preserve direct ergonomic usage.
 ## IQueryable
 
 ```csharp
-IQueryable<T> Where<T>(this IQueryable<T> source, Spec<T> spec)
+IQueryable<T> Where<T>(this IQueryable<T> source, Specification<T> spec)
 ```
 
 must call:
@@ -640,7 +643,7 @@ and:
 ```csharp
 IQueryable<TResult> Select<TSource,TResult>(
     this IQueryable<TSource> source,
-    Proj<TSource,TResult> projection)
+    Projection<TSource,TResult> projection)
 ```
 
 must call:
@@ -656,10 +659,10 @@ Equivalent overloads should execute compiled delegates.
 Keep extension class names/namespaces non-conflicting. Avoid placing generic classes named simply `Queryable` / `Enumerable` in the global namespace. Use descriptive static classes such as:
 
 ```csharp
-public static class SpecQueryableExtensions
-public static class ProjQueryableExtensions
-public static class SpecEnumerableExtensions
-public static class ProjEnumerableExtensions
+public static class SpecificationQueryableExtensions
+public static class ProjectionQueryableExtensions
+public static class SpecificationEnumerableExtensions
+public static class ProjectionEnumerableExtensions
 ```
 
 all under `Raffinert.Expressions` or `Raffinert.Expressions.Extensions`.
@@ -685,14 +688,14 @@ var template = ExpressionTemplate<Product>.Create(
     p => new { p.Name, p.Price },
     x => x.Price > 10m && x.Name != null);
 
-Spec<InventoryItem> adapted = template.AdaptSpec<InventoryItem>();
+Specification<InventoryItem> adapted = template.AdaptSpecification<InventoryItem>();
 ```
 
 A generalized result-selector form may later support non-boolean outputs.
 
 ## Minimum compatibility path
 
-If generalization would create excessive scope for the first implementation, preserve `SpecTemplate` as a compatibility facade implemented on top of a new internal template engine.
+If generalization would create excessive scope for the first implementation, preserve `SpecificationTemplate` as a facade implemented on top of a new internal template engine.
 
 Do not duplicate two separate template engines.
 
@@ -716,7 +719,7 @@ Create/rename analyzer package:
 
 `Raffinert.Expressions.Analyzers`
 
-Migrate the intent of existing `SpecTemplateCreateAnalyzer` and `SpecTemplateAdaptAnalyzer`.
+Migrate the intent of existing `SpecificationTemplateCreateAnalyzer` and `SpecificationTemplateAdaptAnalyzer`.
 
 ## Required analyzer goals
 
@@ -745,7 +748,7 @@ Analyzers must not be required for runtime correctness.
 
 Preserve custom debugger support.
 
-`Spec` and `Proj` should expose a useful `DebuggerDisplay` showing the **expanded expression**, because that is what the LINQ provider receives.
+`Specification` and `Projection` should expose a useful `DebuggerDisplay` showing the **expanded expression**, because that is what the LINQ provider receives.
 
 Avoid duplicating almost-identical debugger infrastructure where generic helpers can be shared.
 
@@ -773,7 +776,7 @@ Do not globally cache expression trees keyed by arbitrary objects unless there i
 
 Document an important invariant:
 
-> Implementations of `GetExpression()` are assumed stable for the lifetime of a `Spec` / `Proj` instance once expansion or compilation has been requested.
+> Implementations of `GetExpression()` are assumed stable for the lifetime of a `Specification` / `Projection` instance once expansion or compilation has been requested.
 
 If a subclass returns a materially different expression on each call, cached behavior is undefined/not supported.
 
@@ -810,8 +813,8 @@ This is a new package and namespace, so binary compatibility with old NuGets is 
 Keep:
 
 ```text
-Spec<T>
-Proj<TIn,TOut>
+Specification<T>
+Projection<TSource,TResult>
 IsSatisfiedBy
 Map
 MapIfNotNull
@@ -826,7 +829,7 @@ GetExpandedExpression
 Add:
 
 ```text
-Expr<TIn,TOut>          # if public architecture chooses it
+ComposableExpression<TSource,TResult>
 Invoke
 Then
 ExpressionTemplate      # staged if needed
@@ -852,8 +855,8 @@ This is outside MVP unless explicitly requested.
 Use semantic types for user code:
 
 ```csharp
-Spec<Order>
-Proj<Order, OrderDto>
+Specification<Order>
+Projection<Order, OrderDto>
 ```
 
 Do not replace them with a generic name such as:
@@ -886,13 +889,13 @@ The implementation is not complete until these scenarios are covered.
 - nested lambda parameter shadowing;
 - captured constant values;
 - captured spec/proj field;
-- direct `new SpecSubclass(...)` invocation;
-- direct `new ProjSubclass(...)` invocation;
+- direct `new SpecificationSubclass(...)` invocation;
+- direct `new ProjectionSubclass(...)` invocation;
 - nested expansion depth > 2;
 - cycle behavior;
 - expanded tree contains no library `Invoke` marker calls.
 
-## 21.2 Spec tests
+## 21.2 Specification tests
 
 - inline `Create`;
 - subclass;
@@ -903,11 +906,11 @@ The implementation is not complete until these scenarios are covered.
 - operators;
 - `IEnumerable.Where(spec)`;
 - `IQueryable.Where(spec)`;
-- nested `Spec.Invoke`;
+- nested `Specification.Invoke`;
 - compatibility `IsSatisfiedBy` expansion;
 - method group in `Any`.
 
-## 21.3 Proj tests
+## 21.3 Projection tests
 
 - inline `Create`;
 - subclass;
@@ -933,12 +936,12 @@ The implementation is not complete until these scenarios are covered.
 Mandatory:
 
 ```text
-Spec inside Proj
-Proj inside Spec
-Spec -> Proj -> Spec nested chain
-Proj -> Proj -> Proj nested chain
-Proj.Then(Proj)
-Proj.Then(Spec)
+Specification inside Projection
+Projection inside Specification
+Specification -> Projection -> Specification nested chain
+Projection -> Projection -> Projection nested chain
+Projection.Then(Projection)
+Projection.Then(Specification)
 ```
 
 Prove both:
@@ -1005,8 +1008,8 @@ Expected characteristics:
 After functional completion, optional benchmarks should compare:
 
 - raw handwritten expression;
-- `Spec` composed expression expansion;
-- `Proj` nested expression expansion;
+- `Specification` composed expression expansion;
+- `Projection` nested expression expansion;
 - compiled runtime execution after warm-up.
 
 Do not optimize by sacrificing API clarity or correctness before profiling.
@@ -1049,13 +1052,13 @@ The first example should demonstrate **cross-composition**, because that differe
 Example:
 
 ```csharp
-var total = Proj<Order, decimal>.Create(o =>
+var total = Projection<Order, decimal>.Create(o =>
     o.Lines.Sum(x => x.Price * x.Quantity));
 
-var expensive = Spec<Order>.Create(o =>
+var expensive = Specification<Order>.Create(o =>
     total.Invoke(o) > 1000m);
 
-var projection = Proj<Order, OrderDto>.Create(o => new OrderDto
+var projection = Projection<Order, OrderDto>.Create(o => new OrderDto
 {
     Id = o.Id,
     Total = total.Invoke(o),
@@ -1143,17 +1146,17 @@ Codex should execute in this order.
 
 Do not implement cross-composition with two independent visitors.
 
-## Phase 3 — `Spec`
+## Phase 3 — `Specification`
 
-- migrate `Spec<T>`;
+- migrate `Specification<T>`;
 - boolean composition;
 - queryable/enumerable extensions;
 - `Invoke` + `IsSatisfiedBy` compatibility;
 - existing behavioral tests.
 
-## Phase 4 — `Proj`
+## Phase 4 — `Projection`
 
-- migrate `Proj<TIn,TOut>`;
+- migrate `Projection<TSource,TResult>`;
 - `Invoke` + `Map` compatibility;
 - null-safe projection;
 - queryable/enumerable extensions;
@@ -1161,8 +1164,8 @@ Do not implement cross-composition with two independent visitors.
 
 ## Phase 5 — Cross-composition
 
-- `Spec` inside `Proj`;
-- `Proj` inside `Spec`;
+- `Specification` inside `Projection`;
+- `Projection` inside `Specification`;
 - mixed deep nesting;
 - method groups;
 - EF integration tests.
@@ -1171,8 +1174,8 @@ This phase is a release blocker.
 
 ## Phase 6 — `Then`
 
-- `Proj -> Proj`;
-- `Proj -> Spec`;
+- `Projection -> Projection`;
+- `Projection -> Specification`;
 - tests and documentation.
 
 ## Phase 7 — Projection advanced features
@@ -1203,14 +1206,14 @@ This phase is a release blocker.
 
 The work is accepted only when all of the following are true:
 
-- [ ] One shared expansion engine serves `Spec` and `Proj`.
-- [ ] `Spec<T>` remains a first-class API.
-- [ ] `Proj<TIn,TOut>` remains a first-class API.
+- [ ] One shared expansion engine serves `Specification` and `Projection`.
+- [ ] `Specification<T>` remains a first-class API.
+- [ ] `Projection<TSource,TResult>` remains a first-class API.
 - [ ] `Invoke` is available as common composition API.
 - [ ] `IsSatisfiedBy` remains available.
 - [ ] `Map` remains available.
-- [ ] `Spec` can be used inside `Proj` and is inlined.
-- [ ] `Proj` can be used inside `Spec` and is inlined.
+- [ ] `Specification` can be used inside `Projection` and is inlined.
+- [ ] `Projection` can be used inside `Specification` and is inlined.
 - [ ] Deep mixed composition works.
 - [ ] Provider-facing expressions contain no unresolved Raffinert invocation marker calls.
 - [ ] Provider-facing composition does not require `Expression.Invoke`.
@@ -1226,7 +1229,7 @@ The work is accepted only when all of the following are true:
 - [ ] Template missing-member bug is fixed.
 - [ ] Template property/field mismatch is fixed.
 - [ ] Analyzer tests pass.
-- [ ] EF Core integration tests cover mixed `Spec`/`Proj` reuse.
+- [ ] EF Core integration tests cover mixed `Specification`/`Projection` reuse.
 - [ ] Runtime package has no EF Core dependency.
 - [ ] Runtime package still targets `netstandard2.0` unless a documented blocker required change.
 - [ ] Public APIs have XML documentation.
@@ -1266,7 +1269,7 @@ When there is ambiguity, follow these priorities in order:
 2. LINQ-provider friendliness.
 3. Strong static typing.
 4. Simple public API.
-5. Preservation of `Spec` and `Proj` semantic vocabulary.
+5. Preservation of `Specification` and `Projection` semantic vocabulary.
 6. Reuse of one shared expression core.
 7. Backward source familiarity.
 8. Performance.
@@ -1276,7 +1279,7 @@ Do not solve a local issue by duplicating expansion logic.
 
 Do not add public abstractions simply because an internal implementation needs them.
 
-Do not make `Expr<TIn,TOut>` public unless it provides a useful supported user story beyond inheritance plumbing. If kept internal, still maintain the same conceptual architecture.
+Keep `ComposableExpression<TSource,TResult>` public only as a useful supported base for custom semantic expression wrappers, not merely as inheritance plumbing.
 
 Do not silently broaden the library into a mapping framework.
 
@@ -1319,21 +1322,21 @@ The implementation should make this style of code natural:
 ```csharp
 using Raffinert.Expressions;
 
-var total = Proj<Order, decimal>.Create(order =>
+var total = Projection<Order, decimal>.Create(order =>
     order.Lines.Sum(line => line.Price * line.Quantity));
 
-var expensive = Spec<Order>.Create(order =>
+var expensive = Specification<Order>.Create(order =>
     total.Invoke(order) > 1000m);
 
-var activeCustomer = Spec<Customer>.Create(customer =>
+var activeCustomer = Specification<Customer>.Create(customer =>
     customer.IsActive);
 
-var customer = Proj<Order, Customer>.Create(order =>
+var customer = Projection<Order, Customer>.Create(order =>
     order.Customer);
 
 var activeCustomerOrder = customer.Then(activeCustomer);
 
-var projection = Proj<Order, OrderDto>.Create(order => new OrderDto
+var projection = Projection<Order, OrderDto>.Create(order => new OrderDto
 {
     Id = order.Id,
     Total = total.Invoke(order),

@@ -9,13 +9,13 @@ It combines the focused APIs of `Raffinert.Spec` and `Raffinert.Proj` around one
 ```csharp
 using Raffinert.Expressions;
 
-var total = Proj<Order, decimal>.Create(order =>
+var total = Projection<Order, decimal>.Create(order =>
     order.Lines.Sum(line => line.Price * line.Quantity));
 
-var expensive = Spec<Order>.Create(order =>
+var expensive = Specification<Order>.Create(order =>
     total.Invoke(order) > 1000m);
 
-var projection = Proj<Order, OrderDto>.Create(order => new OrderDto
+var projection = Projection<Order, OrderDto>.Create(order => new OrderDto
 {
     Id = order.Id,
     Total = total.Invoke(order),
@@ -43,12 +43,12 @@ There are no Raffinert method calls and no `Expression.Invoke` nodes left in the
 
 ## Specifications
 
-Create a predicate inline or subclass `Spec<T>` and override `GetExpression()`:
+Create a predicate inline or subclass `Specification<T>` and override `GetExpression()`:
 
 ```csharp
-var inStock = Spec<Product>.Create(product => product.Stock > 0);
+var inStock = Specification<Product>.Create(product => product.Stock > 0);
 var visible = inStock.And(product => !product.IsHidden);
-var wanted = visible & !Spec<Product>.Create(product => product.IsDiscontinued);
+var wanted = visible & !Specification<Product>.Create(product => product.IsDiscontinued);
 
 bool matches = wanted.Invoke(product);
 ```
@@ -58,7 +58,7 @@ bool matches = wanted.Invoke(product);
 ## Projections
 
 ```csharp
-var summary = Proj<Product, ProductSummary>.Create(product => new ProductSummary
+var summary = Projection<Product, ProductSummary>.Create(product => new ProductSummary
 {
     Id = product.Id,
     Name = product.Name
@@ -76,7 +76,7 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 
 ## Cross-composition with `Invoke`
 
-`Invoke` is the common composition marker. A `Spec` can be embedded in a `Proj`, a `Proj` can be embedded in a `Spec`, and mixed chains can be nested to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
+`Invoke` is the common composition marker. A `Specification` can be embedded in a `Projection`, a `Projection` can be embedded in a `Specification`, and mixed chains can be nested to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
 
 `Invoke` is the only execution and composition primitive. Method groups such as `items.Any(spec.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
 
@@ -85,12 +85,12 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 Forward composition is available from projections:
 
 ```csharp
-Proj<Order, Customer> customer = ...;
-Proj<Customer, string> customerName = ...;
-Spec<Customer> active = ...;
+Projection<Order, Customer> customer = ...;
+Projection<Customer, string> customerName = ...;
+Specification<Customer> active = ...;
 
-Proj<Order, string> orderCustomerName = customer.Then(customerName);
-Spec<Order> activeCustomerOrder = customer.Then(active);
+Projection<Order, string> orderCustomerName = customer.Then(customerName);
+Specification<Order> activeCustomerOrder = customer.Then(active);
 ```
 
 `Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes.
@@ -100,8 +100,8 @@ Spec<Order> activeCustomerOrder = customer.Then(active);
 Use `InvokeOrDefault` only where a null input should produce `default(TOut)`:
 
 ```csharp
-var category = Proj<Category, CategoryDto>.Create(value => new CategoryDto { Name = value.Name });
-var product = Proj<Product, ProductDto>.Create(value => new ProductDto
+var category = Projection<Category, CategoryDto>.Create(value => new CategoryDto { Name = value.Name });
+var product = Projection<Product, ProductDto>.Create(value => new ProductDto
 {
     Category = category.InvokeOrDefault(value.Category)
 });
@@ -126,10 +126,10 @@ var template = ExpressionTemplate<Product>.Create(
     product => new { product.Name, product.Price },
     shape => shape.Price > 10m && shape.Name != null);
 
-Spec<InventoryItem> adapted = template.AdaptSpec<InventoryItem>();
+Specification<InventoryItem> adapted = template.AdaptSpecification<InventoryItem>();
 ```
 
-Properties and fields are supported. Missing, ambiguous, unreadable, and incompatible target members fail descriptively at runtime. The optional `Raffinert.Expressions.Analyzers` package reports unsupported shapes and incompatible adaptations at compile time. `SpecTemplate` remains as a migration facade.
+Properties and fields are supported. Missing, ambiguous, unreadable, and incompatible target members fail descriptively at runtime. The optional `Raffinert.Expressions.Analyzers` package reports unsupported shapes and incompatible adaptations at compile time. `SpecificationTemplate` provides a specification-focused facade.
 
 ## EF Core and provider compatibility
 
@@ -153,6 +153,6 @@ SQLite integration tests cover nested and cross-composed predicates/projections,
 
 ## Migration
 
-The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. The semantic types `Spec<T>` and `Proj<TIn,TOut>` remain unchanged.
+The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Rename `Spec<T>` to `Specification<T>`, `Proj<TIn,TOut>` to `Projection<TSource,TResult>`, and the public `Expr<TIn,TOut>` base to `ComposableExpression<TSource,TResult>`.
 
 See [MIGRATION.md](MIGRATION.md) for details.

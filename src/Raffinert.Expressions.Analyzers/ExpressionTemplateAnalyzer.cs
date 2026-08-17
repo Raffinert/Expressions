@@ -64,7 +64,7 @@ public sealed class ExpressionTemplateAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if ((method.Name == "Adapt" || method.Name == "AdaptSpec") && method.TypeArguments.Length == 1)
+        if ((method.Name == "Adapt" || method.Name == "AdaptSpecification") && method.TypeArguments.Length == 1)
         {
             AnalyzeAdapt(context, invocation, method.TypeArguments[0]);
         }
@@ -246,7 +246,7 @@ public sealed class ExpressionTemplateAnalyzer : DiagnosticAnalyzer
     };
 
     private static bool IsTemplateType(INamedTypeSymbol type) =>
-        type.Name == "ExpressionTemplate" || type.Name == "SpecTemplate";
+        type.Name == "ExpressionTemplate" || type.Name == "SpecificationTemplate";
 
     private readonly struct Requirement(string name, ITypeSymbol type)
     {

@@ -9,7 +9,7 @@ public class TemplateTests
             product => new { product.Name, product.Price },
             shape => shape.Price > 10m && shape.Name != null);
 
-        var adapted = template.AdaptSpec<InventoryItem>();
+        var adapted = template.AdaptSpecification<InventoryItem>();
 
         Assert.True(adapted.Invoke(new InventoryItem { Name = "Desk", Price = 20m }));
     }
@@ -17,7 +17,7 @@ public class TemplateTests
     [Fact]
     public void ExplicitShapeAdaptsPropertiesToFields()
     {
-        var template = SpecTemplate<Product>.Create(
+        var template = SpecificationTemplate<Product>.Create(
             product => new ProductShape { Name = product.Name, Price = product.Price },
             shape => shape.Price > 10m && shape.Name != null);
 
@@ -33,8 +33,8 @@ public class TemplateTests
             product => new { product.Name, product.Price },
             shape => shape.Price > 10m);
 
-        var missing = Assert.Throws<InvalidOperationException>(() => template.AdaptSpec<MissingPriceItem>());
-        var wrong = Assert.Throws<InvalidOperationException>(() => template.AdaptSpec<WrongPriceItem>());
+        var missing = Assert.Throws<InvalidOperationException>(() => template.AdaptSpecification<MissingPriceItem>());
+        var wrong = Assert.Throws<InvalidOperationException>(() => template.AdaptSpecification<WrongPriceItem>());
 
         Assert.Contains("missing", missing.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("incompatible", wrong.Message, StringComparison.OrdinalIgnoreCase);

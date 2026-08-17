@@ -10,24 +10,32 @@ using Raffinert.Expressions;
 
 The runtime remains `netstandard2.0` and has no EF Core dependency.
 
-## Preserved APIs
+## Renamed semantic types
 
-The aggregate package preserves the structural APIs:
+The aggregate package uses full names for its public semantic types:
 
-- `Spec<T>.Create`, subclassing, `GetExpression`, `True`, `False`, Boolean combinators and operators;
-- direct `Where(spec)` use;
-- `Proj<TIn,TOut>.Create`, subclassing, `GetExpression`, and direct `Select(proj)` use;
+- `Spec<T>` becomes `Specification<T>`;
+- `Proj<TIn,TOut>` becomes `Projection<TSource,TResult>`;
+- `Expr<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>` for custom semantic wrappers;
+- `SpecTemplate` becomes `SpecificationTemplate`;
+- `AdaptSpec<TTarget>` becomes `AdaptSpecification<TTarget>`.
+
+The aggregate package otherwise preserves the structural capabilities:
+
+- `Create`, subclassing, `GetExpression`, `True`, `False`, Boolean combinators and operators;
+- direct `Where(specification)` use;
+- projection creation, subclassing, `GetExpression`, and direct `Select(projection)` use;
 - `MergeBindings`, `MapToExisting`, and debugger expression views;
 - nested method-group forms through the canonical `Invoke` method;
-- `SpecTemplate` as a facade over the new structural template engine.
+- `SpecificationTemplate` as a facade over the structural template engine.
 
 ## Canonical invocation API
 
 Use `Invoke` when composing either semantic type into another expression:
 
 ```csharp
-var amount = Proj<Invoice, decimal>.Create(invoice => invoice.Amount);
-var overdue = Spec<Invoice>.Create(invoice =>
+var amount = Projection<Invoice, decimal>.Create(invoice => invoice.Amount);
+var overdue = Specification<Invoice>.Create(invoice =>
     amount.Invoke(invoice) > 0m && invoice.DueDate < today);
 ```
 
@@ -38,10 +46,10 @@ The aggregate API deliberately removes the old execution aliases:
 | `spec.IsSatisfiedBy(value)` | `spec.Invoke(value)` |
 | `projection.Map(value)` | `projection.Invoke(value)` |
 | `projection.MapIfNotNull(value)` | `projection.InvokeOrDefault(value)` |
-| `Spec<T>.True()` | `Spec<T>.True` |
-| `Spec<T>.False()` | `Spec<T>.False` |
+| `Spec<T>.True()` | `Specification<T>.True` |
+| `Spec<T>.False()` | `Specification<T>.False` |
 
-`InvokeOrDefault` is available on the shared expression base. A null input returns `default(TOut)`, which means `false` for a specification and values such as `0` for value-type projections.
+`InvokeOrDefault` is available on the shared expression base. A null input returns `default(TResult)`, which means `false` for a specification and values such as `0` for value-type projections.
 
 Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(specification)` for `A -> B -> bool`.
 

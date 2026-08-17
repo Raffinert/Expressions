@@ -1,14 +1,14 @@
 namespace Raffinert.Expressions;
 
-/// <summary>Controls how <see cref="Proj{TIn,TOut}.MergeBindings(Proj{TIn,TOut},BindingConflictBehavior)"/> handles duplicate members.</summary>
+/// <summary>Specifies how projection binding merges resolve members assigned by both inputs.</summary>
 public enum BindingConflictBehavior
 {
-    /// <summary>Use the binding from the second projection.</summary>
+    /// <summary>Uses the binding from the second input.</summary>
     UseLast,
 
-    /// <summary>Keep the binding from the first projection.</summary>
+    /// <summary>Uses the binding from the first input.</summary>
     UseFirst,
 
-    /// <summary>Throw when both projections bind the same member.</summary>
+    /// <summary>Causes the merge to throw when both inputs bind the same member.</summary>
     Throw
 }

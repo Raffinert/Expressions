@@ -2,7 +2,7 @@
 
 ## Shared expression abstraction
 
-`Expr<TIn,TOut>` owns expansion and compiled-delegate caching. `Spec<T>` and `Proj<TIn,TOut>` add domain vocabulary while sharing that implementation and the internal `IExpandableExpression` contract.
+`ComposableExpression<TSource,TResult>` owns expansion and compiled-delegate caching. `Specification<T>` and `Projection<TSource,TResult>` add domain vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
@@ -26,7 +26,7 @@ The engine never introduces `Expression.Invoke`.
 
 Because all semantic wrappers implement the same internal contract, nested expansion does not distinguish between predicates and projections. A Boolean output can be inserted into a member initializer, and a scalar/object projection can be inserted into a predicate.
 
-`Then` composes already-expanded typed lambdas with direct substitution. `Proj<A,B>.Then(Proj<B,C>)` yields `Proj<A,C>`; `Proj<A,B>.Then(Spec<B>)` yields `Spec<A>`.
+`Then` composes already-expanded typed lambdas with direct substitution. `Projection<A,B>.Then(Projection<B,C>)` yields `Projection<A,C>`; `Projection<A,B>.Then(Specification<B>)` yields `Specification<A>`.
 
 ## Null-safe invocation
 
@@ -40,7 +40,7 @@ Because all semantic wrappers implement the same internal contract, nested expan
 
 ## Structural templates
 
-One template engine backs `ExpressionTemplate` and the `SpecTemplate` facade. It validates direct readable sample-member selections, then rewrites accesses on the template parameter to uniquely named compatible public target properties or fields. Missing, ambiguous, unreadable, and incompatible members fail before query execution.
+One template engine backs `ExpressionTemplate` and the `SpecificationTemplate` facade. It validates direct readable sample-member selections, then rewrites accesses on the template parameter to uniquely named compatible public target properties or fields. Missing, ambiguous, unreadable, and incompatible members fail before query execution.
 
 ## Supported and unsupported shapes
 

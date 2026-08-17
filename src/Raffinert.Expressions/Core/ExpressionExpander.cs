@@ -5,7 +5,7 @@ namespace Raffinert.Expressions;
 internal static class ExpressionExpander
 {
     public static Expression<TDelegate> Expand<TDelegate>(
-        IExpandableExpression owner,
+        IExpressionExpansionSource owner,
         Expression<TDelegate> expression)
         where TDelegate : Delegate
     {
@@ -22,12 +22,12 @@ internal static class ExpressionExpander
         {
             if (!IsInvocationMarker(node.Method.Name) ||
                 node.Object == null ||
-                !typeof(IExpandableExpression).IsAssignableFrom(node.Object.Type))
+                !typeof(IExpressionExpansionSource).IsAssignableFrom(node.Object.Type))
             {
                 return base.VisitMethodCall(node);
             }
 
-            if (!SafeValueEvaluator.TryEvaluate(node.Object, out var value) || value is not IExpandableExpression expandable)
+            if (!SafeValueEvaluator.TryEvaluate(node.Object, out var value) || value is not IExpressionExpansionSource expansionSource)
             {
                 throw new InvalidOperationException(
                     $"Unable to resolve expression instance for invocation marker '{node.Method.DeclaringType?.FullName}.{node.Method.Name}'. " +
@@ -40,8 +40,8 @@ internal static class ExpressionExpander
                     $"Invocation marker '{node.Method.Name}' must have exactly one argument.");
             }
 
-            var argument = Visit(node.Arguments[0]);
-            var inner = ExpandNested(expandable);
+            var argument = Visit(node.Arguments[0])!;
+            var inner = ExpandNested(expansionSource);
             if (inner.Parameters.Count != 1)
             {
                 throw new InvalidOperationException(
@@ -50,7 +50,7 @@ internal static class ExpressionExpander
 
             var body = new ReplaceExpressionVisitor(inner.Parameters[0], argument).Visit(inner.Body)!;
 
-            if (node.Method.Name == nameof(Expr<,>.InvokeOrDefault) && CanBeNull(argument.Type))
+            if (node.Method.Name == nameof(ComposableExpression<,>.InvokeOrDefault) && CanBeNull(argument.Type))
             {
                 body = Expression.Condition(
                     Expression.Equal(argument, Expression.Default(argument.Type)),
@@ -58,7 +58,7 @@ internal static class ExpressionExpander
                     body);
             }
 
-            return Visit(body);
+            return Visit(body)!;
         }
 
         protected override Expression VisitUnary(UnaryExpression node)
@@ -92,9 +92,9 @@ internal static class ExpressionExpander
 
         private bool TryResolveMethodGroup(Expression targetExpression, out LambdaExpression expression)
         {
-            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpandableExpression expandable)
+            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpressionExpansionSource expansionSource)
             {
-                expression = ExpandNested(expandable);
+                expression = ExpandNested(expansionSource);
                 return true;
             }
 
@@ -105,10 +105,10 @@ internal static class ExpressionExpander
         private bool TryExpandDelegate(object? value, out LambdaExpression expression)
         {
             if (value is Delegate @delegate &&
-                @delegate.Target is IExpandableExpression expandable &&
+                @delegate.Target is IExpressionExpansionSource expansionSource &&
                 IsInvocationMarker(@delegate.Method.Name))
             {
-                expression = ExpandNested(expandable);
+                expression = ExpandNested(expansionSource);
                 return true;
             }
 
@@ -116,32 +116,32 @@ internal static class ExpressionExpander
             return false;
         }
 
-        private LambdaExpression ExpandNested(IExpandableExpression expandable)
+        private LambdaExpression ExpandNested(IExpressionExpansionSource expansionSource)
         {
-            var cached = expandable.GetCachedExpandedExpressionUntyped();
+            var cached = expansionSource.GetCachedExpandedExpression();
             if (cached != null) return cached;
 
-            if (!expansionStack.Add(expandable))
+            if (!expansionStack.Add(expansionSource))
             {
                 throw new InvalidOperationException(
-                    $"Expression composition cycle detected while expanding '{expandable.GetType().FullName}'.");
+                    $"Expression composition cycle detected while expanding '{expansionSource.GetType().FullName}'.");
             }
 
             try
             {
-                var expanded = (LambdaExpression)Visit(expandable.GetExpressionUntyped())!;
-                return expandable.CacheExpandedExpressionUntyped(expanded);
+                var expanded = (LambdaExpression)Visit(expansionSource.GetExpression())!;
+                return expansionSource.CacheExpandedExpression(expanded);
             }
             finally
             {
-                expansionStack.Remove(expandable);
+                expansionStack.Remove(expansionSource);
             }
         }
 
         private static bool IsInvocationMarker(string name)
         {
-            return name == nameof(Expr<,>.Invoke) ||
-                   name == nameof(Expr<,>.InvokeOrDefault);
+            return name == nameof(ComposableExpression<,>.Invoke) ||
+                   name == nameof(ComposableExpression<,>.InvokeOrDefault);
         }
 
         private static bool CanBeNull(Type type)

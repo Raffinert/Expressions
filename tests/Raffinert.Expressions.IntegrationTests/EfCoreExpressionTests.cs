@@ -22,12 +22,12 @@ public sealed class EfCoreExpressionTests : IDisposable
     }
 
     [Fact]
-    public void NestedSpecAndProjectionTranslate()
+    public void NestedSpecificationAndProjectionTranslate()
     {
-        var expensive = Spec<DbProduct>.Create(product => product.PriceCents > 1000);
-        var named = Spec<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
-        var category = Proj<DbCategory, CategoryRow>.Create(value => new CategoryRow { Name = value.Name });
-        var product = Proj<DbProduct, ProductRow>.Create(value => new ProductRow
+        var expensive = Specification<DbProduct>.Create(product => product.PriceCents > 1000);
+        var named = Specification<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
+        var category = Projection<DbCategory, CategoryRow>.Create(value => new CategoryRow { Name = value.Name });
+        var product = Projection<DbProduct, ProductRow>.Create(value => new ProductRow
         {
             Id = value.Id,
             Name = value.Name,
@@ -55,11 +55,11 @@ public sealed class EfCoreExpressionTests : IDisposable
     }
 
     [Fact]
-    public void SpecInsideProjectionAndProjectionInsideSpecTranslate()
+    public void SpecificationInsideProjectionAndProjectionInsideSpecificationTranslate()
     {
-        var price = Proj<DbProduct, int>.Create(product => product.PriceCents);
-        var expensive = Spec<DbProduct>.Create(product => price.Invoke(product) > 1000);
-        var row = Proj<DbProduct, ProductRow>.Create(product => new ProductRow
+        var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
+        var expensive = Specification<DbProduct>.Create(product => price.Invoke(product) > 1000);
+        var row = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
         {
             Id = product.Id,
             Name = product.Name,
@@ -84,15 +84,15 @@ public sealed class EfCoreExpressionTests : IDisposable
     [Fact]
     public void ThenAndDeepMixedCompositionTranslate()
     {
-        var price = Proj<DbProduct, int>.Create(product => product.PriceCents);
-        var doubled = Proj<int, int>.Create(value => value * 2);
-        var threshold = Spec<int>.Create(value => value >= 3000);
+        var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
+        var doubled = Projection<int, int>.Create(value => value * 2);
+        var threshold = Specification<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
-        var composedSpec = composedScalar.Then(threshold);
-        var mixed = Proj<DbProduct, bool>.Create(product => composedSpec.Invoke(product));
+        var composedSpecification = composedScalar.Then(threshold);
+        var mixed = Projection<DbProduct, bool>.Create(product => composedSpecification.Invoke(product));
 
         var values = _db.Products
-            .Where(composedSpec)
+            .Where(composedSpecification)
             .Select(mixed)
             .ToArray();
 
@@ -101,18 +101,18 @@ public sealed class EfCoreExpressionTests : IDisposable
     }
 
     [Fact]
-    public void ThenAndDeepMixedCompositionTranslateProjAsConditionAndSpecAsProjection()
+    public void ThenAndDeepMixedCompositionTranslateProjectionAsConditionAndSpecificationAsProjection()
     {
-        var price = Proj<DbProduct, int>.Create(product => product.PriceCents);
-        var doubled = Proj<int, int>.Create(value => value * 2);
-        var threshold = Spec<int>.Create(value => value >= 3000);
+        var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
+        var doubled = Projection<int, int>.Create(value => value * 2);
+        var threshold = Specification<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
-        var composedSpec = composedScalar.Then(threshold);
-        var mixed = Proj<DbProduct, bool>.Create(product => composedSpec.Invoke(product));
+        var composedSpecification = composedScalar.Then(threshold);
+        var mixed = Projection<DbProduct, bool>.Create(product => composedSpecification.Invoke(product));
 
         var values = _db.Products
             .Where(mixed)
-            .Select(composedSpec)
+            .Select(composedSpecification)
             .ToArray();
 
         Assert.Equal(3, values.Length);
@@ -122,12 +122,12 @@ public sealed class EfCoreExpressionTests : IDisposable
     [Fact]
     public void MergedProjectionTranslatesWithOverlaySemantics()
     {
-        var basis = Proj<DbProduct, ProductRow>.Create(product => new ProductRow
+        var basis = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
         {
             Id = product.Id,
             Name = product.Name
         });
-        var overlay = Proj<DbProduct, ProductRow>.Create(product => new ProductRow
+        var overlay = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
         {
             Name = product.Name + "!",
             IsExpensive = product.PriceCents > 1000
@@ -146,7 +146,7 @@ public sealed class EfCoreExpressionTests : IDisposable
         var template = ExpressionTemplate<SampleProduct>.Create(
             product => new { product.Name, product.PriceCents },
             shape => shape.PriceCents > 1000 && shape.Name != "Hidden");
-        var adapted = template.AdaptSpec<DbProduct>();
+        var adapted = template.AdaptSpecification<DbProduct>();
 
         var names = _db.Products
             .Where(adapted)

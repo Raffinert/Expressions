@@ -3,10 +3,17 @@ using System.Reflection;
 
 namespace Raffinert.Expressions;
 
-/// <summary>Creates structural expression templates from a sample type.</summary>
+/// <summary>Provides a factory for structural predicate templates defined from a sample type.</summary>
+/// <typeparam name="TSample">The sample type whose members define the available structural shape.</typeparam>
 public static class ExpressionTemplate<TSample>
 {
-    /// <summary>Creates a Boolean structural template.</summary>
+    /// <summary>Creates a predicate template over a structural shape selected from the sample type.</summary>
+    /// <typeparam name="TTemplate">The type of structural shape selected by <paramref name="template"/>.</typeparam>
+    /// <param name="template">An expression that selects the members required by the predicate.</param>
+    /// <param name="expression">The predicate expression defined over the selected shape.</param>
+    /// <returns>A template that can adapt the predicate to types exposing compatible members.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="template"/> or <paramref name="expression"/> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="template"/> is not a supported structural member selection.</exception>
     public static ExpressionTemplate<TSample, TTemplate> Create<TTemplate>(
         Expression<Func<TSample, TTemplate>> template,
         Expression<Func<TTemplate, bool>> expression)
@@ -15,9 +22,13 @@ public static class ExpressionTemplate<TSample>
     }
 }
 
-/// <summary>Adapts a Boolean expression over a selected structural shape to compatible target types.</summary>
-/// <param name="template">The sample shape selector.</param>
-/// <param name="expression">The Boolean expression written over the structural shape.</param>
+/// <summary>Represents a predicate template that can be adapted to types exposing compatible members.</summary>
+/// <typeparam name="TSample">The sample type whose members define the available structural shape.</typeparam>
+/// <typeparam name="TTemplate">The type of structural shape used by the predicate.</typeparam>
+/// <param name="template">An expression that selects the members required by the predicate.</param>
+/// <param name="expression">The predicate expression defined over the selected shape.</param>
+/// <exception cref="ArgumentNullException"><paramref name="template"/> or <paramref name="expression"/> is null.</exception>
+/// <exception cref="ArgumentException"><paramref name="template"/> is not a supported structural member selection.</exception>
 public class ExpressionTemplate<TSample, TTemplate>(
     Expression<Func<TSample, TTemplate>> template,
     Expression<Func<TTemplate, bool>> expression)
@@ -25,15 +36,24 @@ public class ExpressionTemplate<TSample, TTemplate>(
     private readonly Dictionary<MemberInfo, TemplateMember> _members =
         TemplateShapeReader.Read(template ?? throw new ArgumentNullException(nameof(template)));
 
-    /// <summary>Gets the sample shape selector.</summary>
+    /// <summary>Gets the expression that selects the required members from the sample type.</summary>
     public Expression<Func<TSample, TTemplate>> Template { get; } = template;
 
-    /// <summary>Gets the expression written over the structural shape.</summary>
+    /// <summary>Gets the predicate expression defined over the selected structural shape.</summary>
     public Expression<Func<TTemplate, bool>> Expression { get; } =
         expression ?? throw new ArgumentNullException(nameof(expression));
 
-    /// <summary>Adapts this template to a compatible target type.</summary>
-    public Spec<TTarget> AdaptSpec<TTarget>(string? newParameterName = null)
+    /// <summary>Creates a specification for a target type that exposes compatible members.</summary>
+    /// <typeparam name="TTarget">The type to which the predicate is adapted.</typeparam>
+    /// <param name="newParameterName">
+    /// The name of the parameter in the generated expression, or <see langword="null"/> to reuse the template predicate's parameter name.
+    /// </param>
+    /// <returns>A specification containing the adapted predicate.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A required target member is missing, ambiguous, unreadable, or has an incompatible type.
+    /// </exception>
+    /// <exception cref="NotSupportedException">The predicate uses the structural parameter in an unsupported way.</exception>
+    public Specification<TTarget> AdaptSpecification<TTarget>(string? newParameterName = null)
     {
         var oldParameter = Expression.Parameters[0];
         var newParameter = System.Linq.Expressions.Expression.Parameter(
@@ -46,13 +66,22 @@ public class ExpressionTemplate<TSample, TTemplate>(
 
         var visitor = new TemplateAdaptationVisitor(oldParameter, newParameter, _members);
         var body = visitor.Visit(Expression.Body)!;
-        return Spec<TTarget>.Create(
+        return Specification<TTarget>.Create(
             System.Linq.Expressions.Expression.Lambda<Func<TTarget, bool>>(body, newParameter));
     }
 
-    /// <summary>Compatibility alias for <see cref="AdaptSpec{TTarget}(string)"/>.</summary>
-    public Spec<TTarget> Adapt<TTarget>(string? newParameterName = null) =>
-        AdaptSpec<TTarget>(newParameterName);
+    /// <summary>Creates a specification for a target type that exposes compatible members.</summary>
+    /// <typeparam name="TTarget">The type to which the predicate is adapted.</typeparam>
+    /// <param name="newParameterName">
+    /// The name of the parameter in the generated expression, or <see langword="null"/> to reuse the template predicate's parameter name.
+    /// </param>
+    /// <returns>A specification containing the adapted predicate.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A required target member is missing, ambiguous, unreadable, or has an incompatible type.
+    /// </exception>
+    /// <exception cref="NotSupportedException">The predicate uses the structural parameter in an unsupported way.</exception>
+    public Specification<TTarget> Adapt<TTarget>(string? newParameterName = null) =>
+        AdaptSpecification<TTarget>(newParameterName);
 
     private sealed class TemplateAdaptationVisitor(
         ParameterExpression oldParameter,

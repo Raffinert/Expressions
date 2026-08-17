@@ -3,9 +3,9 @@
 ## Delivered
 
 - `Raffinert.Expressions.slnx` with a `netstandard2.0` runtime package and analyzer package.
-- One shared `Expr<TIn,TOut>` core, invocation expansion engine, safe closure/member target resolution, scoped parameter substitution, cycle detection, and per-instance caches.
-- Complete semantic `Spec<T>` and `Proj<TIn,TOut>` APIs, canonical `Invoke`/`InvokeOrDefault`, LINQ extensions, mixed cross-composition, method-group expansion, null-safe/default invocation, and `Then`.
-- Deterministic `MergeBindings`, safer `MapToExisting`, structural `ExpressionTemplate`, and the `SpecTemplate` compatibility facade.
+- One shared `ComposableExpression<TSource,TResult>` core, invocation expansion engine, safe closure/member target resolution, scoped parameter substitution, cycle detection, and per-instance caches.
+- Complete semantic `Specification<T>` and `Projection<TSource,TResult>` APIs, canonical `Invoke`/`InvokeOrDefault`, LINQ extensions, mixed cross-composition, method-group expansion, null-safe/default invocation, and `Then`.
+- Deterministic `MergeBindings`, safer `MapToExisting`, structural `ExpressionTemplate`, and the `SpecificationTemplate` facade.
 - Analyzer diagnostics REX001, REX002, and REX003.
 - Unit, analyzer, and EF Core SQLite integration test projects.
 - Package metadata, README, migration guide, changelog, architecture notes, and MIT license.
@@ -48,7 +48,7 @@ Documentation:
 
 ## Deliberate API/design choices
 
-- `Expr<TIn,TOut>` is public because it is a useful supported base for new semantic expression wrappers, while ordinary `Spec`/`Proj` users do not need to reference it.
+- `ComposableExpression<TSource,TResult>` is public because it is a useful supported base for new semantic expression wrappers, while ordinary `Specification`/`Projection` users do not need to reference it.
 - Compatibility aliases `IsSatisfiedBy`, `Map`, and `MapIfNotNull` are deliberately omitted. `Invoke` is the sole normal invocation API and `InvokeOrDefault` is the explicit null-input/default-output API.
 - `ExpressionTemplate` initially produces specifications (Boolean results). A generalized arbitrary result selector was intentionally left out as allowed by the staged compatibility path.
 - REX004 was not added because no separate unsupported-composition diagnostic is needed by the implemented API.

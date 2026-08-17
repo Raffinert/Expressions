@@ -2,16 +2,16 @@ using System.Linq.Expressions;
 
 namespace Raffinert.Expressions;
 
-internal sealed class ExpressionDebugView(IExpandableExpression expression)
+internal sealed class ExpressionDebugView(IExpressionExpansionSource source)
 {
-    public LambdaExpression OriginalExpression => expression.GetExpressionUntyped();
+    public LambdaExpression OriginalExpression => source.GetExpression();
 
     public LambdaExpression ExpandedExpression
     {
         get
         {
-            var method = expression.GetType().GetMethod(nameof(Expr<,>.GetExpandedExpression));
-            return (LambdaExpression)method!.Invoke(expression, null)!;
+            var method = source.GetType().GetMethod(nameof(ComposableExpression<,>.GetExpandedExpression));
+            return (LambdaExpression)method!.Invoke(source, null)!;
         }
     }
 

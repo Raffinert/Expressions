@@ -43,7 +43,7 @@ public class ExpressionTemplateAnalyzerTests
                     var template = ExpressionTemplate<Product>.Create(
                         p => new { p.Name, p.Price },
                         x => x.Price > 10m);
-                    var adapted = template.AdaptSpec<Target>();
+                    var adapted = template.AdaptSpecification<Target>();
                 }
             }
             """;
@@ -64,7 +64,7 @@ public class ExpressionTemplateAnalyzerTests
             {
                 void M()
                 {
-                    var template = SpecTemplate<Product>.Create(p => new { p.Price }, x => x.Price > 10m);
+                    var template = SpecificationTemplate<Product>.Create(p => new { p.Price }, x => x.Price > 10m);
                     var adapted = template.Adapt<Target>();
                 }
             }
@@ -90,8 +90,8 @@ public class ExpressionTemplateAnalyzerTests
                     var template = ExpressionTemplate<Product>.Create(
                         p => new { p.Name, p.Price },
                         x => x.Price > 10m && x.Name != null);
-                    _ = template.AdaptSpec<PropertyTarget>();
-                    _ = template.AdaptSpec<FieldTarget>();
+                    _ = template.AdaptSpecification<PropertyTarget>();
+                    _ = template.AdaptSpecification<FieldTarget>();
                 }
             }
             """;
@@ -109,7 +109,7 @@ public class ExpressionTemplateAnalyzerTests
             .Select(path => MetadataReference.CreateFromFile(path))
             .Cast<MetadataReference>()
             .ToList();
-        references.Add(MetadataReference.CreateFromFile(typeof(Spec<>).Assembly.Location));
+        references.Add(MetadataReference.CreateFromFile(typeof(Specification<>).Assembly.Location));
         var compilation = CSharpCompilation.Create(
             "AnalyzerTests",
             [syntaxTree],

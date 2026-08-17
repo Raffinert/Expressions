@@ -8,8 +8,8 @@ public class ProjectionTests
     public void InlineSubclassEnumerableAndQueryableProjectionWork()
     {
         var products = new[] { new Product { Name = "Book", Price = 12m } };
-        Proj<Product, string> inline = Proj<Product, string>.Create(product => product.Name);
-        Proj<Product, decimal> subclass = new PriceProjection();
+        Projection<Product, string> inline = Projection<Product, string>.Create(product => product.Name);
+        Projection<Product, decimal> subclass = new PriceProjection();
 
         Assert.Equal("Book", inline.Invoke(products[0]));
         Assert.Equal(12m, subclass.Invoke(products[0]));
@@ -20,8 +20,8 @@ public class ProjectionTests
     [Fact]
     public void NullSafeNestedProjectionUsesConditionalAndDefault()
     {
-        var category = Proj<Category, CategoryDto>.Create(value => new CategoryDto { Name = value.Name });
-        var product = Proj<Product, ProductDto>.Create(value => new ProductDto
+        var category = Projection<Category, CategoryDto>.Create(value => new CategoryDto { Name = value.Name });
+        var product = Projection<Product, ProductDto>.Create(value => new ProductDto
         {
             Name = value.Name,
             Category = category.InvokeOrDefault(value.Category)
@@ -37,8 +37,8 @@ public class ProjectionTests
     [Fact]
     public void NullableValueInputMapsSafely()
     {
-        var twice = Proj<int?, int>.Create(value => value!.Value * 2);
-        var wrapper = Proj<NullableHolder, int>.Create(value => twice.InvokeOrDefault(value.Value));
+        var twice = Projection<int?, int>.Create(value => value!.Value * 2);
+        var wrapper = Projection<NullableHolder, int>.Create(value => twice.InvokeOrDefault(value.Value));
 
         Assert.Equal(0, wrapper.Invoke(new NullableHolder()));
         Assert.Equal(8, wrapper.Invoke(new NullableHolder { Value = 4 }));
@@ -47,12 +47,12 @@ public class ProjectionTests
     [Fact]
     public void MergeBindingsHonorsAllConflictPolicies()
     {
-        var first = Proj<Product, ProductDto>.Create(product => new ProductDto
+        var first = Projection<Product, ProductDto>.Create(product => new ProductDto
         {
             Id = product.Id,
             Name = "first"
         });
-        var second = Proj<Product, ProductDto>.Create(product => new ProductDto
+        var second = Projection<Product, ProductDto>.Create(product => new ProductDto
         {
             Name = "second",
             IsExpensive = product.Price > 10m
@@ -73,10 +73,10 @@ public class ProjectionTests
     [Fact]
     public void ConditionalMergeMatchesBranchBindingsByMemberNotPosition()
     {
-        var conditional = Proj<ConditionalSource, MergeDto>.Create(source => source.Flag
+        var conditional = Projection<ConditionalSource, MergeDto>.Create(source => source.Flag
             ? new MergeDto { A = source.A, B = source.B }
             : new MergeDto { B = source.B + 1, A = source.A + 1 });
-        var overlay = Proj<ConditionalSource, MergeDto>.Create(source => new MergeDto { C = 9 });
+        var overlay = Projection<ConditionalSource, MergeDto>.Create(source => new MergeDto { C = 9 });
 
         var trueResult = conditional.MergeBindings(overlay).Invoke(new ConditionalSource { Flag = true, A = 2, B = 3 });
         var falseResult = conditional.MergeBindings(overlay).Invoke(new ConditionalSource { Flag = false, A = 2, B = 3 });
@@ -88,7 +88,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingUpdatesSimpleAndPresentNestedObjects()
     {
-        var nested = Proj<Product, ProductDto>.Create(product => new ProductDto
+        var nested = Projection<Product, ProductDto>.Create(product => new ProductDto
         {
             Id = product.Id,
             Category = product.Category == null
@@ -112,8 +112,8 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingCreatesRootButRejectsMissingNestedDestination()
     {
-        var nestedCategory = Proj<Category, CategoryDto>.Create(category => new CategoryDto { Name = category.Name });
-        var projection = Proj<Product, ProductDto>.Create(product => new ProductDto
+        var nestedCategory = Projection<Category, CategoryDto>.Create(category => new CategoryDto { Name = category.Name });
+        var projection = Projection<Product, ProductDto>.Create(product => new ProductDto
         {
             Category = nestedCategory.Invoke(product.Category!)
         });
@@ -133,7 +133,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingConditionalNullClearsNestedDestination()
     {
-        var projection = Proj<Product, ProductDto>.Create(product => new ProductDto
+        var projection = Projection<Product, ProductDto>.Create(product => new ProductDto
         {
             Category = product.Category == null
                 ? null
@@ -149,7 +149,7 @@ public class ProjectionTests
     [Fact]
     public void UnsupportedMapToExistingShapeIsDescriptive()
     {
-        var projection = Proj<Product, string>.Create(product => product.Name);
+        var projection = Projection<Product, string>.Create(product => product.Name);
 
         var exception = Assert.Throws<NotSupportedException>(projection.GetMapToExistingExpression);
 
@@ -174,7 +174,7 @@ public class ProjectionTests
         }
     }
 
-    private sealed class PriceProjection : Proj<Product, decimal>
+    private sealed class PriceProjection : Projection<Product, decimal>
     {
         public override Expression<Func<Product, decimal>> GetExpression() => product => product.Price;
     }
