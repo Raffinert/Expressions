@@ -11,7 +11,7 @@
     <DebugType>portable</DebugType>
     <PackageId>Raffinert.Expressions</PackageId>
     <Title>Raffinert.Expressions</Title>
-    <Authors>Raffinert</Authors>
+	<Authors>Yevhen Cherkes</Authors>
     <Description>Lightweight composable expression trees for reusable specifications, projections, structural templates, and LINQ/EF Core query logic.</Description>
     <PackageTags>LINQ;Expressions;ExpressionTree;Specification;Projection;EFCore;Composable;Predicate;Selector</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

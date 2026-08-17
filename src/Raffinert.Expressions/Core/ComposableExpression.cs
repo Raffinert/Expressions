@@ -27,11 +27,19 @@ public abstract class ComposableExpression<TSource, TResult> : IExpressionExpans
     /// <remarks>The expanded expression is created once and cached for the lifetime of this instance.</remarks>
     public Expression<Func<TSource, TResult>> GetExpandedExpression()
     {
-        if (_expandedExpression != null) return _expandedExpression;
+        var cached = _expandedExpression;
+        if (cached is not null)
+            return cached;
 
         lock (_cacheLock)
         {
-            return _expandedExpression ??= ExpressionExpander.Expand(this, GetExpression());
+            cached = _expandedExpression;
+            if (cached is not null)
+                return cached;
+
+            var expanded = ExpressionExpander.Expand(this, GetExpression());
+
+            return _expandedExpression = expanded;
         }
     }
 
@@ -44,14 +52,23 @@ public abstract class ComposableExpression<TSource, TResult> : IExpressionExpans
     /// </remarks>
     public TResult Invoke(TSource value)
     {
-        if (_compiledExpression != null) return _compiledExpression(value);
+        var compiled = _compiledExpression;
+
+        if (compiled is not null) 
+            return compiled(value);
 
         lock (_cacheLock)
         {
-            _compiledExpression ??= GetExpandedExpression().Compile();
+            compiled = _compiledExpression;
+
+            if (compiled is not null) 
+                return compiled(value);
+
+            compiled = GetExpandedExpression().Compile();
+            _compiledExpression = compiled;
         }
 
-        return _compiledExpression(value);
+        return compiled(value);
     }
 
     /// <summary>Returns the default result for a null input; otherwise evaluates the expression.</summary>

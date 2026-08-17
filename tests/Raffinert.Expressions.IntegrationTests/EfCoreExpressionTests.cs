@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Raffinert.Expressions.IntegrationTests;
 
-public sealed class EfCoreExpressionTests : IDisposable
+public sealed class EfCoreExpressionTests : IAsyncLifetime
 {
     private readonly SqliteConnection _connection;
     private readonly TestDbContext _db;
@@ -11,18 +11,15 @@ public sealed class EfCoreExpressionTests : IDisposable
     public EfCoreExpressionTests()
     {
         _connection = new SqliteConnection("Data Source=:memory:");
-        _connection.Open();
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseSqlite(_connection)
             .EnableSensitiveDataLogging()
             .Options;
         _db = new TestDbContext(options);
-        _db.Database.EnsureCreated();
-        Seed(_db);
     }
 
     [Fact]
-    public void NestedSpecificationAndProjectionTranslate()
+    public async Task NestedSpecificationAndProjectionTranslate()
     {
         var expensive = Specification<DbProduct>.Create(product => product.PriceCents > 1000);
         var named = Specification<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
@@ -40,7 +37,7 @@ public sealed class EfCoreExpressionTests : IDisposable
             .OrderBy(row => row.Name);
 
         var sql = query.ToQueryString();
-        var rows = query.ToArray();
+        var rows = await query.ToArrayAsync();
 
         Assert.Equal("""
                      SELECT "p"."Id", "p"."Name", "c"."Id" IS NULL, "c"."Name"
@@ -55,7 +52,7 @@ public sealed class EfCoreExpressionTests : IDisposable
     }
 
     [Fact]
-    public void SpecificationInsideProjectionAndProjectionInsideSpecificationTranslate()
+    public async Task SpecificationInsideProjectionAndProjectionInsideSpecificationTranslate()
     {
         var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
         var expensive = Specification<DbProduct>.Create(product => price.Invoke(product) > 1000);
@@ -68,7 +65,7 @@ public sealed class EfCoreExpressionTests : IDisposable
 
         var query = _db.Products.Where(expensive).Select(row).OrderBy(value => value.Id);
         var sql = query.ToQueryString();
-        var rows = query.ToArray();
+        var rows = await query.ToArrayAsync();
 
         Assert.Equal("""
                      SELECT "p"."Id", "p"."Name", "p"."PriceCents" > 1000 AS "IsExpensive"
@@ -82,7 +79,7 @@ public sealed class EfCoreExpressionTests : IDisposable
     }
 
     [Fact]
-    public void ThenAndDeepMixedCompositionTranslate()
+    public async Task ThenAndDeepMixedCompositionTranslate()
     {
         var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
         var doubled = Projection<int, int>.Create(value => value * 2);
@@ -91,17 +88,17 @@ public sealed class EfCoreExpressionTests : IDisposable
         var composedSpecification = composedScalar.Then(threshold);
         var mixed = Projection<DbProduct, bool>.Create(product => composedSpecification.Invoke(product));
 
-        var values = _db.Products
+        var values = await _db.Products
             .Where(composedSpecification)
             .Select(mixed)
-            .ToArray();
+            .ToArrayAsync();
 
         Assert.Equal(3, values.Length);
         Assert.All(values, Assert.True);
     }
 
     [Fact]
-    public void ThenAndDeepMixedCompositionTranslateProjectionAsConditionAndSpecificationAsProjection()
+    public async Task ThenAndDeepMixedCompositionTranslateProjectionAsConditionAndSpecificationAsProjection()
     {
         var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
         var doubled = Projection<int, int>.Create(value => value * 2);
@@ -110,17 +107,17 @@ public sealed class EfCoreExpressionTests : IDisposable
         var composedSpecification = composedScalar.Then(threshold);
         var mixed = Projection<DbProduct, bool>.Create(product => composedSpecification.Invoke(product));
 
-        var values = _db.Products
+        var values = await _db.Products
             .Where(mixed)
             .Select(composedSpecification)
-            .ToArray();
+            .ToArrayAsync();
 
         Assert.Equal(3, values.Length);
         Assert.All(values, Assert.True);
     }
 
     [Fact]
-    public void MergedProjectionTranslatesWithOverlaySemantics()
+    public async Task MergedProjectionTranslatesWithOverlaySemantics()
     {
         var basis = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
         {
@@ -134,44 +131,52 @@ public sealed class EfCoreExpressionTests : IDisposable
         });
 
         var query = _db.Products.Select(basis.MergeBindings(overlay)).OrderBy(row => row.Name);
-        var rows = query.ToArray();
+        var rows = await query.ToArrayAsync();
 
         Assert.False(rows.Single(row => row.Name == "Pencil!").IsExpensive);
         Assert.True(rows.Single(row => row.Name == "Desk!").IsExpensive);
     }
 
     [Fact]
-    public void StructuralTemplateAdaptsInsideEfQuery()
+    public async Task StructuralTemplateAdaptsInsideEfQuery()
     {
         var template = ExpressionTemplate<SampleProduct>.Create(
             product => new { product.Name, product.PriceCents },
             shape => shape.PriceCents > 1000 && shape.Name != "Hidden");
-        var adapted = template.AdaptSpecification<DbProduct>();
+        var adapted = template.AdaptSpecification<DbProduct>("product");
 
-        var names = _db.Products
+        var names = await _db.Products
             .Where(adapted)
             .OrderBy(product => product.Name)
             .Select(product => product.Name)
-            .ToArray();
+            .ToArrayAsync();
 
         Assert.Equal(["Desk", "Uncategorized"], names);
     }
 
-    public void Dispose()
+    public async Task InitializeAsync()
     {
-        _db.Dispose();
-        _connection.Dispose();
+        await _connection.OpenAsync();
+        await _db.Database.EnsureCreatedAsync();
+        Seed();
+        await _db.SaveChangesAsync();
     }
 
-    private static void Seed(TestDbContext db)
+    public async Task DisposeAsync()
+    {
+        await _db.DisposeAsync();
+        await _connection.DisposeAsync();
+    }
+
+    private void Seed()
     {
         var office = new DbCategory { Name = "Office" };
-        db.Products.AddRange(
+        _db.Products.AddRange(
             new DbProduct { Name = "Pencil", PriceCents = 200, Category = office },
             new DbProduct { Name = "Desk", PriceCents = 20000, Category = office },
             new DbProduct { Name = "Uncategorized", PriceCents = 1500 },
             new DbProduct { Name = "Hidden", PriceCents = 9000 });
-        db.SaveChanges();
+       
     }
 }
 

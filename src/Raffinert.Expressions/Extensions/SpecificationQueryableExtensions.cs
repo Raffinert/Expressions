@@ -13,6 +13,6 @@ public static class SpecificationQueryableExtensions
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (specification == null) throw new ArgumentNullException(nameof(specification));
-        return Queryable.Where(source, specification.GetExpandedExpression());
+        return source.Where(specification.GetExpandedExpression());
     }
 }

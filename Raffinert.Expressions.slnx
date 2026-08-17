@@ -1,7 +1,5 @@
 <Solution>
-  <Project Path="src/Raffinert.Expressions.Analyzers/Raffinert.Expressions.Analyzers.csproj" />
   <Project Path="src/Raffinert.Expressions/Raffinert.Expressions.csproj" />
-  <Project Path="tests/Raffinert.Expressions.Analyzers.Tests/Raffinert.Expressions.Analyzers.Tests.csproj" />
   <Project Path="tests/Raffinert.Expressions.IntegrationTests/Raffinert.Expressions.IntegrationTests.csproj" />
   <Project Path="tests/Raffinert.Expressions.UnitTests/Raffinert.Expressions.UnitTests.csproj" />
 </Solution>

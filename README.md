@@ -129,7 +129,7 @@ var template = ExpressionTemplate<Product>.Create(
 Specification<InventoryItem> adapted = template.AdaptSpecification<InventoryItem>();
 ```
 
-Properties and fields are supported. Missing, ambiguous, unreadable, and incompatible target members fail descriptively at runtime. The optional `Raffinert.Expressions.Analyzers` package reports unsupported shapes and incompatible adaptations at compile time. `SpecificationTemplate` provides a specification-focused facade.
+Properties and fields are supported. Unsupported shapes and missing, ambiguous, unreadable, or incompatible target members fail descriptively at runtime. `SpecificationTemplate` provides a specification-focused API.
 
 ## EF Core and provider compatibility
 

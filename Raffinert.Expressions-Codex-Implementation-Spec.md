@@ -42,7 +42,7 @@ The source repositories use the short type names `Spec<T>` and `Proj<TIn,TOut>`;
 - direct use with `IQueryable<T>.Where(spec)`
 - direct use with `IEnumerable<T>.Where(spec)`
 - debugger expression view
-- specification templates and analyzer behavior
+- specification templates and runtime validation behavior
 
 ## `Raffinert.Proj`
 
@@ -92,12 +92,9 @@ src/
     Extensions/
     Debugging/
 
-  Raffinert.Expressions.Analyzers/
-
 tests/
   Raffinert.Expressions.UnitTests/
   Raffinert.Expressions.IntegrationTests/
-  Raffinert.Expressions.Analyzers.Tests/
 
 benchmarks/
   Raffinert.Expressions.Benchmarks/      # optional, only after functional completion
@@ -713,34 +710,17 @@ Fix existing issues during migration:
 
 ---
 
-# 15. Analyzer migration
+# 15. Runtime template validation
 
-Create/rename analyzer package:
+Do not ship a separate analyzer package. Template validation must be complete and authoritative at runtime.
 
-`Raffinert.Expressions.Analyzers`
+Required validation behavior:
 
-Migrate the intent of existing `SpecificationTemplateCreateAnalyzer` and `SpecificationTemplateAdaptAnalyzer`.
-
-## Required analyzer goals
-
-- reject unsupported template shape at compile time where statically detectable;
-- detect missing target members for `Adapt...<TTarget>()` where type is statically known;
-- validate property/field type compatibility;
-- produce actionable diagnostic text;
-- include tests for both positive and negative cases.
-
-Suggested diagnostic IDs:
-
-```text
-REX001 Unsupported expression-template shape
-REX002 Target type is missing a required member
-REX003 Target member has incompatible type
-REX004 Unsupported composition target (only if needed)
-```
-
-Do not emit diagnostics for valid normal expression usage.
-
-Analyzers must not be required for runtime correctness.
+- reject unsupported template shapes when a template is constructed;
+- detect missing, ambiguous, or unreadable target members during adaptation;
+- validate property and field type compatibility using the same rules as expression rewriting;
+- produce actionable exception messages that identify the target type and member;
+- cover valid and invalid shapes with runtime unit tests.
 
 ---
 
@@ -1184,12 +1164,12 @@ This phase is a release blocker.
 - explicit conflict behavior;
 - hardened `MapToExisting`.
 
-## Phase 8 — Templates/analyzers
+## Phase 8 — Templates
 
 - migrate template engine;
 - fix current correctness defects;
 - generalize toward `ExpressionTemplate`;
-- migrate analyzers and tests.
+- add comprehensive runtime validation tests.
 
 ## Phase 9 — Documentation and cleanup
 
@@ -1228,14 +1208,14 @@ The work is accepted only when all of the following are true:
 - [ ] Existing map-to-existing scenarios work or have explicitly documented safer behavior.
 - [ ] Template missing-member bug is fixed.
 - [ ] Template property/field mismatch is fixed.
-- [ ] Analyzer tests pass.
+- [ ] Runtime template validation tests pass.
 - [ ] EF Core integration tests cover mixed `Specification`/`Projection` reuse.
 - [ ] Runtime package has no EF Core dependency.
 - [ ] Runtime package still targets `netstandard2.0` unless a documented blocker required change.
 - [ ] Public APIs have XML documentation.
 - [ ] README leads with expression composition/cross-reuse rather than Specification Pattern history.
 - [ ] `dotnet test` passes for the entire solution.
-- [ ] `dotnet pack` succeeds for runtime and analyzer packages.
+- [ ] `dotnet pack` succeeds for the runtime package.
 
 ---
 
@@ -1291,20 +1271,18 @@ Codex should finish with:
 
 1. Compiling `Raffinert.Expressions.sln`.
 2. Runtime package project.
-3. Analyzer package project.
-4. Unit tests.
-5. EF integration tests.
-6. Analyzer tests.
-7. README.
-8. Migration document from both legacy libraries.
-9. Changelog/release notes for initial aggregated release.
-10. A short architecture document explaining:
+3. Unit tests.
+4. EF integration tests.
+5. README.
+6. Migration document from both legacy libraries.
+7. Changelog/release notes for initial aggregated release.
+8. A short architecture document explaining:
    - invocation expansion;
    - parameter substitution;
    - cross-composition;
    - caching;
    - supported/unsupported expression shapes.
-11. A final implementation report listing:
+9. A final implementation report listing:
    - files changed;
    - deliberate API deviations from this specification;
    - remaining limitations;

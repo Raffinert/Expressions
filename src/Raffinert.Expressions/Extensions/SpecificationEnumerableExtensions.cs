@@ -13,6 +13,6 @@ public static class SpecificationEnumerableExtensions
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (specification == null) throw new ArgumentNullException(nameof(specification));
-        return Enumerable.Where(source, specification.Invoke);
+        return source.Where(specification.Invoke);
     }
 }

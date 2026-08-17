@@ -16,6 +16,6 @@ public static class ProjectionEnumerableExtensions
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (projection == null) throw new ArgumentNullException(nameof(projection));
-        return Enumerable.Select(source, projection.Invoke);
+        return source.Select(projection.Invoke);
     }
 }
