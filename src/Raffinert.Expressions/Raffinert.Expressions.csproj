@@ -12,7 +12,7 @@
     <PackageId>Raffinert.Expressions</PackageId>
     <Title>Raffinert.Expressions</Title>
 	<Authors>Yevhen Cherkes</Authors>
-    <Description>Lightweight composable expression trees for reusable specifications, projections, structural templates, and LINQ/EF Core query logic.</Description>
+    <Description>Lightweight composable expression trees for reusable specifications, projections, and LINQ/EF Core query logic.</Description>
     <PackageTags>LINQ;Expressions;ExpressionTree;Specification;Projection;EFCore;Composable;Predicate;Selector</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Raffinert/Raffinert.Expressions</PackageProjectUrl>

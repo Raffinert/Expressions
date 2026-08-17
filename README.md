@@ -39,7 +39,8 @@ order => new OrderDto
 }
 ```
 
-There are no Raffinert method calls and no `Expression.Invoke` nodes left in the expanded tree.
+The library produces this tree by replacing each `.Invoke(...)` call on a specification or projection
+with the referenced expression body.
 
 ## Specifications
 
@@ -117,20 +118,6 @@ Expansion produces a normal conditional expression. Ordinary `Invoke` does not a
 var result = basis.MergeBindings(overrides); // overrides win
 ```
 
-## Structural expression templates
-
-Define a predicate against a small structural shape and adapt it to types with compatible readable members:
-
-```csharp
-var template = ExpressionTemplate<Product>.Create(
-    product => new { product.Name, product.Price },
-    shape => shape.Price > 10m && shape.Name != null);
-
-Specification<InventoryItem> adapted = template.AdaptSpecification<InventoryItem>();
-```
-
-Properties and fields are supported. Unsupported shapes and missing, ambiguous, unreadable, or incompatible target members fail descriptively at runtime. `SpecificationTemplate` provides a specification-focused API.
-
 ## EF Core and provider compatibility
 
 The runtime library knows nothing about EF Core. Queryable overloads pass `GetExpandedExpression()` directly to LINQ. Expanded expressions contain ordinary nodes such as member access, calls to normal LINQ methods, Boolean operators, member initialization, and conditionals.
@@ -143,7 +130,7 @@ This means:
 - no `AsExpandable()` call;
 - no per-row reflection or expression traversal.
 
-SQLite integration tests cover nested and cross-composed predicates/projections, `Then`, null-safe mapping, merged member initializers, and structural templates.
+SQLite integration tests cover nested and cross-composed predicates/projections, `Then`, null-safe mapping, and merged member initializers.
 
 ## Runtime execution
 
@@ -156,3 +143,8 @@ SQLite integration tests cover nested and cross-composed predicates/projections,
 The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Rename `Spec<T>` to `Specification<T>`, `Proj<TIn,TOut>` to `Projection<TSource,TResult>`, and the public `Expr<TIn,TOut>` base to `ComposableExpression<TSource,TResult>`.
 
 See [MIGRATION.md](MIGRATION.md) for details.
+
+## Related repositories
+
+- [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec)
+- [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj)

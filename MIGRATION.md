@@ -16,9 +16,7 @@ The aggregate package uses full names for its public semantic types:
 
 - `Spec<T>` becomes `Specification<T>`;
 - `Proj<TIn,TOut>` becomes `Projection<TSource,TResult>`;
-- `Expr<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>` for custom semantic wrappers;
-- `SpecTemplate` becomes `SpecificationTemplate`;
-- `AdaptSpec<TTarget>` becomes `AdaptSpecification<TTarget>`.
+- `Expr<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>` for custom semantic wrappers.
 
 The aggregate package otherwise preserves the structural capabilities:
 
@@ -26,8 +24,10 @@ The aggregate package otherwise preserves the structural capabilities:
 - direct `Where(specification)` use;
 - projection creation, subclassing, `GetExpression`, and direct `Select(projection)` use;
 - `MergeBindings`, `MapToExisting`, and debugger expression views;
-- nested method-group forms through the canonical `Invoke` method;
-- `SpecificationTemplate` as a facade over the structural template engine.
+- nested method-group forms through the canonical `Invoke` method.
+
+Structural templates from `Raffinert.Spec` are not included in this release. Keep the old package where that feature
+is required, or replace the adaptation with an explicit specification for each source type.
 
 ## Canonical invocation API
 
@@ -59,8 +59,6 @@ Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(spe
 - Conditional merge branches are matched by destination member, not binding order.
 - `MapToExisting` throws a descriptive exception when a nested destination object is null. It does not automatically construct nested objects.
 - Unsupported map-to-existing and merge shapes throw `NotSupportedException` instead of producing malformed trees.
-- Template adaptation correctly rejects missing or incompatible members and supports both target properties and fields.
-- Template selectors must use direct sample-member reads and retain member names.
 
 ## Query behavior
 

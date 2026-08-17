@@ -38,10 +38,6 @@ Because all semantic wrappers implement the same internal contract, nested expan
 
 `MapToExisting` accepts member-initializer roots and supported conditional branches. Scalar assignments become destination assignments. Nested member initializers recursively update existing nested instances after an explicit null guard. Automatic nested construction is intentionally outside scope.
 
-## Structural templates
-
-One template engine backs `ExpressionTemplate` and the `SpecificationTemplate` facade. It validates direct readable sample-member selections, then rewrites accesses on the template parameter to uniquely named compatible public target properties or fields. Missing, ambiguous, unreadable, and incompatible members fail before query execution.
-
 ## Supported and unsupported shapes
 
 Provider-facing expansion supports any ordinary expression nodes inside a reusable lambda. The restriction applies only to resolving the wrapper object: arbitrary parameter-dependent code is not executed during expansion.
@@ -49,7 +45,6 @@ Provider-facing expansion supports any ordinary expression nodes inside a reusab
 Advanced projection transforms intentionally support a smaller set:
 
 - merge: parameterless `MemberInitExpression` and compatible conditionals;
-- update existing: member initializer roots and supported conditional branches;
-- templates: anonymous/object shapes made of direct member reads.
+- update existing: member initializer roots and supported conditional branches.
 
 Unsupported shapes fail descriptively rather than being partially transformed.

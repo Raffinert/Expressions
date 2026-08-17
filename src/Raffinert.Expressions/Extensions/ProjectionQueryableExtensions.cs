@@ -16,6 +16,7 @@ public static class ProjectionQueryableExtensions
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (projection == null) throw new ArgumentNullException(nameof(projection));
+
         return source.Select(projection.GetExpandedExpression());
     }
 }

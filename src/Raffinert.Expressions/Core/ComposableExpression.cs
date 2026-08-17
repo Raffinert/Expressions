@@ -34,12 +34,11 @@ public abstract class ComposableExpression<TSource, TResult> : IExpressionExpans
         lock (_cacheLock)
         {
             cached = _expandedExpression;
+
             if (cached is not null)
                 return cached;
 
-            var expanded = ExpressionExpander.Expand(this, GetExpression());
-
-            return _expandedExpression = expanded;
+            return _expandedExpression = ExpressionExpander.Expand(this, GetExpression());
         }
     }
 
@@ -64,8 +63,7 @@ public abstract class ComposableExpression<TSource, TResult> : IExpressionExpans
             if (compiled is not null) 
                 return compiled(value);
 
-            compiled = GetExpandedExpression().Compile();
-            _compiledExpression = compiled;
+            _compiledExpression = compiled = GetExpandedExpression().Compile();
         }
 
         return compiled(value);

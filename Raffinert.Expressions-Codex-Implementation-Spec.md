@@ -42,7 +42,6 @@ The source repositories use the short type names `Spec<T>` and `Proj<TIn,TOut>`;
 - direct use with `IQueryable<T>.Where(spec)`
 - direct use with `IEnumerable<T>.Where(spec)`
 - debugger expression view
-- specification templates and runtime validation behavior
 
 ## `Raffinert.Proj`
 
@@ -88,7 +87,6 @@ src/
     Core/
     Specifications/
     Projections/
-    Templates/
     Extensions/
     Debugging/
 
@@ -666,65 +664,15 @@ all under `Raffinert.Expressions` or `Raffinert.Expressions.Extensions`.
 
 ---
 
-# 14. Expression templates / structural adaptation
+# 14. Deferred structural adaptation
 
-Do not leave the current feature permanently coupled only to specifications.
-
-The long-term design should be generalized as **`ExpressionTemplate`**.
-
-Implement this after core aggregation and cross-composition are stable.
-
-## Goal
-
-Allow an expression defined against a sample structural shape to adapt to another type that exposes compatible members.
-
-Example concept:
-
-```csharp
-var template = ExpressionTemplate<Product>.Create(
-    p => new { p.Name, p.Price },
-    x => x.Price > 10m && x.Name != null);
-
-Specification<InventoryItem> adapted = template.AdaptSpecification<InventoryItem>();
-```
-
-A generalized result-selector form may later support non-boolean outputs.
-
-## Minimum compatibility path
-
-If generalization would create excessive scope for the first implementation, preserve `SpecificationTemplate` as a facade implemented on top of a new internal template engine.
-
-Do not duplicate two separate template engines.
-
-## Correctness fixes required
-
-Fix existing issues during migration:
-
-1. Missing destination members must actually be detected.
-2. Field members validated as compatible must not later be rewritten using property-only APIs.
-3. Use `Expression.PropertyOrField` or resolved `MemberInfo` appropriately.
-4. Validate readable member access.
-5. Handle duplicate public member names safely; do not assume `GetMembers(...).ToDictionary(x => x.Name)` can never conflict.
-6. Validate type equality/assignability deliberately rather than relying on reflection object-type equality alone.
-7. Preserve nested lambda scopes.
+Structural adaptation is outside the first release. Revisit it only when there is a clear, type-safe design that
+supports both specification source adaptation and projection source/result adaptation without relying on implicit
+member-name matching.
 
 ---
 
-# 15. Runtime template validation
-
-Do not ship a separate analyzer package. Template validation must be complete and authoritative at runtime.
-
-Required validation behavior:
-
-- reject unsupported template shapes when a template is constructed;
-- detect missing, ambiguous, or unreadable target members during adaptation;
-- validate property and field type compatibility using the same rules as expression rewriting;
-- produce actionable exception messages that identify the target type and member;
-- cover valid and invalid shapes with runtime unit tests.
-
----
-
-# 16. Debugging experience
+# 15. Debugging experience
 
 Preserve custom debugger support.
 
@@ -742,7 +690,7 @@ Do not add runtime dependencies solely for pretty-printing expressions.
 
 ---
 
-# 17. Caching rules
+# 16. Caching rules
 
 Cache only deterministic results owned by an immutable expression wrapper instance.
 
@@ -762,7 +710,7 @@ If a subclass returns a materially different expression on each call, cached beh
 
 ---
 
-# 18. EF/LINQ provider compatibility principles
+# 17. EF/LINQ provider compatibility principles
 
 The runtime package must remain provider-agnostic.
 
@@ -784,7 +732,7 @@ Integration tests may use EF Core SQLite or another lightweight EF provider to p
 
 ---
 
-# 19. Backward compatibility strategy
+# 18. Backward compatibility strategy
 
 This is a new package and namespace, so binary compatibility with old NuGets is not required, but source migration should be deliberately easy.
 
@@ -812,7 +760,6 @@ Add:
 ComposableExpression<TSource,TResult>
 Invoke
 Then
-ExpressionTemplate      # staged if needed
 ```
 
 ## Optional compatibility packages
@@ -830,7 +777,7 @@ This is outside MVP unless explicitly requested.
 
 ---
 
-# 20. API naming conventions
+# 19. API naming conventions
 
 Use semantic types for user code:
 
@@ -859,11 +806,11 @@ Avoid `Apply`, `Execute`, `Evaluate`, `Call`, and `Compose` aliases unless they 
 
 ---
 
-# 21. Required tests
+# 20. Required tests
 
 The implementation is not complete until these scenarios are covered.
 
-## 21.1 Core expression tests
+## 20.1 Core expression tests
 
 - parameter replacement;
 - nested lambda parameter shadowing;
@@ -875,7 +822,7 @@ The implementation is not complete until these scenarios are covered.
 - cycle behavior;
 - expanded tree contains no library `Invoke` marker calls.
 
-## 21.2 Specification tests
+## 20.2 Specification tests
 
 - inline `Create`;
 - subclass;
@@ -890,7 +837,7 @@ The implementation is not complete until these scenarios are covered.
 - compatibility `IsSatisfiedBy` expansion;
 - method group in `Any`.
 
-## 21.3 Projection tests
+## 20.3 Projection tests
 
 - inline `Create`;
 - subclass;
@@ -911,7 +858,7 @@ The implementation is not complete until these scenarios are covered.
 - map-to-existing nested;
 - map-to-existing null behavior.
 
-## 21.4 Cross-composition tests
+## 20.4 Cross-composition tests
 
 Mandatory:
 
@@ -929,7 +876,7 @@ Prove both:
 1. runtime compiled execution;
 2. provider-facing expanded expression.
 
-## 21.5 EF Core integration tests
+## 20.5 EF Core integration tests
 
 Use a relational provider such as SQLite in-memory.
 
@@ -945,20 +892,7 @@ Test at least:
 
 Assert results and, where useful, inspect generated SQL or ensure no client-evaluation/translation exception occurs.
 
-## 21.6 Template tests
-
-- anonymous object shape;
-- explicit template class/member-init;
-- property target;
-- field target;
-- missing member;
-- wrong member type;
-- readonly/unreadable member rejection where applicable;
-- structural adaptation used with EF query.
-
----
-
-# 22. Test style
+# 21. Test style
 
 Prefer behavioral tests over exact `Expression.ToString()` comparisons.
 
@@ -972,7 +906,7 @@ Avoid brittle tests tied to compiler-generated closure class names.
 
 ---
 
-# 23. Performance expectations
+# 22. Performance expectations
 
 Performance is not the first milestone, but avoid obvious regressions.
 
@@ -996,7 +930,7 @@ Do not optimize by sacrificing API clarity or correctness before profiling.
 
 ---
 
-# 24. Exception/error design
+# 23. Exception/error design
 
 Throw early and descriptively when the library cannot safely transform an expression.
 
@@ -1019,7 +953,7 @@ If an unrelated method named `Invoke` exists, ignore it unless its declaring/tar
 
 ---
 
-# 25. README requirements
+# 24. README requirements
 
 Rewrite the new root README around the actual niche, not around "yet another specification library".
 
@@ -1063,10 +997,9 @@ README sections should be approximately:
 6. `Then` composition
 7. Null-safe projections
 8. Merge bindings
-9. Structural expression templates
-10. EF Core/provider compatibility
-11. Runtime execution
-12. Migration from `Raffinert.Spec` / `Raffinert.Proj`
+9. EF Core/provider compatibility
+10. Runtime execution
+11. Migration from `Raffinert.Spec` / `Raffinert.Proj`
 
 Explicitly state:
 
@@ -1077,11 +1010,11 @@ Explicitly state:
 
 ---
 
-# 26. NuGet metadata
+# 25. NuGet metadata
 
 Suggested package description:
 
-> Lightweight composable expression trees for reusable specifications, projections, structural templates, and LINQ/EF Core query logic.
+> Lightweight composable expression trees for reusable specifications, projections, and LINQ/EF Core query logic.
 
 Suggested tags:
 
@@ -1105,7 +1038,7 @@ Prefer central package/version properties if useful, but do not introduce a larg
 
 ---
 
-# 27. Implementation phases
+# 26. Implementation phases
 
 Codex should execute in this order.
 
@@ -1164,14 +1097,7 @@ This phase is a release blocker.
 - explicit conflict behavior;
 - hardened `MapToExisting`.
 
-## Phase 8 — Templates
-
-- migrate template engine;
-- fix current correctness defects;
-- generalize toward `ExpressionTemplate`;
-- add comprehensive runtime validation tests.
-
-## Phase 9 — Documentation and cleanup
+## Phase 8 — Documentation and cleanup
 
 - new README;
 - migration guide;
@@ -1182,7 +1108,7 @@ This phase is a release blocker.
 
 ---
 
-# 28. Acceptance criteria
+# 27. Acceptance criteria
 
 The work is accepted only when all of the following are true:
 
@@ -1219,7 +1145,7 @@ The work is accepted only when all of the following are true:
 
 ---
 
-# 29. Non-goals for the first release
+# 28. Non-goals for the first release
 
 Do not expand scope into the following unless required for the acceptance criteria:
 
@@ -1241,7 +1167,7 @@ Keep the package focused on **typed reusable expression composition**.
 
 ---
 
-# 30. Design guardrails for Codex
+# 29. Design guardrails for Codex
 
 When there is ambiguity, follow these priorities in order:
 
@@ -1265,7 +1191,7 @@ Do not silently broaden the library into a mapping framework.
 
 ---
 
-# 31. Expected final Codex deliverables
+# 30. Expected final Codex deliverables
 
 Codex should finish with:
 
@@ -1293,7 +1219,7 @@ If an acceptance criterion cannot be implemented cleanly, Codex must **document 
 
 ---
 
-# 32. Canonical target usage example
+# 31. Canonical target usage example
 
 The implementation should make this style of code natural:
 

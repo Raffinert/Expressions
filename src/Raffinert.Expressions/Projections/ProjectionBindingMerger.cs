@@ -57,8 +57,8 @@ internal static class ProjectionBindingMerger
             }
         }
 
-        var bindings = ordered.ConvertAll(member =>
-            (MemberBinding)Expression.Bind(member, expressions[member]));
+        var bindings = ordered.ConvertAll(MemberBinding (member) =>
+            Expression.Bind(member, expressions[member]));
         var body = Expression.MemberInit(firstShape.Creation, bindings);
         return Projection<TIn, TOut>.Create(
             Expression.Lambda<Func<TIn, TOut>>(body, firstExpression.Parameters));

@@ -11,6 +11,4 @@
 - Removed the legacy `IsSatisfiedBy`, `Map`, and `MapIfNotNull` aliases in favor of the canonical methods.
 - Changed constant `Specification<T>.True` and `Specification<T>.False` factories into cached static properties.
 - Added deterministic binding conflict policies and safer map-to-existing behavior.
-- Added generalized structural expression templates with a `SpecificationTemplate` facade.
-- Added descriptive runtime validation for structural template creation and adaptation.
 - Added unit and EF Core SQLite integration coverage.

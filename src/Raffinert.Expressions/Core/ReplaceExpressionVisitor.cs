@@ -9,7 +9,11 @@ internal sealed class ReplaceExpressionVisitor(Expression from, Expression to) :
 
     public override Expression? Visit(Expression? node)
     {
-        return node == _from ? _to : base.Visit(node);
+        return node == _from 
+            ? _to 
+            : node == null 
+                ? null 
+                : base.Visit(node);
     }
 
     protected override Expression VisitLambda<T>(Expression<T> node)

@@ -137,23 +137,6 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         Assert.True(rows.Single(row => row.Name == "Desk!").IsExpensive);
     }
 
-    [Fact]
-    public async Task StructuralTemplateAdaptsInsideEfQuery()
-    {
-        var template = ExpressionTemplate<SampleProduct>.Create(
-            product => new { product.Name, product.PriceCents },
-            shape => shape.PriceCents > 1000 && shape.Name != "Hidden");
-        var adapted = template.AdaptSpecification<DbProduct>("product");
-
-        var names = await _db.Products
-            .Where(adapted)
-            .OrderBy(product => product.Name)
-            .Select(product => product.Name)
-            .ToArrayAsync();
-
-        Assert.Equal(["Desk", "Uncategorized"], names);
-    }
-
     public async Task InitializeAsync()
     {
         await _connection.OpenAsync();
@@ -176,7 +159,6 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
             new DbProduct { Name = "Desk", PriceCents = 20000, Category = office },
             new DbProduct { Name = "Uncategorized", PriceCents = 1500 },
             new DbProduct { Name = "Hidden", PriceCents = 9000 });
-       
     }
 }
 
@@ -213,10 +195,4 @@ public sealed class ProductRow
 public sealed class CategoryRow
 {
     public string Name { get; set; } = string.Empty;
-}
-
-public sealed class SampleProduct
-{
-    public string Name { get; set; } = string.Empty;
-    public int PriceCents { get; set; }
 }
