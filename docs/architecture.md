@@ -38,6 +38,14 @@ Because all semantic wrappers implement the same internal contract, nested expan
 
 `MapToExisting` accepts member-initializer roots and supported conditional branches. Scalar assignments become destination assignments. Nested member initializers recursively update existing nested instances after an explicit null guard. Automatic nested construction is intentionally outside scope.
 
+## Structural adaptation
+
+Existing specifications and projections act as their own structural definitions. `StructuralExpressionAdapter`
+rewrites parameter-rooted public property and field paths against a new source type. Projection result adaptation
+reconstructs parameterless member initializers against a new result type and recursively handles nested member
+initializers and null/default conditional branches. The resulting wrapper contains an ordinary typed expression;
+there is no public template abstraction or runtime adaptation during query execution.
+
 ## Supported and unsupported shapes
 
 Provider-facing expansion supports any ordinary expression nodes inside a reusable lambda. The restriction applies only to resolving the wrapper object: arbitrary parameter-dependent code is not executed during expansion.
@@ -45,6 +53,7 @@ Provider-facing expansion supports any ordinary expression nodes inside a reusab
 Advanced projection transforms intentionally support a smaller set:
 
 - merge: parameterless `MemberInitExpression` and compatible conditionals;
-- update existing: member initializer roots and supported conditional branches.
+- update existing: member initializer roots and supported conditional branches;
+- result adaptation: parameterless member initializers, including nested initializers and compatible conditionals.
 
 Unsupported shapes fail descriptively rather than being partially transformed.

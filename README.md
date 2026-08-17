@@ -96,6 +96,23 @@ Specification<Order> activeCustomerOrder = customer.Then(active);
 
 `Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes.
 
+## Structural adaptation
+
+An existing specification or projection can be adapted to types with compatible public members; no separate
+template object is required:
+
+```csharp
+Specification<InventoryItem> inventoryFilter = productFilter.AdaptSource<InventoryItem>();
+
+Projection<InventoryItem, InventoryDto> inventoryProjection =
+    productProjection.Adapt<InventoryItem, InventoryDto>();
+```
+
+`AdaptSource<TNewSource>()` rebinds parameter-rooted property and field paths by name. Projections also provide
+`AdaptResult<TNewResult>()` and `Adapt<TNewSource,TNewResult>()`. Result adaptation supports parameterless member
+initializers and recursively adapts nested member initializers and compatible conditional branches. Missing,
+ambiguous, inaccessible, and incompatible members fail descriptively when adaptation is requested.
+
 ## Null-safe projections
 
 Use `InvokeOrDefault` only where a null input should produce `default(TOut)`:
@@ -130,7 +147,8 @@ This means:
 - no `AsExpandable()` call;
 - no per-row reflection or expression traversal.
 
-SQLite integration tests cover nested and cross-composed predicates/projections, `Then`, null-safe mapping, and merged member initializers.
+SQLite integration tests cover nested and cross-composed predicates/projections, `Then`, structural adaptation,
+null-safe mapping, and merged member initializers.
 
 ## Runtime execution
 

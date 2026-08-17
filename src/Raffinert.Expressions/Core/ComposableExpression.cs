@@ -53,14 +53,14 @@ public abstract class ComposableExpression<TSource, TResult> : IExpressionExpans
     {
         var compiled = _compiledExpression;
 
-        if (compiled is not null) 
+        if (compiled is not null)
             return compiled(value);
 
         lock (_cacheLock)
         {
             compiled = _compiledExpression;
 
-            if (compiled is not null) 
+            if (compiled is not null)
                 return compiled(value);
 
             _compiledExpression = compiled = GetExpandedExpression().Compile();

@@ -137,6 +137,31 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         Assert.True(rows.Single(row => row.Name == "Desk!").IsExpensive);
     }
 
+    [Fact]
+    public async Task StructuralAdaptationTranslates()
+    {
+        var specification = Specification<StructuralDbProduct>.Create(product =>
+            product.PriceCents > 1000 && product.Name != "Hidden");
+        var projection = Projection<StructuralDbProduct, StructuralDbProductRow>.Create(product =>
+            new StructuralDbProductRow
+            {
+                Id = product.Id,
+                Name = product.Name,
+                IsExpensive = product.PriceCents > 1000
+            });
+        var adaptedSpecification = specification.AdaptSource<DbProduct>();
+        var adaptedProjection = projection.Adapt<DbProduct, ProductRow>();
+
+        var rows = await _db.Products
+            .Where(adaptedSpecification)
+            .Select(adaptedProjection)
+            .OrderBy(product => product.Name)
+            .ToArrayAsync();
+
+        Assert.Equal(["Desk", "Uncategorized"], rows.Select(row => row.Name));
+        Assert.All(rows, row => Assert.True(row.IsExpensive));
+    }
+
     public async Task InitializeAsync()
     {
         await _connection.OpenAsync();
@@ -195,4 +220,18 @@ public sealed class ProductRow
 public sealed class CategoryRow
 {
     public string Name { get; set; } = string.Empty;
+}
+
+public sealed class StructuralDbProduct
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int PriceCents { get; set; }
+}
+
+public sealed class StructuralDbProductRow
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public bool IsExpensive { get; set; }
 }

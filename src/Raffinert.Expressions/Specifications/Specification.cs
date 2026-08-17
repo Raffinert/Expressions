@@ -78,6 +78,21 @@ public abstract class Specification<T> : ComposableExpression<T, bool>
         return Create(Expression.Lambda<Func<T, bool>>(Expression.Not(expression.Body), expression.Parameters));
     }
 
+    /// <summary>Adapts this specification to a source type with compatible public members.</summary>
+    /// <typeparam name="TNewSource">The source type to which the specification is adapted.</typeparam>
+    /// <returns>A specification over <typeparamref name="TNewSource"/> with structurally rebound member access.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A required source member is missing, ambiguous, unreadable, or has an incompatible type.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// The expression uses its source parameter in a way that cannot be structurally adapted.
+    /// </exception>
+    public Specification<TNewSource> AdaptSource<TNewSource>()
+    {
+        var expression = StructuralExpressionAdapter.AdaptSource<T, bool, TNewSource>(GetExpandedExpression());
+        return Specification<TNewSource>.Create(expression);
+    }
+
     /// <summary>Combines two specifications using short-circuiting logical AND.</summary>
     /// <param name="left">The first specification to evaluate.</param>
     /// <param name="right">The specification to evaluate when <paramref name="left"/> accepts a value.</param>

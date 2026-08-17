@@ -25,6 +25,55 @@ public abstract class Projection<TSource, TResult> : ComposableExpression<TSourc
             : new InlineProjection(expression);
     }
 
+    /// <summary>Adapts this projection to a source type with compatible public members.</summary>
+    /// <typeparam name="TNewSource">The source type to which the projection is adapted.</typeparam>
+    /// <returns>A projection with structurally rebound source-member access.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A required source member is missing, ambiguous, unreadable, or has an incompatible type.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// The expression uses its source parameter in a way that cannot be structurally adapted.
+    /// </exception>
+    public Projection<TNewSource, TResult> AdaptSource<TNewSource>()
+    {
+        var expression = StructuralExpressionAdapter.AdaptSource<TSource, TResult, TNewSource>(
+            GetExpandedExpression());
+        return Projection<TNewSource, TResult>.Create(expression);
+    }
+
+    /// <summary>Adapts this projection to a result type with compatible public members.</summary>
+    /// <typeparam name="TNewResult">The result type to which the projection is adapted.</typeparam>
+    /// <returns>A projection that constructs <typeparamref name="TNewResult"/>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A required result member is missing, ambiguous, unwritable, or has an incompatible type.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// The projection does not use a supported parameterless member-initializer shape.
+    /// </exception>
+    public Projection<TSource, TNewResult> AdaptResult<TNewResult>()
+    {
+        var expression = StructuralExpressionAdapter.AdaptResult<TSource, TResult, TNewResult>(
+            GetExpandedExpression());
+        return Projection<TSource, TNewResult>.Create(expression);
+    }
+
+    /// <summary>Adapts this projection to compatible source and result types.</summary>
+    /// <typeparam name="TNewSource">The source type to which the projection is adapted.</typeparam>
+    /// <typeparam name="TNewResult">The result type to which the projection is adapted.</typeparam>
+    /// <returns>A projection with structurally rebound source access and result construction.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// A required source or result member is missing, ambiguous, inaccessible, or has an incompatible type.
+    /// </exception>
+    /// <exception cref="NotSupportedException">
+    /// The source expression or result construction uses an unsupported shape.
+    /// </exception>
+    public Projection<TNewSource, TNewResult> Adapt<TNewSource, TNewResult>()
+    {
+        var expression = StructuralExpressionAdapter.Adapt<TSource, TResult, TNewSource, TNewResult>(
+            GetExpandedExpression());
+        return Projection<TNewSource, TNewResult>.Create(expression);
+    }
+
     /// <summary>Composes this projection with a projection applied to its result.</summary>
     /// <typeparam name="TNext">The result type of the composed projection.</typeparam>
     /// <param name="next">The projection to apply to the result of this projection.</param>

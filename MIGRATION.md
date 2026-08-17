@@ -26,8 +26,9 @@ The aggregate package otherwise preserves the structural capabilities:
 - `MergeBindings`, `MapToExisting`, and debugger expression views;
 - nested method-group forms through the canonical `Invoke` method.
 
-Structural templates from `Raffinert.Spec` are not included in this release. Keep the old package where that feature
-is required, or replace the adaptation with an explicit specification for each source type.
+The old structural template types are not included. Instead, an existing specification can be adapted directly with
+`AdaptSource<TNewSource>()`. Projections provide `AdaptSource<TNewSource>()`, `AdaptResult<TNewResult>()`, and
+`Adapt<TNewSource,TNewResult>()`.
 
 ## Canonical invocation API
 
@@ -59,6 +60,8 @@ Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(spe
 - Conditional merge branches are matched by destination member, not binding order.
 - `MapToExisting` throws a descriptive exception when a nested destination object is null. It does not automatically construct nested objects.
 - Unsupported map-to-existing and merge shapes throw `NotSupportedException` instead of producing malformed trees.
+- Structural source adaptation requires compatible public property or field paths. Projection result adaptation
+  requires parameterless member initializers.
 
 ## Query behavior
 

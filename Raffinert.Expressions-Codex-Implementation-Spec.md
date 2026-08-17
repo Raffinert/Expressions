@@ -664,11 +664,27 @@ all under `Raffinert.Expressions` or `Raffinert.Expressions.Extensions`.
 
 ---
 
-# 14. Deferred structural adaptation
+# 14. Direct structural adaptation
 
-Structural adaptation is outside the first release. Revisit it only when there is a clear, type-safe design that
-supports both specification source adaptation and projection source/result adaptation without relying on implicit
-member-name matching.
+Existing specifications and projections are their own structural definitions; do not introduce a separate public
+template abstraction.
+
+Required API:
+
+```csharp
+specification.AdaptSource<TNewSource>();
+projection.AdaptSource<TNewSource>();
+projection.AdaptResult<TNewResult>();
+projection.Adapt<TNewSource,TNewResult>();
+```
+
+Source adaptation rebinds parameter-rooted public property and field paths by name and compatible type. Result
+adaptation rebuilds parameterless member initializers against the new result type, including nested initializers and
+compatible conditional branches. Perform adaptation once when the method is called; provider-facing execution must
+contain only the resulting ordinary expression tree.
+
+Missing, ambiguous, inaccessible, and incompatible members must fail descriptively. Reject direct source-parameter
+usage, source-specific operations that cannot be safely rebound, and result constructors with arguments.
 
 ---
 
@@ -892,6 +908,15 @@ Test at least:
 
 Assert results and, where useful, inspect generated SQL or ensure no client-evaluation/translation exception occurs.
 
+## 20.6 Structural adaptation tests
+
+- specification source adaptation;
+- projection source and result adaptation, independently and together;
+- property/field interchange;
+- nested source paths and nested result initializers;
+- missing, incompatible, and unsupported shapes;
+- adapted expressions used in an EF Core query.
+
 # 21. Test style
 
 Prefer behavioral tests over exact `Expression.ToString()` comparisons.
@@ -997,9 +1022,10 @@ README sections should be approximately:
 6. `Then` composition
 7. Null-safe projections
 8. Merge bindings
-9. EF Core/provider compatibility
-10. Runtime execution
-11. Migration from `Raffinert.Spec` / `Raffinert.Proj`
+9. Structural adaptation
+10. EF Core/provider compatibility
+11. Runtime execution
+12. Migration from `Raffinert.Spec` / `Raffinert.Proj`
 
 Explicitly state:
 
@@ -1014,7 +1040,7 @@ Explicitly state:
 
 Suggested package description:
 
-> Lightweight composable expression trees for reusable specifications, projections, and LINQ/EF Core query logic.
+> Lightweight composable and structurally adaptable expression trees for reusable specifications, projections, and LINQ/EF Core query logic.
 
 Suggested tags:
 
@@ -1097,7 +1123,13 @@ This phase is a release blocker.
 - explicit conflict behavior;
 - hardened `MapToExisting`.
 
-## Phase 8 — Documentation and cleanup
+## Phase 8 — Structural adaptation
+
+- adapt specification and projection source types directly;
+- adapt projection result types;
+- add runtime validation and EF translation tests.
+
+## Phase 9 — Documentation and cleanup
 
 - new README;
 - migration guide;
