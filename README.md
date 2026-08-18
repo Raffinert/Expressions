@@ -2,7 +2,7 @@
 
 # Raffinert.Expressions
 
-**Raffinert.Expressions** is a lightweight expression-composition library for reusable predicates and projections. Compose normal C# expression objects and hand the resulting pure expression tree to EF Core or any other LINQ provider—without a custom query provider or special query interception.
+**Raffinert.Expressions** is a lightweight expression-composition library for reusable conditions and projections. Compose normal C# expression objects and hand the resulting pure expression tree to EF Core or any other LINQ provider—without a custom query provider or special query interception.
 
 It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec) and [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj) around one expression-expansion engine. The runtime package targets `netstandard2.0`, has no EF Core dependency, and requires neither a custom `IQueryProvider` nor `AsExpandable()`.
 
@@ -20,7 +20,7 @@ using Raffinert.Expressions;
 var total = Projection<Order, decimal>.Create(order =>
     order.Lines.Sum(line => line.Price * line.Quantity));
 
-var expensive = Specification<Order>.Create(order =>
+var expensive = Condition<Order>.Create(order =>
     total.Invoke(order) > 1000m);
 
 var projection = Projection<Order, OrderDto>.Create(order => new OrderDto
@@ -47,17 +47,17 @@ order => new OrderDto
 }
 ```
 
-The library produces this tree by replacing each `.Invoke(...)` call on a specification or projection
+The library produces this tree by replacing each `.Invoke(...)` call on a condition or projection
 with the referenced expression body.
 
-## Specifications
+## Conditions
 
-Create a predicate inline or subclass `Specification<T>` and override `GetExpression()`:
+Create a condition inline or subclass `Condition<T>` and override `GetExpression()`:
 
 ```csharp
-var inStock = Specification<Product>.Create(product => product.Stock > 0);
+var inStock = Condition<Product>.Create(product => product.Stock > 0);
 var visible = inStock.And(product => !product.IsHidden);
-var wanted = visible & !Specification<Product>.Create(product => product.IsDiscontinued);
+var wanted = visible & !Condition<Product>.Create(product => product.IsDiscontinued);
 
 bool matches = wanted.Invoke(product);
 ```
@@ -85,7 +85,7 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 
 ## Cross-composition with `Invoke`
 
-`Invoke` is the common composition marker. A `Specification` can be embedded in a `Projection`, a `Projection` can be embedded in a `Specification`, and mixed chains can be nested to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
+`Invoke` is the common composition marker. A `Condition` can be embedded in a `Projection`, a `Projection` can be embedded in a `Condition`, and mixed chains can be nested to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
 
 `Invoke` is the only execution and composition primitive. Method groups such as `items.Any(spec.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
 
@@ -96,21 +96,21 @@ Forward composition is available from projections:
 ```csharp
 Projection<Order, Customer> customer = ...;
 Projection<Customer, string> customerName = ...;
-Specification<Customer> active = ...;
+Condition<Customer> active = ...;
 
 Projection<Order, string> orderCustomerName = customer.Then(customerName);
-Specification<Order> activeCustomerOrder = customer.Then(active);
+Condition<Order> activeCustomerOrder = customer.Then(active);
 ```
 
 `Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes.
 
 ## Structural adaptation
 
-An existing specification or projection can be adapted to types with compatible public members; no separate
+An existing condition or projection can be adapted to types with compatible public members; no separate
 template object is required:
 
 ```csharp
-Specification<InventoryItem> inventoryFilter = productFilter.AdaptSource<InventoryItem>();
+Condition<InventoryItem> inventoryFilter = productFilter.AdaptSource<InventoryItem>();
 
 Projection<InventoryItem, InventoryDto> inventoryProjection =
     productProjection.Adapt<InventoryItem, InventoryDto>();
@@ -155,7 +155,7 @@ This means:
 - no `AsExpandable()` call;
 - no per-row reflection or expression traversal.
 
-SQLite integration tests cover nested and cross-composed predicates/projections, `Then`, structural adaptation,
+SQLite integration tests cover nested and cross-composed conditions/projections, `Then`, structural adaptation,
 null-safe mapping, and merged member initializers.
 
 ## Runtime execution
@@ -166,7 +166,7 @@ null-safe mapping, and merged member initializers.
 
 ## Migration
 
-The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Rename `Spec<T>` to `Specification<T>`, `Proj<TIn,TOut>` to `Projection<TSource,TResult>`, and the public `Expr<TIn,TOut>` base to `ComposableExpression<TSource,TResult>`.
+The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Rename `Spec<T>` to `Condition<T>`, `Proj<TIn,TOut>` to `Projection<TSource,TResult>`, and the public `Expr<TIn,TOut>` base to `ComposableExpression<TSource,TResult>`.
 
 See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blob/main/docs/migration.md) for details.
 

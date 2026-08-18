@@ -2,7 +2,7 @@
 
 ## Shared expression abstraction
 
-`ComposableExpression<TSource,TResult>` owns expansion and compiled-delegate caching. `Specification<T>` and `Projection<TSource,TResult>` add domain vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
+`ComposableExpression<TSource,TResult>` owns expansion and compiled-delegate caching. `Condition<T>` and `Projection<TSource,TResult>` add domain vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
@@ -24,13 +24,13 @@ The engine never introduces `Expression.Invoke`.
 
 ## Cross-composition and `Then`
 
-Because all semantic wrappers implement the same internal contract, nested expansion does not distinguish between predicates and projections. A Boolean output can be inserted into a member initializer, and a scalar/object projection can be inserted into a predicate.
+Because all semantic wrappers implement the same internal contract, nested expansion does not distinguish between conditions and projections. A Boolean output can be inserted into a member initializer, and a scalar/object projection can be inserted into a condition.
 
-`Then` composes already-expanded typed lambdas with direct substitution. `Projection<A,B>.Then(Projection<B,C>)` yields `Projection<A,C>`; `Projection<A,B>.Then(Specification<B>)` yields `Specification<A>`.
+`Then` composes already-expanded typed lambdas with direct substitution. `Projection<A,B>.Then(Projection<B,C>)` yields `Projection<A,C>`; `Projection<A,B>.Then(Condition<B>)` yields `Condition<A>`.
 
 ## Null-safe invocation
 
-`InvokeOrDefault` is rewritten to `argument == default ? default(TOut) : expandedBody` for nullable inputs. It is defined on the shared expression base, so it can explicitly produce defaults such as `false` for specifications and `0` for value projections. Normal invocation has no implicit null semantics.
+`InvokeOrDefault` is rewritten to `argument == default ? default(TOut) : expandedBody` for nullable inputs. It is defined on the shared expression base, so it can explicitly produce defaults such as `false` for conditions and `0` for value projections. Normal invocation has no implicit null semantics.
 
 ## Projection transformations
 
@@ -42,7 +42,7 @@ Mutable collection assignments follow clear-and-refill semantics. Existing `ICol
 
 ## Structural adaptation
 
-Existing specifications and projections act as their own structural definitions. `StructuralExpressionAdapter`
+Existing conditions and projections act as their own structural definitions. `StructuralExpressionAdapter`
 rewrites parameter-rooted public property and field paths against a new source type. Projection result adaptation
 reconstructs parameterless member initializers against a new result type and recursively handles nested member
 initializers and null/default conditional branches. The resulting wrapper contains an ordinary typed expression;

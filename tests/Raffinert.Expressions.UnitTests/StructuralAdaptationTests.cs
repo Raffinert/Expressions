@@ -5,14 +5,14 @@ namespace Raffinert.Expressions.UnitTests;
 public class StructuralAdaptationTests
 {
     [Fact]
-    public void SpecificationAdaptsSourcePropertiesFieldsAndNestedPaths()
+    public void ConditionAdaptsSourcePropertiesFieldsAndNestedPaths()
     {
-        var specification = Specification<StructuralProduct>.Create(product =>
+        var condition = Condition<StructuralProduct>.Create(product =>
             product.Price > 10m &&
             product.Category != null &&
             product.Category.Name == "Tools");
 
-        var adapted = specification.AdaptSource<StructuralInventoryItem>();
+        var adapted = condition.AdaptSource<StructuralInventoryItem>();
 
         Assert.Equal(
             "product => ((product.Price > 10m) && (product.Category != null)) && (product.Category.Name == \"Tools\")",
@@ -98,13 +98,13 @@ public class StructuralAdaptationTests
     [Fact]
     public void SourceAdaptationRejectsMissingIncompatibleAndDirectSourceUsage()
     {
-        var specification = Specification<StructuralProduct>.Create(product => product.Price > 10m);
+        var condition = Condition<StructuralProduct>.Create(product => product.Price > 10m);
         var identity = Projection<StructuralProduct, StructuralProduct>.Create(product => product);
 
         var missing = Assert.Throws<InvalidOperationException>(
-            specification.AdaptSource<StructuralMissingPriceItem>);
+            condition.AdaptSource<StructuralMissingPriceItem>);
         var incompatible = Assert.Throws<InvalidOperationException>(
-            specification.AdaptSource<StructuralWrongPriceItem>);
+            condition.AdaptSource<StructuralWrongPriceItem>);
         var direct = Assert.Throws<NotSupportedException>(
             identity.AdaptSource<StructuralInventoryItem>);
 

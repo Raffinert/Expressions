@@ -91,11 +91,11 @@ public abstract class Projection<TSource, TResult> : ComposableExpression<TSourc
             Expression.Lambda<Func<TSource, TNext>>(body, firstExpression.Parameters));
     }
 
-    /// <summary>Composes this projection with a specification applied to its result.</summary>
-    /// <param name="next">The specification to apply to the result of this projection.</param>
-    /// <returns>A specification over the source type.</returns>
+    /// <summary>Composes this projection with a condition applied to its result.</summary>
+    /// <param name="next">The condition to apply to the result of this projection.</param>
+    /// <returns>A condition over the source type.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="next"/> is null.</exception>
-    public Specification<TSource> Then(Specification<TResult> next)
+    public Condition<TSource> Then(Condition<TResult> next)
     {
         if (next == null) throw new ArgumentNullException(nameof(next));
 
@@ -103,7 +103,7 @@ public abstract class Projection<TSource, TResult> : ComposableExpression<TSourc
         var nextExpression = next.GetExpandedExpression();
         var body = new ReplaceExpressionVisitor(nextExpression.Parameters[0], firstExpression.Body)
             .Visit(nextExpression.Body)!;
-        return Specification<TSource>.Create(
+        return Condition<TSource>.Create(
             Expression.Lambda<Func<TSource, bool>>(body, firstExpression.Parameters));
     }
 

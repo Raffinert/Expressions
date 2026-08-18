@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>Raffinert.Expressions</AssemblyName>
@@ -13,8 +13,8 @@
     <Title>Raffinert.Expressions</Title>
     <Authors>Yevhen Cherkes</Authors>
     <Copyright>Copyright (c) 2026 Raffinert</Copyright>
-    <Description>Lightweight composable and structurally adaptable expression trees for reusable specifications, projections, and LINQ/EF Core query logic.</Description>
-    <PackageTags>LINQ;Expressions;ExpressionTree;Specification;Projection;EFCore;Composable;Predicate;Selector</PackageTags>
+    <Description>Lightweight composable and structurally adaptable expression trees for reusable conditions, projections, and LINQ/EF Core query logic.</Description>
+    <PackageTags>LINQ;Expressions;ExpressionTree;Condition;Predicate;Projection;EFCore;Composable;Selector</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Raffinert/Raffinert.Expressions</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Raffinert/Raffinert.Expressions</RepositoryUrl>

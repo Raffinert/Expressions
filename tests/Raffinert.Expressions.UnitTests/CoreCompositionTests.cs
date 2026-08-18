@@ -6,9 +6,9 @@ namespace Raffinert.Expressions.UnitTests;
 public class CoreCompositionTests
 {
     [Fact]
-    public void SpecificationInsideProjectionIsInlinedAndExecutes()
+    public void ConditionInsideProjectionIsInlinedAndExecutes()
     {
-        var expensive = Specification<Product>.Create(product => product.Price > 100m);
+        var expensive = Condition<Product>.Create(product => product.Price > 100m);
         var projection = Projection<Product, ProductDto>.Create(product => new ProductDto
         {
             Name = product.Name,
@@ -36,11 +36,11 @@ public class CoreCompositionTests
     }
 
     [Fact]
-    public void ProjectionInsideSpecificationIsInlinedAndExecutes()
+    public void ProjectionInsideConditionIsInlinedAndExecutes()
     {
         var total = Projection<Order, decimal>.Create(order =>
             order.Lines.Sum(line => line.Price * line.Quantity));
-        var expensive = Specification<Order>.Create(order => total.Invoke(order) > 1000m);
+        var expensive = Condition<Order>.Create(order => total.Invoke(order) > 1000m);
 
         var expanded = expensive.GetExpandedExpression();
 
@@ -58,7 +58,7 @@ public class CoreCompositionTests
     {
         var price = Projection<Product, decimal>.Create(product => product.Price);
         var rounded = Projection<Product, decimal>.Create(product => decimal.Round(price.Invoke(product)));
-        var high = Specification<Product>.Create(product => rounded.Invoke(product) >= 10m);
+        var high = Condition<Product>.Create(product => rounded.Invoke(product) >= 10m);
         var result = Projection<Product, bool>.Create(product => high.Invoke(product));
 
         var expanded = result.GetExpandedExpression();
@@ -84,10 +84,10 @@ public class CoreCompositionTests
     }
 
     [Fact]
-    public void ThenComposesProjectionAndSpecification()
+    public void ThenComposesProjectionAndCondition()
     {
         var customer = Projection<Order, Customer>.Create(order => order.Customer);
-        var active = Specification<Customer>.Create(value => value.IsActive);
+        var active = Condition<Customer>.Create(value => value.IsActive);
 
         var composed = customer.Then(active);
 
@@ -98,7 +98,7 @@ public class CoreCompositionTests
     [Fact]
     public void DirectNewSubclassInvocationIsExpanded()
     {
-        var outer = Specification<Product>.Create(product => new MinimumPriceSpecification(12m).Invoke(product));
+        var outer = Condition<Product>.Create(product => new MinimumPriceCondition(12m).Invoke(product));
 
         Assert.Equal("product => product.Price >= <minimum>P", outer.GetExpandedExpression().ToReadableString());
         Assert.True(outer.Invoke(new Product { Price = 15m }));
@@ -107,8 +107,8 @@ public class CoreCompositionTests
     [Fact]
     public void ClosureMemberChainsAndReadonlyFieldsAreResolved()
     {
-        var holder = new SpecificationHolder(new MinimumPriceSpecification(12m));
-        var outer = Specification<Product>.Create(product => holder.Nested.Minimum.Invoke(product));
+        var holder = new ConditionHolder(new MinimumPriceCondition(12m));
+        var outer = Condition<Product>.Create(product => holder.Nested.Minimum.Invoke(product));
 
         Assert.Equal("product => product.Price >= <minimum>P", outer.GetExpandedExpression().ToReadableString());
         Assert.True(outer.Invoke(new Product { Price = 15m }));
@@ -117,9 +117,9 @@ public class CoreCompositionTests
     [Fact]
     public void StaticTargetsResolveAndNestedExpandedExpressionsAreCached()
     {
-        var counting = new CountingSpecification();
-        var first = Specification<Product>.Create(product => counting.Invoke(product));
-        var second = Specification<Product>.Create(product => counting.Invoke(product) && StaticSpecifications.Minimum.Invoke(product));
+        var counting = new CountingCondition();
+        var first = Condition<Product>.Create(product => counting.Invoke(product));
+        var second = Condition<Product>.Create(product => counting.Invoke(product) && StaticConditions.Minimum.Invoke(product));
 
         first.GetExpandedExpression();
         var expanded = second.GetExpandedExpression();
@@ -134,7 +134,7 @@ public class CoreCompositionTests
     [Fact]
     public void CanonicalInvocationMethodsAreExpanded()
     {
-        var positive = Specification<Product>.Create(product => product.Price > 0m);
+        var positive = Condition<Product>.Create(product => product.Price > 0m);
         var name = Projection<Product, string>.Create(product => product.Name);
         var outer = Projection<Product, ProductDto>.Create(product => new ProductDto
         {
@@ -153,30 +153,30 @@ public class CoreCompositionTests
     }
 
     [Fact]
-    public void InvokeOrDefaultIsSharedBySpecificationsAndProjections()
+    public void InvokeOrDefaultIsSharedByConditionsAndProjections()
     {
-        var active = Specification<Customer>.Create(customer => customer.IsActive);
+        var active = Condition<Customer>.Create(customer => customer.IsActive);
         var nameLength = Projection<Customer, int>.Create(customer => customer.Name.Length);
-        var specification = Specification<NullableCustomerHolder>.Create(holder => active.InvokeOrDefault(holder.Customer));
+        var condition = Condition<NullableCustomerHolder>.Create(holder => active.InvokeOrDefault(holder.Customer));
         var projection = Projection<NullableCustomerHolder, int>.Create(
             holder => nameLength.InvokeOrDefault(holder.Customer));
 
         Assert.Equal(
             "holder => (holder.Customer == null) ? default(bool) : holder.Customer.IsActive",
-            specification.GetExpandedExpression().ToReadableString());
+            condition.GetExpandedExpression().ToReadableString());
         Assert.Equal(
             "holder => (holder.Customer == null) ? default(int) : holder.Customer.Name.Length",
             projection.GetExpandedExpression().ToReadableString());
-        Assert.False(specification.Invoke(new NullableCustomerHolder()));
+        Assert.False(condition.Invoke(new NullableCustomerHolder()));
         Assert.Equal(0, projection.Invoke(new NullableCustomerHolder()));
-        Assert.True(specification.Invoke(new NullableCustomerHolder { Customer = new Customer { IsActive = true } }));
+        Assert.True(condition.Invoke(new NullableCustomerHolder { Customer = new Customer { IsActive = true } }));
         Assert.Equal(3, projection.Invoke(new NullableCustomerHolder { Customer = new Customer { Name = "Ada" } }));
     }
 
     [Fact]
     public void MethodGroupsInAnyAndSelectAreExpanded()
     {
-        var positive = Specification<Product>.Create(product => product.Price > 0m);
+        var positive = Condition<Product>.Create(product => product.Price > 0m);
         var name = Projection<Product, string>.Create(product => product.Name);
         var groupProjection = Projection<ProductGroup, GroupDto>.Create(group => new GroupDto
         {
@@ -237,7 +237,7 @@ public class CoreCompositionTests
     [Fact]
     public void CompositionCycleFailsDeterministically()
     {
-        var cyclic = new CyclicSpecification();
+        var cyclic = new CyclicCondition();
 
         var exception = Assert.Throws<InvalidOperationException>(cyclic.GetExpandedExpression);
 
@@ -262,17 +262,17 @@ public class CoreCompositionTests
         }
     }
 
-    private sealed class MinimumPriceSpecification(decimal minimum) : Specification<Product>
+    private sealed class MinimumPriceCondition(decimal minimum) : Condition<Product>
     {
         public override Expression<Func<Product, bool>> GetExpression() => product => product.Price >= minimum;
     }
 
-    private sealed class CyclicSpecification : Specification<Product>
+    private sealed class CyclicCondition : Condition<Product>
     {
         public override Expression<Func<Product, bool>> GetExpression() => product => Invoke(product);
     }
 
-    private sealed class CountingSpecification : Specification<Product>
+    private sealed class CountingCondition : Condition<Product>
     {
         public int ExpressionRequests { get; private set; }
 
@@ -283,19 +283,19 @@ public class CoreCompositionTests
         }
     }
 
-    private static class StaticSpecifications
+    private static class StaticConditions
     {
-        public static readonly Specification<Product> Minimum = new MinimumPriceSpecification(10m);
+        public static readonly Condition<Product> Minimum = new MinimumPriceCondition(10m);
     }
 
-    private sealed class SpecificationHolder(Specification<Product> minimum)
+    private sealed class ConditionHolder(Condition<Product> minimum)
     {
-        public readonly NestedSpecificationHolder Nested = new(minimum);
+        public readonly NestedConditionHolder Nested = new(minimum);
     }
 
-    private sealed class NestedSpecificationHolder(Specification<Product> minimum)
+    private sealed class NestedConditionHolder(Condition<Product> minimum)
     {
-        public readonly Specification<Product> Minimum = minimum;
+        public readonly Condition<Product> Minimum = minimum;
     }
 }
 

@@ -1,7 +1,7 @@
 # Implementation report
 
 > [!NOTE]
-> This is a historical delivery record from the initial implementation. It is retained for design archaeology, is not maintained as product documentation, and may not describe the current API or verification counts. See the [README](../../README.md), [changelog](../../CHANGELOG.md), [migration guide](../migration.md), and [architecture document](../architecture.md) for current behavior.
+> This is a historical delivery record from the initial implementation. It is retained for design archaeology, is not maintained as product documentation, and may not describe the current API or verification counts. In particular, it uses the former `Specification<T>` name; the current API is `Condition<T>`. See the [README](../../README.md), [changelog](../../CHANGELOG.md), [migration guide](../migration.md), and [architecture document](../architecture.md) for current behavior.
 
 ## Delivered
 

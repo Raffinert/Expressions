@@ -20,10 +20,10 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task NestedSpecificationAndProjectionTranslate()
+    public async Task NestedConditionAndProjectionTranslate()
     {
-        var expensive = Specification<DbProduct>.Create(product => product.PriceCents > 1000);
-        var named = Specification<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
+        var expensive = Condition<DbProduct>.Create(product => product.PriceCents > 1000);
+        var named = Condition<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
         var category = Projection<DbCategory, CategoryRow>.Create(value => new CategoryRow { Name = value.Name });
         var product = Projection<DbProduct, ProductRow>.Create(value => new ProductRow
         {
@@ -67,10 +67,10 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SpecificationInsideProjectionAndProjectionInsideSpecificationTranslate()
+    public async Task ConditionInsideProjectionAndProjectionInsideConditionTranslate()
     {
         var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
-        var expensive = Specification<DbProduct>.Create(product => price.Invoke(product) > 1000);
+        var expensive = Condition<DbProduct>.Create(product => price.Invoke(product) > 1000);
         var row = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
         {
             Id = product.Id,
@@ -109,36 +109,36 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     {
         var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
         var doubled = Projection<int, int>.Create(value => value * 2);
-        var threshold = Specification<int>.Create(value => value >= 3000);
+        var threshold = Condition<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
-        var composedSpecification = composedScalar.Then(threshold);
-        var mixed = Projection<DbProduct, bool>.Create(product => composedSpecification.Invoke(product));
+        var composedCondition = composedScalar.Then(threshold);
+        var mixed = Projection<DbProduct, bool>.Create(product => composedCondition.Invoke(product));
 
         var values = await _db.Products
-            .Where(composedSpecification)
+            .Where(composedCondition)
             .Select(mixed)
             .ToArrayAsync();
 
         Assert.Equal(
             "product => (product.PriceCents * 2) >= 3000",
-            composedSpecification.GetExpandedExpression().ToReadableString());
+            composedCondition.GetExpandedExpression().ToReadableString());
         Assert.Equal(3, values.Length);
         Assert.All(values, Assert.True);
     }
 
     [Fact]
-    public async Task ThenAndDeepMixedCompositionTranslateProjectionAsConditionAndSpecificationAsProjection()
+    public async Task ThenAndDeepMixedCompositionTranslateProjectionAsConditionAndConditionAsProjection()
     {
         var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
         var doubled = Projection<int, int>.Create(value => value * 2);
-        var threshold = Specification<int>.Create(value => value >= 3000);
+        var threshold = Condition<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
-        var composedSpecification = composedScalar.Then(threshold);
-        var mixed = Projection<DbProduct, bool>.Create(product => composedSpecification.Invoke(product));
+        var composedCondition = composedScalar.Then(threshold);
+        var mixed = Projection<DbProduct, bool>.Create(product => composedCondition.Invoke(product));
 
         var values = await _db.Products
             .Where(mixed)
-            .Select(composedSpecification)
+            .Select(composedCondition)
             .ToArrayAsync();
 
         Assert.Equal(
@@ -181,7 +181,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task StructuralAdaptationTranslates()
     {
-        var specification = Specification<StructuralDbProduct>.Create(product =>
+        var condition = Condition<StructuralDbProduct>.Create(product =>
             product.PriceCents > 1000 && product.Name != "Hidden");
         var projection = Projection<StructuralDbProduct, StructuralDbProductRow>.Create(product =>
             new StructuralDbProductRow
@@ -190,18 +190,18 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
                 Name = product.Name,
                 IsExpensive = product.PriceCents > 1000
             });
-        var adaptedSpecification = specification.AdaptSource<DbProduct>();
+        var adaptedCondition = condition.AdaptSource<DbProduct>();
         var adaptedProjection = projection.Adapt<DbProduct, ProductRow>();
 
         var rows = await _db.Products
-            .Where(adaptedSpecification)
+            .Where(adaptedCondition)
             .Select(adaptedProjection)
             .OrderBy(product => product.Name)
             .ToArrayAsync();
 
         Assert.Equal(
             "product => (product.PriceCents > 1000) && (product.Name != \"Hidden\")",
-            adaptedSpecification.GetExpandedExpression().ToReadableString());
+            adaptedCondition.GetExpandedExpression().ToReadableString());
         Assert.Equal("""
                      product => new ProductRow
                      {

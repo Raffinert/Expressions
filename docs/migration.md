@@ -14,19 +14,19 @@ The runtime remains `netstandard2.0` and has no EF Core dependency.
 
 The aggregate package uses full names for its public semantic types:
 
-- `Spec<T>` becomes `Specification<T>`;
+- `Spec<T>` becomes `Condition<T>`;
 - `Proj<TIn,TOut>` becomes `Projection<TSource,TResult>`;
 - `Expr<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>` for custom semantic wrappers.
 
 The aggregate package otherwise preserves the structural capabilities:
 
 - `Create`, subclassing, `GetExpression`, `True`, `False`, Boolean combinators and operators;
-- direct `Where(specification)` use;
+- direct `Where(condition)` use;
 - projection creation, subclassing, `GetExpression`, and direct `Select(projection)` use;
 - `MergeBindings`, `MapToExisting`, and debugger expression views;
 - nested method-group forms through the canonical `Invoke` method.
 
-The old structural template types are not included. Instead, an existing specification can be adapted directly with
+The old structural template types are not included. Instead, an existing condition can be adapted directly with
 `AdaptSource<TNewSource>()`. Projections provide `AdaptSource<TNewSource>()`, `AdaptResult<TNewResult>()`, and
 `Adapt<TNewSource,TNewResult>()`.
 
@@ -36,7 +36,7 @@ Use `Invoke` when composing either semantic type into another expression:
 
 ```csharp
 var amount = Projection<Invoice, decimal>.Create(invoice => invoice.Amount);
-var overdue = Specification<Invoice>.Create(invoice =>
+var overdue = Condition<Invoice>.Create(invoice =>
     amount.Invoke(invoice) > 0m && invoice.DueDate < today);
 ```
 
@@ -47,12 +47,12 @@ The aggregate API deliberately removes the old execution aliases:
 | `spec.IsSatisfiedBy(value)` | `spec.Invoke(value)` |
 | `projection.Map(value)` | `projection.Invoke(value)` |
 | `projection.MapIfNotNull(value)` | `projection.InvokeOrDefault(value)` |
-| `Spec<T>.True()` | `Specification<T>.True` |
-| `Spec<T>.False()` | `Specification<T>.False` |
+| `Spec<T>.True()` | `Condition<T>.True` |
+| `Spec<T>.False()` | `Condition<T>.False` |
 
-`InvokeOrDefault` is available on the shared expression base. A null input returns `default(TResult)`, which means `false` for a specification and values such as `0` for value-type projections.
+`InvokeOrDefault` is available on the shared expression base. A null input returns `default(TResult)`, which means `false` for a condition and values such as `0` for value-type projections.
 
-Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(specification)` for `A -> B -> bool`.
+Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(condition)` for `A -> B -> bool`.
 
 ## Deliberate safety changes
 
