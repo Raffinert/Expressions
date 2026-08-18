@@ -2,6 +2,10 @@
 
 # Raffinert.Expressions
 
+[![NuGet](https://img.shields.io/nuget/v/Raffinert.Expressions.svg)](https://www.nuget.org/packages/Raffinert.Expressions)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Raffinert.Expressions.svg)](https://www.nuget.org/packages/Raffinert.Expressions)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Raffinert.Expressions** is a lightweight expression-composition library for reusable conditions and projections. Compose normal C# expression objects and hand the resulting pure expression tree to EF Core or any other LINQ provider—without a custom query provider or special query interception.
 
 It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec) and [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj) around one expression-expansion engine. The runtime package targets `netstandard2.0`, has no EF Core dependency, and requires neither a custom `IQueryProvider` nor `AsExpandable()`.
