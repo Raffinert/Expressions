@@ -1,3 +1,5 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
+
 # Raffinert.Expressions
 
 **Raffinert.Expressions** is a lightweight expression-composition library for reusable predicates and projections. Compose normal C# expression objects and hand the resulting pure expression tree to EF Core or any other LINQ provider—without a custom query provider or special query interception.
@@ -198,16 +200,3 @@ Projection and collection-mapping behavior:
 ## Feedback
 
 Open an [issue](https://github.com/Raffinert/Raffinert.Expressions/issues) for bugs, compatibility problems, or feature proposals.
-
-## Project values
-
-[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
-
-This project:
-
-- **condemns Russia and its military aggression against Ukraine**;
-- **recognizes that Russia is an occupant that unlawfully invaded a sovereign state**;
-- **supports Ukraine's territorial integrity, including its claims over temporarily occupied territories of Crimea and Donbas**;
-- **rejects false narratives perpetuated by Russian state propaganda**.
-
-These statements express the maintainer's values and do not add conditions to the project's MIT license. To learn more about the war and how you can help, visit [Stand With Ukraine](https://stand-with-ukraine.pp.ua). Glory to Ukraine!
