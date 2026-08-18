@@ -36,7 +36,7 @@ Because all semantic wrappers implement the same internal contract, nested expan
 
 `MergeBindings` normalizes member initializers and supported conditional branches into member-keyed assignments. Constructors must be compatible and parameterless. Conflicts follow the selected policy.
 
-`MapToExisting` accepts member-initializer roots and supported conditional branches. Scalar assignments become destination assignments. Nested member initializers recursively update existing nested instances after an explicit null guard. Automatic nested construction is intentionally outside scope.
+`MapToExisting` accepts member-initializer roots and supported conditional branches. Scalar assignments become destination assignments. Nested member initializers recursively update existing nested instances and create missing writable instances from the projection. Missing read-only nested instances fail with a descriptive exception.
 
 ## Structural adaptation
 

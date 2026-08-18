@@ -1,3 +1,4 @@
+using AgileObjects.ReadableExpressions;
 using System.Linq.Expressions;
 
 namespace Raffinert.Expressions.UnitTests;
@@ -16,7 +17,20 @@ public class CoreCompositionTests
 
         var expanded = projection.GetExpandedExpression();
 
-        Assert.False(ContainsMarker(expanded));
+        Assert.Equal("""
+                     product => new ProductDto
+                     {
+                         Name = product.Name,
+                         IsExpensive = expensive.Invoke(product)
+                     }
+                     """, projection.GetExpression().ToReadableString(), ignoreLineEndingDifferences: true);
+        Assert.Equal("""
+                     product => new ProductDto
+                     {
+                         Name = product.Name,
+                         IsExpensive = product.Price > 100m
+                     }
+                     """, expanded.ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.False(ContainsInvocation(expanded));
         Assert.True(projection.Invoke(new Product { Name = "Desk", Price = 200m }).IsExpensive);
     }
@@ -30,7 +44,9 @@ public class CoreCompositionTests
 
         var expanded = expensive.GetExpandedExpression();
 
-        Assert.False(ContainsMarker(expanded));
+        Assert.Equal(
+            "order => order.Lines.Sum(line => line.Price * line.Quantity) > 1000m",
+            expanded.ToReadableString());
         Assert.True(expensive.Invoke(new Order
         {
             Lines = { new OrderLine { Price = 600m, Quantity = 2 } }
@@ -47,7 +63,9 @@ public class CoreCompositionTests
 
         var expanded = result.GetExpandedExpression();
 
-        Assert.False(ContainsMarker(expanded));
+        Assert.Equal(
+            "product => decimal.Round(product.Price) >= 10m",
+            expanded.ToReadableString());
         Assert.True(result.Invoke(new Product { Price = 10.4m }));
     }
 
@@ -58,10 +76,11 @@ public class CoreCompositionTests
         var name = Projection<Customer, string>.Create(value => value.Name);
 
         var composed = customer.Then(name);
+        var expanded = composed.GetExpandedExpression();
 
+        Assert.Equal("order => order.Customer.Name", expanded.ToReadableString());
         Assert.Equal("Ada", composed.Invoke(new Order { Customer = new Customer { Name = "Ada" } }));
-        Assert.False(ContainsMarker(composed.GetExpandedExpression()));
-        Assert.False(ContainsInvocation(composed.GetExpandedExpression()));
+        Assert.False(ContainsInvocation(expanded));
     }
 
     [Fact]
@@ -72,8 +91,8 @@ public class CoreCompositionTests
 
         var composed = customer.Then(active);
 
+        Assert.Equal("order => order.Customer.IsActive", composed.GetExpandedExpression().ToReadableString());
         Assert.True(composed.Invoke(new Order { Customer = new Customer { IsActive = true } }));
-        Assert.False(ContainsMarker(composed.GetExpandedExpression()));
     }
 
     [Fact]
@@ -81,8 +100,8 @@ public class CoreCompositionTests
     {
         var outer = Specification<Product>.Create(product => new MinimumPriceSpecification(12m).Invoke(product));
 
+        Assert.Equal("product => product.Price >= <minimum>P", outer.GetExpandedExpression().ToReadableString());
         Assert.True(outer.Invoke(new Product { Price = 15m }));
-        Assert.False(ContainsMarker(outer.GetExpandedExpression()));
     }
 
     [Fact]
@@ -91,8 +110,8 @@ public class CoreCompositionTests
         var holder = new SpecificationHolder(new MinimumPriceSpecification(12m));
         var outer = Specification<Product>.Create(product => holder.Nested.Minimum.Invoke(product));
 
+        Assert.Equal("product => product.Price >= <minimum>P", outer.GetExpandedExpression().ToReadableString());
         Assert.True(outer.Invoke(new Product { Price = 15m }));
-        Assert.False(ContainsMarker(outer.GetExpandedExpression()));
     }
 
     [Fact]
@@ -103,8 +122,11 @@ public class CoreCompositionTests
         var second = Specification<Product>.Create(product => counting.Invoke(product) && StaticSpecifications.Minimum.Invoke(product));
 
         first.GetExpandedExpression();
-        second.GetExpandedExpression();
+        var expanded = second.GetExpandedExpression();
 
+        Assert.Equal(
+            "product => (product.Price > 0m) && (product.Price >= <minimum>P)",
+            expanded.ToReadableString());
         Assert.Equal(1, counting.ExpressionRequests);
         Assert.True(second.Invoke(new Product { Price = 20m }));
     }
@@ -120,7 +142,13 @@ public class CoreCompositionTests
             Name = name.Invoke(product)
         });
 
-        Assert.False(ContainsMarker(outer.GetExpandedExpression()));
+        Assert.Equal("""
+                     product => new ProductDto
+                     {
+                         IsExpensive = product.Price > 0m,
+                         Name = product.Name
+                     }
+                     """, outer.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal("Book", outer.Invoke(new Product { Name = "Book", Price = 1m }).Name);
     }
 
@@ -133,12 +161,16 @@ public class CoreCompositionTests
         var projection = Projection<NullableCustomerHolder, int>.Create(
             holder => nameLength.InvokeOrDefault(holder.Customer));
 
+        Assert.Equal(
+            "holder => (holder.Customer == null) ? default(bool) : holder.Customer.IsActive",
+            specification.GetExpandedExpression().ToReadableString());
+        Assert.Equal(
+            "holder => (holder.Customer == null) ? default(int) : holder.Customer.Name.Length",
+            projection.GetExpandedExpression().ToReadableString());
         Assert.False(specification.Invoke(new NullableCustomerHolder()));
         Assert.Equal(0, projection.Invoke(new NullableCustomerHolder()));
         Assert.True(specification.Invoke(new NullableCustomerHolder { Customer = new Customer { IsActive = true } }));
         Assert.Equal(3, projection.Invoke(new NullableCustomerHolder { Customer = new Customer { Name = "Ada" } }));
-        Assert.False(ContainsMarker(specification.GetExpandedExpression()));
-        Assert.False(ContainsMarker(projection.GetExpandedExpression()));
     }
 
     [Fact]
@@ -158,7 +190,13 @@ public class CoreCompositionTests
             Products = { new Product { Name = "A", Price = 2m } }
         });
 
-        Assert.False(ContainsMarker(expanded));
+        Assert.Equal("""
+                     group => new GroupDto
+                     {
+                         HasPositive = group.Products.Any(product => product.Price > 0m),
+                         Names = group.Products.Select(product => product.Name).ToArray()
+                     }
+                     """, expanded.ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.True(mapped.HasPositive);
         Assert.Equal(["A"], mapped.Names);
     }
@@ -187,6 +225,12 @@ public class CoreCompositionTests
 
         var composed = input.Then(unusual);
 
+        Assert.Equal("""
+                     holder => Enumerable
+                         .Range(0, 1)
+                         .Select(number => number)
+                         .Sum() + holder.Value
+                     """, composed.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal(7, composed.Invoke(new NumberHolder { Value = 7 }));
     }
 
@@ -200,44 +244,11 @@ public class CoreCompositionTests
         Assert.Contains("cycle", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool ContainsMarker(Expression expression)
-    {
-        var visitor = new MarkerVisitor();
-        visitor.Visit(expression);
-        return visitor.FoundMarker;
-    }
-
     private static bool ContainsInvocation(Expression expression)
     {
         var visitor = new InvocationVisitor();
         visitor.Visit(expression);
         return visitor.FoundInvocation;
-    }
-
-    private sealed class MarkerVisitor : ExpressionVisitor
-    {
-        public bool FoundMarker { get; private set; }
-
-        protected override Expression VisitMethodCall(MethodCallExpression node)
-        {
-            if (node.Method.Name is "Invoke" or "InvokeOrDefault" &&
-                node.Object != null && IsComposableExpressionType(node.Object.Type))
-            {
-                FoundMarker = true;
-            }
-
-            return base.VisitMethodCall(node);
-        }
-
-        private static bool IsComposableExpressionType(Type type)
-        {
-            for (var current = type; current != null; current = current.BaseType)
-            {
-                if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(ComposableExpression<,>)) return true;
-            }
-
-            return false;
-        }
     }
 
     private sealed class InvocationVisitor : ExpressionVisitor

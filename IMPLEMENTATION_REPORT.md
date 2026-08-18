@@ -47,7 +47,7 @@ Documentation:
 - Compatibility aliases `IsSatisfiedBy`, `Map`, and `MapIfNotNull` are deliberately omitted. `Invoke` is the sole normal invocation API and `InvokeOrDefault` is the explicit null-input/default-output API.
 - Existing specifications and projections serve as their own structural definitions; no separate template abstraction is exposed.
 - Legacy binary compatibility packages were not created; they are explicitly outside the MVP.
-- `MapToExisting` does not automatically construct missing nested destination objects. It throws an explicit `InvalidOperationException`.
+- `MapToExisting` preserves and updates existing nested destination objects, and constructs missing writable nested destinations from the projection. Missing read-only nested destinations throw an explicit `InvalidOperationException`.
 
 ## Remaining limitations
 

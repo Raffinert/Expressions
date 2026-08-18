@@ -1,3 +1,4 @@
+using AgileObjects.ReadableExpressions;
 using System.Linq.Expressions;
 
 namespace Raffinert.Expressions.UnitTests;
@@ -29,7 +30,16 @@ public class ProjectionTests
 
         var expression = product.GetExpandedExpression();
 
-        Assert.Contains(FindNodes<ConditionalExpression>(expression), node => node.IfTrue is DefaultExpression);
+        Assert.Equal("""
+                     value => new ProductDto
+                     {
+                         Name = value.Name,
+                         Category = (value.Category == null) ? null : new CategoryDto
+                         {
+                             Name = value.Category.Name
+                         }
+                     }
+                     """, expression.ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Null(product.Invoke(new Product()).Category);
         Assert.Equal("Tools", product.Invoke(new Product { Category = new Category { Name = "Tools" } }).Category!.Name);
     }
@@ -40,6 +50,9 @@ public class ProjectionTests
         var twice = Projection<int?, int>.Create(value => value!.Value * 2);
         var wrapper = Projection<NullableHolder, int>.Create(value => twice.InvokeOrDefault(value.Value));
 
+        Assert.Equal(
+            "value => (value.Value == null) ? default(int) : value.Value.Value * 2",
+            wrapper.GetExpandedExpression().ToReadableString());
         Assert.Equal(0, wrapper.Invoke(new NullableHolder()));
         Assert.Equal(8, wrapper.Invoke(new NullableHolder { Value = 4 }));
     }
@@ -59,9 +72,27 @@ public class ProjectionTests
         });
         var product = new Product { Id = 3, Price = 20m };
 
-        var useLast = first.MergeBindings(second).Invoke(product);
-        var useFirst = first.MergeBindings(second, BindingConflictBehavior.UseFirst).Invoke(product);
+        var useLastProjection = first.MergeBindings(second);
+        var useFirstProjection = first.MergeBindings(second, BindingConflictBehavior.UseFirst);
+        var useLast = useLastProjection.Invoke(product);
+        var useFirst = useFirstProjection.Invoke(product);
 
+        Assert.Equal("""
+                     product => new ProductDto
+                     {
+                         Id = product.Id,
+                         Name = "second",
+                         IsExpensive = product.Price > 10m
+                     }
+                     """, useLastProjection.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
+        Assert.Equal("""
+                     product => new ProductDto
+                     {
+                         Id = product.Id,
+                         Name = "first",
+                         IsExpensive = product.Price > 10m
+                     }
+                     """, useFirstProjection.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal(3, useLast.Id);
         Assert.Equal("second", useLast.Name);
         Assert.True(useLast.IsExpensive);
@@ -78,9 +109,18 @@ public class ProjectionTests
             : new MergeDto { B = source.B + 1, A = source.A + 1 });
         var overlay = Projection<ConditionalSource, MergeDto>.Create(source => new MergeDto { C = 9 });
 
-        var trueResult = conditional.MergeBindings(overlay).Invoke(new ConditionalSource { Flag = true, A = 2, B = 3 });
-        var falseResult = conditional.MergeBindings(overlay).Invoke(new ConditionalSource { Flag = false, A = 2, B = 3 });
+        var merged = conditional.MergeBindings(overlay);
+        var trueResult = merged.Invoke(new ConditionalSource { Flag = true, A = 2, B = 3 });
+        var falseResult = merged.Invoke(new ConditionalSource { Flag = false, A = 2, B = 3 });
 
+        Assert.Equal("""
+                     source => new MergeDto
+                     {
+                         A = source.Flag ? source.A : source.A + 1,
+                         B = source.Flag ? source.B : source.B + 1,
+                         C = 9
+                     }
+                     """, merged.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal((2, 3, 9), (trueResult.A, trueResult.B, trueResult.C));
         Assert.Equal((3, 4, 9), (falseResult.A, falseResult.B, falseResult.C));
     }
@@ -100,17 +140,41 @@ public class ProjectionTests
             Id = 1,
             Category = new CategoryDto { Name = "Old" }
         };
+        var originalCategory = destination.Category;
 
         nested.MapToExisting(
             new Product { Id = 2, Category = new Category { Name = "New" } },
             ref destination);
 
+        Assert.Equal("""
+                     (product, existing) =>
+                     {
+                         existing.Id = product.Id;
+
+                         if (product.Category == null)
+                         {
+                             existing.Category = null;
+                         }
+                         else if (existing.Category == null)
+                         {
+                             existing.Category = new CategoryDto
+                             {
+                                 Name = product.Category.Name
+                             };
+                         }
+                         else
+                         {
+                             existing.Category.Name = product.Category.Name;
+                         }
+                     }
+                     """, nested.GetMapToExistingExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal(2, destination!.Id);
+        Assert.Same(originalCategory, destination.Category);
         Assert.Equal("New", destination.Category!.Name);
     }
 
     [Fact]
-    public void MapToExistingCreatesRootButRejectsMissingNestedDestination()
+    public void MapToExistingCreatesRootAndMissingNestedDestination()
     {
         var nestedCategory = Projection<Category, CategoryDto>.Create(category => new CategoryDto { Name = category.Name });
         var projection = Projection<Product, ProductDto>.Create(product => new ProductDto
@@ -124,10 +188,10 @@ public class ProjectionTests
         Assert.Equal("New", absentRoot!.Category!.Name);
 
         ProductDto? absentNested = new();
-        var exception = Assert.Throws<InvalidOperationException>(() => projection.MapToExisting(
+        projection.MapToExisting(
             new Product { Category = new Category { Name = "New" } },
-            ref absentNested));
-        Assert.Contains("current value is null", exception.Message);
+            ref absentNested);
+        Assert.Equal("New", absentNested!.Category!.Name);
     }
 
     [Fact]
@@ -154,24 +218,6 @@ public class ProjectionTests
         var exception = Assert.Throws<NotSupportedException>(projection.GetMapToExistingExpression);
 
         Assert.Contains("member initializer", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static List<TNode> FindNodes<TNode>(Expression expression) where TNode : Expression
-    {
-        var visitor = new NodeVisitor<TNode>();
-        visitor.Visit(expression);
-        return visitor.Nodes;
-    }
-
-    private sealed class NodeVisitor<TNode> : ExpressionVisitor where TNode : Expression
-    {
-        public List<TNode> Nodes { get; } = [];
-
-        public override Expression? Visit(Expression? node)
-        {
-            if (node is TNode typed) Nodes.Add(typed);
-            return base.Visit(node);
-        }
     }
 
     private sealed class PriceProjection : Projection<Product, decimal>

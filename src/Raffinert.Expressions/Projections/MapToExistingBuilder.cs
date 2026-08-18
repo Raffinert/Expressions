@@ -88,10 +88,13 @@ internal static class MapToExistingBuilder
             }
 
             var update = BuildMemberInit(memberInit, target);
+            Expression create = CanAssign(destinationMember)
+                ? Expression.Assign(target, memberInit)
+                : Throw(
+                    $"Cannot create nested destination member '{destinationMember.DeclaringType?.FullName}.{destinationMember.Name}' because it is read-only and its current value is null.");
             return Expression.IfThenElse(
                 Expression.Equal(target, Expression.Default(target.Type)),
-                Throw(
-                    $"Cannot update nested destination member '{destinationMember.DeclaringType?.FullName}.{destinationMember.Name}' because its current value is null."),
+                create,
                 update);
         }
 
@@ -121,6 +124,10 @@ internal static class MapToExistingBuilder
                 $"MapToExisting cannot assign readonly field '{member.DeclaringType?.FullName}.{member.Name}'.");
         }
     }
+
+    private static bool CanAssign(MemberInfo member) =>
+        member is PropertyInfo { SetMethod: not null } ||
+        member is FieldInfo { IsInitOnly: false };
 
     private static UnaryExpression Throw(string message) =>
         Expression.Throw(Expression.New(InvalidOperationConstructor, Expression.Constant(message)));

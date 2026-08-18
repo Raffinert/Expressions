@@ -598,7 +598,7 @@ becomes conceptually:
 
 ## Nested objects
 
-Existing behavior currently recursively updates nested member initializers. Preserve this only where destination nested instances are non-null and semantics are explicit.
+Nested member initializers recursively update existing destination instances. When a writable destination member is null, create and assign the member initializer produced by the projection.
 
 Do not accidentally dereference an existing nested destination that can be null.
 
@@ -609,7 +609,7 @@ Define and test behavior for:
 - source-side conditional producing null;
 - nested projection expanded through `Invoke`.
 
-If automatic destination-object construction is not implemented, throw a clear exception rather than allowing an opaque `NullReferenceException` during a compiled mapper.
+When a missing nested destination is read-only and cannot be assigned, throw a clear exception rather than allowing an opaque `NullReferenceException` during a compiled mapper.
 
 ## Unsupported projection bodies
 

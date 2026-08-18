@@ -1,3 +1,4 @@
+using AgileObjects.ReadableExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,13 +40,27 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         var sql = query.ToQueryString();
         var rows = await query.ToArrayAsync();
 
+        Assert.Equal(
+            "product => (product.PriceCents > 1000) && (product.Name != \"Hidden\")",
+            named.GetExpandedExpression().ToReadableString());
+        Assert.Equal("""
+                     value => new ProductRow
+                     {
+                         Id = value.Id,
+                         Name = value.Name,
+                         Category = (value.Category == null) ? null : new CategoryRow
+                         {
+                             Name = value.Category.Name
+                         }
+                     }
+                     """, product.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal("""
                      SELECT "p"."Id", "p"."Name", "c"."Id" IS NULL, "c"."Name"
                      FROM "Products" AS "p"
                      LEFT JOIN "Categories" AS "c" ON "p"."CategoryId" = "c"."Id"
                      WHERE "p"."PriceCents" > 1000 AND "p"."Name" <> 'Hidden'
                      ORDER BY "p"."Name"
-                     """, sql);
+                     """, sql, ignoreLineEndingDifferences: true);
         Assert.Equal(["Desk", "Uncategorized"], rows.Select(row => row.Name));
         Assert.Equal("Office", rows[0].Category!.Name);
         Assert.Null(rows[1].Category);
@@ -67,12 +82,23 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         var sql = query.ToQueryString();
         var rows = await query.ToArrayAsync();
 
+        Assert.Equal(
+            "product => product.PriceCents > 1000",
+            expensive.GetExpandedExpression().ToReadableString());
+        Assert.Equal("""
+                     product => new ProductRow
+                     {
+                         Id = product.Id,
+                         Name = product.Name,
+                         IsExpensive = product.PriceCents > 1000
+                     }
+                     """, row.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal("""
                      SELECT "p"."Id", "p"."Name", "p"."PriceCents" > 1000 AS "IsExpensive"
                      FROM "Products" AS "p"
                      WHERE "p"."PriceCents" > 1000
                      ORDER BY "p"."Id"
-                     """, sql);
+                     """, sql, ignoreLineEndingDifferences: true);
 
         Assert.All(rows, value => Assert.True(value.IsExpensive));
         Assert.Equal(3, rows.Length);
@@ -93,6 +119,9 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
             .Select(mixed)
             .ToArrayAsync();
 
+        Assert.Equal(
+            "product => (product.PriceCents * 2) >= 3000",
+            composedSpecification.GetExpandedExpression().ToReadableString());
         Assert.Equal(3, values.Length);
         Assert.All(values, Assert.True);
     }
@@ -112,6 +141,9 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
             .Select(composedSpecification)
             .ToArrayAsync();
 
+        Assert.Equal(
+            "product => (product.PriceCents * 2) >= 3000",
+            mixed.GetExpandedExpression().ToReadableString());
         Assert.Equal(3, values.Length);
         Assert.All(values, Assert.True);
     }
@@ -129,10 +161,19 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
             Name = product.Name + "!",
             IsExpensive = product.PriceCents > 1000
         });
+        var merged = basis.MergeBindings(overlay);
 
-        var query = _db.Products.Select(basis.MergeBindings(overlay)).OrderBy(row => row.Name);
+        var query = _db.Products.Select(merged).OrderBy(row => row.Name);
         var rows = await query.ToArrayAsync();
 
+        Assert.Equal("""
+                     product => new ProductRow
+                     {
+                         Id = product.Id,
+                         Name = product.Name + "!",
+                         IsExpensive = product.PriceCents > 1000
+                     }
+                     """, merged.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.False(rows.Single(row => row.Name == "Pencil!").IsExpensive);
         Assert.True(rows.Single(row => row.Name == "Desk!").IsExpensive);
     }
@@ -158,6 +199,17 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
             .OrderBy(product => product.Name)
             .ToArrayAsync();
 
+        Assert.Equal(
+            "product => (product.PriceCents > 1000) && (product.Name != \"Hidden\")",
+            adaptedSpecification.GetExpandedExpression().ToReadableString());
+        Assert.Equal("""
+                     product => new ProductRow
+                     {
+                         Id = product.Id,
+                         Name = product.Name,
+                         IsExpensive = product.PriceCents > 1000
+                     }
+                     """, adaptedProjection.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal(["Desk", "Uncategorized"], rows.Select(row => row.Name));
         Assert.All(rows, row => Assert.True(row.IsExpensive));
     }

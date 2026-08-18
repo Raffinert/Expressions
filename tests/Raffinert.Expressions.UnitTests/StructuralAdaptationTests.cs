@@ -1,3 +1,5 @@
+using AgileObjects.ReadableExpressions;
+
 namespace Raffinert.Expressions.UnitTests;
 
 public class StructuralAdaptationTests
@@ -12,6 +14,9 @@ public class StructuralAdaptationTests
 
         var adapted = specification.AdaptSource<StructuralInventoryItem>();
 
+        Assert.Equal(
+            "product => ((product.Price > 10m) && (product.Category != null)) && (product.Category.Name == \"Tools\")",
+            adapted.GetExpandedExpression().ToReadableString());
         Assert.True(adapted.Invoke(new StructuralInventoryItem
         {
             Price = 20m,
@@ -47,6 +52,20 @@ public class StructuralAdaptationTests
             Category = new StructuralInventoryCategory { Name = "Tools" }
         });
 
+        Assert.Equal("""
+                     product => new StructuralInventoryDto
+                     {
+                         Id = product.Id,
+                         Name = product.Name,
+                         IsExpensive = product.Price > 10m,
+                         Category = (product.Category == null)
+                             ? null
+                             : new StructuralInventoryCategoryDto
+                             {
+                                 Name = product.Category.Name
+                             }
+                     }
+                     """, adapted.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal(7, result.Id);
         Assert.Equal("Desk", result.Name);
         Assert.True(result.IsExpensive);
@@ -64,6 +83,14 @@ public class StructuralAdaptationTests
         var adaptedDto = dto.AdaptResult<StructuralInventoryDto>();
         var result = adaptedDto.Invoke(new StructuralProduct { Id = 3, Name = "Chair" });
 
+        Assert.Equal("product => product.Name", adaptedName.GetExpandedExpression().ToReadableString());
+        Assert.Equal("""
+                     product => new StructuralInventoryDto
+                     {
+                         Id = product.Id,
+                         Name = product.Name
+                     }
+                     """, adaptedDto.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal("Desk", adaptedName.Invoke(new StructuralInventoryItem { Name = "Desk" }));
         Assert.Equal((3, "Chair"), (result.Id, result.Name));
     }
