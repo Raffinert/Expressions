@@ -1,12 +1,6 @@
 # Changelog
 
-## Unreleased
-
-- Changed `MapToExisting` to preserve, clear, and refill existing mutable collection members instead of replacing them.
-- Added support for collection-initializer bindings, null/empty collection behavior, missing writable collections, and aliased source/destination collections.
-- Kept AutoMapper-compatible replacement behavior for arrays, writable `IEnumerable<T>` members, and known read-only collection wrappers.
-
-## 1.0.0 - 2026-08-17
+## 1.0.0 - 2026-08-18
 
 - Aggregated reusable specification and projection APIs in `Raffinert.Expressions`.
 - Renamed `Spec<T>` and `Proj<TIn,TOut>` to `Specification<T>` and `Projection<TSource,TResult>`.
@@ -18,4 +12,6 @@
 - Changed constant `Specification<T>.True` and `Specification<T>.False` factories into cached static properties.
 - Added deterministic binding conflict policies and safer map-to-existing behavior.
 - Added direct structural source adaptation for specifications and source/result adaptation for projections.
+- Added `MapToExisting` clear-and-refill semantics for mutable collections, collection-initializer bindings, null/empty handling, missing writable collections, and aliased source/destination collections.
+- Kept replacement behavior for arrays, writable `IEnumerable<T>` members, and known read-only collection wrappers.
 - Added unit and EF Core SQLite integration coverage.

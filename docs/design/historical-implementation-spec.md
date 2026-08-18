@@ -1,5 +1,8 @@
 # Codex Implementation Specification: `Raffinert.Expressions`
 
+> [!NOTE]
+> This is the historical planning input for the initial implementation. It is not the current product contract; unchecked criteria and superseded API decisions are intentionally preserved as an archival record. See the [README](../../README.md) and [architecture document](../architecture.md) for current behavior.
+
 ## 0. Mission
 
 Implement a new aggregated library named **`Raffinert.Expressions`** by consolidating the useful concepts of:

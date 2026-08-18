@@ -38,6 +38,8 @@ Because all semantic wrappers implement the same internal contract, nested expan
 
 `MapToExisting` accepts member-initializer roots and supported conditional branches. Scalar assignments become destination assignments. Nested member initializers recursively update existing nested instances and create missing writable instances from the projection. Missing read-only nested instances fail with a descriptive exception.
 
+Mutable collection assignments follow clear-and-refill semantics. Existing `ICollection<T>` and `IList` instances are preserved, cleared, and populated with the projected elements. A null projected collection clears an existing mutable collection to empty, while a missing writable collection is created. Arrays, writable members exposed only as `IEnumerable<T>`, and known read-only wrappers are replaced. Collection-initializer bindings update getter-only mutable collections. Existing elements are not matched or updated by key.
+
 ## Structural adaptation
 
 Existing specifications and projections act as their own structural definitions. `StructuralExpressionAdapter`

@@ -4,21 +4,25 @@
     <AssemblyName>Raffinert.Expressions</AssemblyName>
     <RootNamespace>Raffinert.Expressions</RootNamespace>
     <Version>1.0.0</Version>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <DebugType>portable</DebugType>
     <PackageId>Raffinert.Expressions</PackageId>
     <Title>Raffinert.Expressions</Title>
-	<Authors>Yevhen Cherkes</Authors>
+    <Authors>Yevhen Cherkes</Authors>
+    <Copyright>Copyright (c) 2026 Raffinert</Copyright>
     <Description>Lightweight composable and structurally adaptable expression trees for reusable specifications, projections, and LINQ/EF Core query logic.</Description>
     <PackageTags>LINQ;Expressions;ExpressionTree;Specification;Projection;EFCore;Composable;Predicate;Selector</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Raffinert/Raffinert.Expressions</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Raffinert/Raffinert.Expressions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>https://github.com/Raffinert/Raffinert.Expressions/blob/main/CHANGELOG.md</PackageReleaseNotes>
+    <EnablePackageValidation>true</EnablePackageValidation>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />

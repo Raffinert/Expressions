@@ -1,4 +1,6 @@
 using AgileObjects.ReadableExpressions;
+using System.Collections;
+using System.Collections.ObjectModel;
 using System.Linq.Expressions;
 
 namespace Raffinert.Expressions.UnitTests;
@@ -216,7 +218,7 @@ public class ProjectionTests
         var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
         {
             Values = source.Values == null ? null : source.Values.Select(value => value * 10).ToList(),
-            SetValues = source.Values == null ? null : source.Values.ToList(),
+            SetValues = source.Values == null ? null : source.Values.ToHashSet(),
             EnumerableValues = source.Values == null ? null : source.Values.Select(value => value + 1).ToList(),
             ArrayValues = source.Values == null ? null : source.Values.Select(value => value + 2).ToArray(),
             ReadOnlyValues = { source.Values![0], source.Values[1] }
@@ -287,6 +289,72 @@ public class ProjectionTests
     }
 
     [Fact]
+    public void MapToExistingCreatesMissingSetAndNonGenericListCollections()
+    {
+        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        {
+            SetValues = source.Values == null ? null : source.Values.ToHashSet(),
+            UntypedValues = source.UntypedValues
+        });
+        CollectionDestination? destination = new()
+        {
+            SetValues = null,
+            UntypedValues = null
+        };
+
+        projection.MapToExisting(
+            new CollectionSource
+            {
+                Values = [2, 2, 3],
+                UntypedValues = new ArrayList { "two", 3 }
+            },
+            ref destination);
+
+        Assert.IsType<HashSet<int>>(destination!.SetValues);
+        Assert.Equal([2, 3], destination.SetValues.OrderBy(value => value));
+        Assert.IsType<List<object>>(destination.UntypedValues);
+        Assert.Equal(["two", 3], destination.UntypedValues.Cast<object>());
+    }
+
+    [Fact]
+    public void MapToExistingReplacesKnownReadOnlyCollectionWrapper()
+    {
+        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        {
+            ReadOnlyWrapper = source.Values == null
+                ? null
+                : new ReadOnlyCollection<int>(source.Values)
+        });
+        CollectionDestination? destination = new()
+        {
+            ReadOnlyWrapper = new ReadOnlyCollection<int>([99])
+        };
+        var original = destination.ReadOnlyWrapper;
+
+        projection.MapToExisting(new CollectionSource { Values = [2, 3] }, ref destination);
+
+        Assert.NotSame(original, destination!.ReadOnlyWrapper);
+        Assert.Equal([2, 3], destination.ReadOnlyWrapper);
+    }
+
+    [Fact]
+    public void MapToExistingDescribesNullReadOnlyCollectionInitializer()
+    {
+        var projection = Projection<CollectionSource, NullReadOnlyCollectionDestination>.Create(source =>
+            new NullReadOnlyCollectionDestination
+            {
+                Values = { source.Values![0] }
+            });
+        NullReadOnlyCollectionDestination? destination = new();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            projection.MapToExisting(new CollectionSource { Values = [2] }, ref destination));
+
+        Assert.Contains("read-only", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(nameof(NullReadOnlyCollectionDestination.Values), exception.Message);
+    }
+
+    [Fact]
     public void UnsupportedMapToExistingShapeIsDescriptive()
     {
         var projection = Projection<Product, string>.Create(product => product.Name);
@@ -324,13 +392,21 @@ public sealed class MergeDto
 public sealed class CollectionSource
 {
     public List<int>? Values { get; set; }
+    public IList? UntypedValues { get; set; }
 }
 
 public sealed class CollectionDestination
 {
     public List<int>? Values { get; set; } = [];
-    public ICollection<int>? SetValues { get; set; } = new HashSet<int>();
+    public ISet<int>? SetValues { get; set; } = new HashSet<int>();
     public IEnumerable<int>? EnumerableValues { get; set; } = [];
     public int[]? ArrayValues { get; set; } = [];
     public List<int> ReadOnlyValues { get; } = [];
+    public IList? UntypedValues { get; set; } = new ArrayList();
+    public ReadOnlyCollection<int>? ReadOnlyWrapper { get; set; } = new([]);
+}
+
+public sealed class NullReadOnlyCollectionDestination
+{
+    public List<int> Values => null!;
 }

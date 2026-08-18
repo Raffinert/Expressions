@@ -1,21 +1,14 @@
-[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
-
-## Terms of use<sup>[?](https://github.com/Tyrrrz/.github/blob/master/docs/why-so-political.md)</sup>
-
-By using this project or its source code, for any purpose and in any shape or form, you grant your **implicit agreement** to all the following statements:
-
-- You **condemn Russia and its military aggression against Ukraine**
-- You **recognize that Russia is an occupant that unlawfully invaded a sovereign state**
-- You **support Ukraine's territorial integrity, including its claims over temporarily occupied territories of Crimea and Donbas**
-- You **reject false narratives perpetuated by Russian state propaganda**
-
-To learn more about the war and how you can help, [click here](https://stand-with-ukraine.pp.ua). Glory to Ukraine!
-
 # Raffinert.Expressions
 
 **Raffinert.Expressions** is a lightweight expression-composition library for reusable predicates and projections. Compose normal C# expression objects and hand the resulting pure expression tree to EF Core or any other LINQ provider—without a custom query provider or special query interception.
 
 It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec) and [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj) around one expression-expansion engine. The runtime package targets `netstandard2.0`, has no EF Core dependency, and requires neither a custom `IQueryProvider` nor `AsExpandable()`.
+
+## Installation
+
+```shell
+dotnet add package Raffinert.Expressions
+```
 
 ## 30-second example
 
@@ -173,7 +166,7 @@ null-safe mapping, and merged member initializers.
 
 The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Rename `Spec<T>` to `Specification<T>`, `Proj<TIn,TOut>` to `Projection<TSource,TResult>`, and the public `Expr<TIn,TOut>` base to `ComposableExpression<TSource,TResult>`.
 
-See [MIGRATION.md](MIGRATION.md) for details.
+See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blob/main/docs/migration.md) for details.
 
 ## Useful reading
 
@@ -201,3 +194,20 @@ Projection and collection-mapping behavior:
 
 - [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec)
 - [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj)
+
+## Feedback
+
+Open an [issue](https://github.com/Raffinert/Raffinert.Expressions/issues) for bugs, compatibility problems, or feature proposals.
+
+## Project values
+
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
+
+This project:
+
+- **condemns Russia and its military aggression against Ukraine**;
+- **recognizes that Russia is an occupant that unlawfully invaded a sovereign state**;
+- **supports Ukraine's territorial integrity, including its claims over temporarily occupied territories of Crimea and Donbas**;
+- **rejects false narratives perpetuated by Russian state propaganda**.
+
+These statements express the maintainer's values and do not add conditions to the project's MIT license. To learn more about the war and how you can help, visit [Stand With Ukraine](https://stand-with-ukraine.pp.ua). Glory to Ukraine!

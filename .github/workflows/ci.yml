@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Raffinert.Expressions.slnx
+
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: dotnet format Raffinert.Expressions.slnx --no-restore --verify-no-changes
+
+      - name: Test
+        run: dotnet test Raffinert.Expressions.slnx --configuration Release --no-restore
+
+      - name: Pack
+        if: runner.os == 'Linux'
+        run: dotnet pack src/Raffinert.Expressions/Raffinert.Expressions.csproj --configuration Release --no-restore --output artifacts/package
+
+      - name: Upload package
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v6
+        with:
+          name: nuget-package
+          path: |
+            artifacts/package/*.nupkg
+            artifacts/package/*.snupkg
+          if-no-files-found: error

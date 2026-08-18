@@ -1,5 +1,8 @@
 # Implementation report
 
+> [!NOTE]
+> This is a historical delivery record from the initial implementation. It is retained for design archaeology, is not maintained as product documentation, and may not describe the current API or verification counts. See the [README](../../README.md), [changelog](../../CHANGELOG.md), [migration guide](../migration.md), and [architecture document](../architecture.md) for current behavior.
+
 ## Delivered
 
 - `Raffinert.Expressions.slnx` with a `netstandard2.0` runtime package.
