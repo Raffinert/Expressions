@@ -211,6 +211,82 @@ public class ProjectionTests
     }
 
     [Fact]
+    public void MapToExistingPreservesAndRefillsMutableCollections()
+    {
+        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        {
+            Values = source.Values == null ? null : source.Values.Select(value => value * 10).ToList(),
+            SetValues = source.Values == null ? null : source.Values.ToList(),
+            EnumerableValues = source.Values == null ? null : source.Values.Select(value => value + 1).ToList(),
+            ArrayValues = source.Values == null ? null : source.Values.Select(value => value + 2).ToArray(),
+            ReadOnlyValues = { source.Values![0], source.Values[1] }
+        });
+        CollectionDestination? destination = new()
+        {
+            Values = [99],
+            SetValues = new HashSet<int> { 99 },
+            EnumerableValues = new List<int> { 99 },
+            ArrayValues = [99],
+            ReadOnlyValues = { 99 }
+        };
+        var originalValues = destination.Values;
+        var originalSet = destination.SetValues;
+        var originalEnumerable = destination.EnumerableValues;
+        var originalArray = destination.ArrayValues;
+        var originalReadOnly = destination.ReadOnlyValues;
+
+        projection.MapToExisting(new CollectionSource { Values = [2, 3] }, ref destination);
+
+        Assert.Same(originalValues, destination!.Values);
+        Assert.Equal([20, 30], destination.Values);
+        Assert.Same(originalSet, destination.SetValues);
+        Assert.Equal([2, 3], destination.SetValues!.OrderBy(value => value));
+        Assert.NotSame(originalEnumerable, destination.EnumerableValues);
+        Assert.Equal([3, 4], destination.EnumerableValues);
+        Assert.NotSame(originalArray, destination.ArrayValues);
+        Assert.Equal([4, 5], destination.ArrayValues!);
+        Assert.Same(originalReadOnly, destination.ReadOnlyValues);
+        Assert.Equal([2, 3], destination.ReadOnlyValues);
+    }
+
+    [Fact]
+    public void MapToExistingClearsMutableCollectionForNullAndCreatesMissingCollection()
+    {
+        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        {
+            Values = source.Values == null ? null : source.Values.ToList()
+        });
+        CollectionDestination? destination = new() { Values = [99] };
+        var originalValues = destination.Values;
+
+        projection.MapToExisting(new CollectionSource(), ref destination);
+
+        Assert.Same(originalValues, destination!.Values);
+        Assert.Empty(destination.Values!);
+
+        destination!.Values = null;
+        projection.MapToExisting(new CollectionSource { Values = [4, 5] }, ref destination);
+
+        Assert.Equal([4, 5], destination!.Values);
+    }
+
+    [Fact]
+    public void MapToExistingHandlesCollectionAliasedBySourceAndDestination()
+    {
+        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        {
+            Values = source.Values
+        });
+        var shared = new List<int> { 2, 3 };
+        CollectionDestination? destination = new() { Values = shared };
+
+        projection.MapToExisting(new CollectionSource { Values = shared }, ref destination);
+
+        Assert.Same(shared, destination!.Values);
+        Assert.Equal([2, 3], destination.Values);
+    }
+
+    [Fact]
     public void UnsupportedMapToExistingShapeIsDescriptive()
     {
         var projection = Projection<Product, string>.Create(product => product.Name);
@@ -243,4 +319,18 @@ public sealed class MergeDto
     public int A { get; set; }
     public int B { get; set; }
     public int C { get; set; }
+}
+
+public sealed class CollectionSource
+{
+    public List<int>? Values { get; set; }
+}
+
+public sealed class CollectionDestination
+{
+    public List<int>? Values { get; set; } = [];
+    public ICollection<int>? SetValues { get; set; } = new HashSet<int>();
+    public IEnumerable<int>? EnumerableValues { get; set; } = [];
+    public int[]? ArrayValues { get; set; } = [];
+    public List<int> ReadOnlyValues { get; } = [];
 }

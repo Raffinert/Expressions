@@ -187,6 +187,7 @@ public abstract class Projection<TSource, TResult> : ComposableExpression<TSourc
     /// <param name="destination">The result to create or update.</param>
     /// <exception cref="NotSupportedException">An existing result cannot be updated from this projection's shape.</exception>
     /// <exception cref="InvalidOperationException">A nested read-only result member that must be created is null.</exception>
+    /// <remarks>Existing mutable collections are cleared and refilled; their elements are not matched by key.</remarks>
     public void MapToExisting(TSource source, ref TResult? destination)
     {
         if (destination is null)

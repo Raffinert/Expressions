@@ -214,6 +214,33 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         Assert.All(rows, row => Assert.True(row.IsExpensive));
     }
 
+    [Fact]
+    public async Task MapToExistingPreservesTrackedCollectionNavigation()
+    {
+        var category = await _db.Categories
+            .Include(value => value.Products)
+            .SingleAsync(value => value.Name == "Office");
+        var retainedProduct = category.Products.Single(product => product.Name == "Desk");
+        var removedProduct = category.Products.Single(product => product.Name == "Pencil");
+        var originalCollection = category.Products;
+        var projection = Projection<CategoryCollectionUpdate, DbCategory>.Create(update => new DbCategory
+        {
+            Products = { update.RetainedProduct }
+        });
+        DbCategory? destination = category;
+
+        projection.MapToExisting(
+            new CategoryCollectionUpdate { RetainedProduct = retainedProduct },
+            ref destination);
+        _db.ChangeTracker.DetectChanges();
+
+        Assert.Same(category, destination);
+        Assert.Same(originalCollection, category.Products);
+        Assert.Same(retainedProduct, Assert.Single(category.Products));
+        Assert.Null(removedProduct.Category);
+        Assert.Null(removedProduct.CategoryId);
+    }
+
     public async Task InitializeAsync()
     {
         await _connection.OpenAsync();
@@ -272,6 +299,11 @@ public sealed class ProductRow
 public sealed class CategoryRow
 {
     public string Name { get; set; } = string.Empty;
+}
+
+public sealed class CategoryCollectionUpdate
+{
+    public required DbProduct RetainedProduct { get; set; }
 }
 
 public sealed class StructuralDbProduct

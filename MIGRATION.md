@@ -58,7 +58,7 @@ Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(spe
 
 - `MergeBindings` removes duplicate destination bindings deterministically. The default is `UseLast`; choose `UseFirst` or `Throw` when appropriate.
 - Conditional merge branches are matched by destination member, not binding order.
-- `MapToExisting` updates existing nested destination objects in place and automatically constructs missing writable nested objects. A missing read-only nested object produces a descriptive exception.
+- `MapToExisting` updates existing nested destination objects in place and automatically constructs missing writable nested objects. Mutable collection members preserve their instance but are cleared and refilled, matching AutoMapper's default collection-update behavior; arrays and writable `IEnumerable<T>` members are replaced. Existing collection items are not matched by key. A missing read-only nested object or collection produces a descriptive exception.
 - Unsupported map-to-existing and merge shapes throw `NotSupportedException` instead of producing malformed trees.
 - Structural source adaptation requires compatible public property or field paths. Projection result adaptation
   requires parameterless member initializers.

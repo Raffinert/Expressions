@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Changed `MapToExisting` to preserve, clear, and refill existing mutable collection members instead of replacing them.
+- Added support for collection-initializer bindings, null/empty collection behavior, missing writable collections, and aliased source/destination collections.
+- Kept AutoMapper-compatible replacement behavior for arrays, writable `IEnumerable<T>` members, and known read-only collection wrappers.
+
 ## 1.0.0 - 2026-08-17
 
 - Aggregated reusable specification and projection APIs in `Raffinert.Expressions`.

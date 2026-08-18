@@ -47,12 +47,13 @@ Documentation:
 - Compatibility aliases `IsSatisfiedBy`, `Map`, and `MapIfNotNull` are deliberately omitted. `Invoke` is the sole normal invocation API and `InvokeOrDefault` is the explicit null-input/default-output API.
 - Existing specifications and projections serve as their own structural definitions; no separate template abstraction is exposed.
 - Legacy binary compatibility packages were not created; they are explicitly outside the MVP.
-- `MapToExisting` preserves and updates existing nested destination objects, and constructs missing writable nested destinations from the projection. Missing read-only nested destinations throw an explicit `InvalidOperationException`.
+- `MapToExisting` preserves and updates existing nested destination objects, and constructs missing writable nested destinations from the projection. Existing mutable collections are preserved, cleared, and refilled; arrays and writable `IEnumerable<T>` members are replaced. Missing read-only nested destinations throw an explicit `InvalidOperationException`.
 
 ## Remaining limitations
 
 - `MergeBindings` requires parameterless member-initializer construction and simple member assignments. Supported conditional branches must bind compatible member sets.
 - A root `MapToExisting` conditional branch that returns null throws at runtime because `Action<TIn,TOut>` cannot replace the caller's existing root reference. Nested null branches assign null normally.
+- Collection updates replace the contents wholesale; existing elements are not matched or updated by key.
 - Structural source adaptation supports parameter-rooted public property and field paths. Result adaptation requires
   parameterless member initializers; source-specific method calls and constructor projections are rejected.
 
