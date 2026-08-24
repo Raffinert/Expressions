@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 - 2026-08-24
+
+- Added `Projection<TSource>.Create(...)` for inferring projection result types from the expression, including anonymous types.
+- Updated unit and EF Core integration coverage to use the inferred projection factory.
+
 ## 1.0.0 - 2026-08-18
 
 - Aggregated reusable condition and projection APIs in `Raffinert.Expressions`.
