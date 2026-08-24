@@ -160,15 +160,107 @@ var result = basis.MergeBindings(overrides); // overrides win
 
 ## EF Core and provider compatibility
 
-The runtime library knows nothing about EF Core. Queryable overloads pass `GetExpandedExpression()` directly to LINQ. Expanded expressions contain ordinary nodes such as member access, calls to normal LINQ methods, Boolean operators, member initialization, and conditionals.
+The runtime library knows nothing about EF Core. It expands a condition or projection before passing its
+ordinary expression tree to LINQ:
 
-This means:
+```csharp
+var rows = await db.Products
+    .Where(condition)
+    .Select(projection)
+    .ToArrayAsync();
+```
+
+The `Where` and `Select` overloads above call `GetExpandedExpression()`. EF Core therefore receives normal
+expression nodes such as member access, LINQ calls, Boolean operators, member initialization, and conditionals.
+
+This design requires:
 
 - no EF dependency in the runtime package;
 - no custom query provider;
 - no query interceptor;
 - no `AsExpandable()` call;
-- no per-row reflection or expression traversal.
+- no runtime expression traversal while rows are processed.
+
+### Explicit expansion boundaries
+
+Because Raffinert.Expressions does not wrap the query provider, it does not scan or rewrite an entire `IQueryable`
+expression tree. Invocation markers must be expanded before the expression reaches EF Core.
+
+Pass wrappers directly to the provided `Where` and `Select` overloads:
+
+```csharp
+db.Products.Where(condition);
+db.Products.Select(projection);
+```
+
+For other LINQ operators, pass the expanded expression explicitly:
+
+```csharp
+db.Products.OrderBy(sortProjection.GetExpandedExpression());
+db.Products.Any(condition.GetExpandedExpression());
+```
+
+Do not place invocation markers directly inside an ordinary provider-facing lambda:
+
+```csharp
+// Not automatically expanded:
+db.Products.Where(product => condition.Invoke(product));
+db.Products.Select(product => projection.Invoke(product));
+db.Products.OrderBy(product => sortProjection.Invoke(product));
+```
+
+Those expressions are handled by the standard LINQ operators, so EF Core sees the `Invoke` method calls
+without Raffinert first expanding them.
+
+Invocation inside a condition or projection remains supported because the wrapper is recursively
+expanded before it is passed to the provider:
+
+```csharp
+var row = Projection<Product>.Create(product => new ProductRow
+{
+    Name = product.Name,
+    IsVisible = condition.Invoke(product)
+});
+
+var query = db.Products.Select(row);
+```
+
+### LINQ query syntax
+
+LINQ query syntax can be used for ordinary provider-translatable expressions, but Raffinert invocation markers
+inside `where` and `select` clauses are not automatically expanded:
+
+```csharp
+// Not automatically expanded for IQueryable<T>:
+var query =
+    from product in db.Products
+    where condition.Invoke(product)
+    select projection.Invoke(product);
+```
+
+Query syntax can be combined with Raffinert's method-based expansion boundaries:
+
+```csharp
+var filtered =
+    from product in db.Products.Where(condition)
+    where product.IsActive
+    select product;
+
+var rows = filtered.Select(projection);
+```
+
+Direct invocation in query syntax works normally for in-memory `IEnumerable<T>` sequences because no LINQ
+provider needs to translate the expression.
+
+### Trade-off
+
+Libraries such as LINQKit can wrap the query provider and expand reusable expressions anywhere in the complete
+query. Raffinert instead uses explicit expansion boundaries. This keeps the runtime provider-independent and
+makes the final expression tree directly inspectable, but reusable invocations must be contained in a Raffinert
+wrapper or passed through `GetExpandedExpression()`.
+
+Expansion only performs expression composition. Every node remaining in the expanded expression must still be
+supported by the selected LINQ provider.
 
 SQLite integration tests cover nested and cross-composed conditions/projections, `Then`, structural adaptation,
 null-safe mapping, and merged member initializers.
