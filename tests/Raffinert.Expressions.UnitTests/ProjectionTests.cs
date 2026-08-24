@@ -11,7 +11,7 @@ public class ProjectionTests
     public void InlineSubclassEnumerableAndQueryableProjectionWork()
     {
         var products = new[] { new Product { Name = "Book", Price = 12m } };
-        Projection<Product, string> inline = Projection<Product, string>.Create(product => product.Name);
+        Projection<Product, string> inline = Projection<Product>.Create(product => product.Name);
         Projection<Product, decimal> subclass = new PriceProjection();
 
         Assert.Equal("Book", inline.Invoke(products[0]));
@@ -48,8 +48,8 @@ public class ProjectionTests
     [Fact]
     public void NullSafeNestedProjectionUsesConditionalAndDefault()
     {
-        var category = Projection<Category, CategoryDto>.Create(value => new CategoryDto { Name = value.Name });
-        var product = Projection<Product, ProductDto>.Create(value => new ProductDto
+        var category = Projection<Category>.Create(value => new CategoryDto { Name = value.Name });
+        var product = Projection<Product>.Create(value => new ProductDto
         {
             Name = value.Name,
             Category = category.InvokeOrDefault(value.Category)
@@ -87,12 +87,12 @@ public class ProjectionTests
     [Fact]
     public void MergeBindingsHonorsAllConflictPolicies()
     {
-        var first = Projection<Product, ProductDto>.Create(product => new ProductDto
+        var first = Projection<Product>.Create(product => new ProductDto
         {
             Id = product.Id,
             Name = "first"
         });
-        var second = Projection<Product, ProductDto>.Create(product => new ProductDto
+        var second = Projection<Product>.Create(product => new ProductDto
         {
             Name = "second",
             IsExpensive = product.Price > 10m
@@ -131,10 +131,10 @@ public class ProjectionTests
     [Fact]
     public void ConditionalMergeMatchesBranchBindingsByMemberNotPosition()
     {
-        var conditional = Projection<ConditionalSource, MergeDto>.Create(source => source.Flag
+        var conditional = Projection<ConditionalSource>.Create(source => source.Flag
             ? new MergeDto { A = source.A, B = source.B }
             : new MergeDto { B = source.B + 1, A = source.A + 1 });
-        var overlay = Projection<ConditionalSource, MergeDto>.Create(source => new MergeDto { C = 9 });
+        var overlay = Projection<ConditionalSource>.Create(source => new MergeDto { C = 9 });
 
         var merged = conditional.MergeBindings(overlay);
         var trueResult = merged.Invoke(new ConditionalSource { Flag = true, A = 2, B = 3 });
@@ -155,7 +155,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingUpdatesSimpleAndPresentNestedObjects()
     {
-        var nested = Projection<Product, ProductDto>.Create(product => new ProductDto
+        var nested = Projection<Product>.Create(product => new ProductDto
         {
             Id = product.Id,
             Category = product.Category == null
@@ -203,8 +203,8 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingCreatesRootAndMissingNestedDestination()
     {
-        var nestedCategory = Projection<Category, CategoryDto>.Create(category => new CategoryDto { Name = category.Name });
-        var projection = Projection<Product, ProductDto>.Create(product => new ProductDto
+        var nestedCategory = Projection<Category>.Create(category => new CategoryDto { Name = category.Name });
+        var projection = Projection<Product>.Create(product => new ProductDto
         {
             Category = nestedCategory.Invoke(product.Category!)
         });
@@ -224,7 +224,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingConditionalNullClearsNestedDestination()
     {
-        var projection = Projection<Product, ProductDto>.Create(product => new ProductDto
+        var projection = Projection<Product>.Create(product => new ProductDto
         {
             Category = product.Category == null
                 ? null
@@ -240,7 +240,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingPreservesAndRefillsMutableCollections()
     {
-        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        var projection = Projection<CollectionSource>.Create(source => new CollectionDestination
         {
             Values = source.Values == null ? null : source.Values.Select(value => value * 10).ToList(),
             SetValues = source.Values == null ? null : source.Values.ToHashSet(),
@@ -279,7 +279,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingClearsMutableCollectionForNullAndCreatesMissingCollection()
     {
-        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        var projection = Projection<CollectionSource>.Create(source => new CollectionDestination
         {
             Values = source.Values == null ? null : source.Values.ToList()
         });
@@ -300,7 +300,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingHandlesCollectionAliasedBySourceAndDestination()
     {
-        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        var projection = Projection<CollectionSource>.Create(source => new CollectionDestination
         {
             Values = source.Values
         });
@@ -316,7 +316,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingCreatesMissingSetAndNonGenericListCollections()
     {
-        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        var projection = Projection<CollectionSource>.Create(source => new CollectionDestination
         {
             SetValues = source.Values == null ? null : source.Values.ToHashSet(),
             UntypedValues = source.UntypedValues
@@ -344,7 +344,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingReplacesKnownReadOnlyCollectionWrapper()
     {
-        var projection = Projection<CollectionSource, CollectionDestination>.Create(source => new CollectionDestination
+        var projection = Projection<CollectionSource>.Create(source => new CollectionDestination
         {
             ReadOnlyWrapper = source.Values == null
                 ? null
@@ -365,7 +365,7 @@ public class ProjectionTests
     [Fact]
     public void MapToExistingDescribesNullReadOnlyCollectionInitializer()
     {
-        var projection = Projection<CollectionSource, NullReadOnlyCollectionDestination>.Create(source =>
+        var projection = Projection<CollectionSource>.Create(source =>
             new NullReadOnlyCollectionDestination
             {
                 Values = { source.Values![0] }

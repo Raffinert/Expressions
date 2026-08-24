@@ -32,7 +32,7 @@ public class StructuralAdaptationTests
     [Fact]
     public void ProjectionAdaptsSourceAndNestedResultMembers()
     {
-        var projection = Projection<StructuralProduct, StructuralProductDto>.Create(product =>
+        var projection = Projection<StructuralProduct>.Create(product =>
             new StructuralProductDto
             {
                 Id = product.Id,
@@ -75,8 +75,8 @@ public class StructuralAdaptationTests
     [Fact]
     public void ProjectionCanAdaptOnlyItsSourceOrResult()
     {
-        var name = Projection<StructuralProduct, string>.Create(product => product.Name);
-        var dto = Projection<StructuralProduct, StructuralProductDto>.Create(product =>
+        var name = Projection<StructuralProduct>.Create(product => product.Name);
+        var dto = Projection<StructuralProduct>.Create(product =>
             new StructuralProductDto { Id = product.Id, Name = product.Name });
 
         var adaptedName = name.AdaptSource<StructuralInventoryItem>();
@@ -99,7 +99,7 @@ public class StructuralAdaptationTests
     public void SourceAdaptationRejectsMissingIncompatibleAndDirectSourceUsage()
     {
         var condition = Condition<StructuralProduct>.Create(product => product.Price > 10m);
-        var identity = Projection<StructuralProduct, StructuralProduct>.Create(product => product);
+        var identity = Projection<StructuralProduct>.Create(product => product);
 
         var missing = Assert.Throws<InvalidOperationException>(
             condition.AdaptSource<StructuralMissingPriceItem>);
@@ -116,9 +116,9 @@ public class StructuralAdaptationTests
     [Fact]
     public void ResultAdaptationRejectsMissingMembersAndConstructorProjections()
     {
-        var memberInit = Projection<StructuralProduct, StructuralProductDto>.Create(product =>
+        var memberInit = Projection<StructuralProduct>.Create(product =>
             new StructuralProductDto { Id = product.Id, Name = product.Name });
-        var constructor = Projection<StructuralProduct, StructuralConstructorDto>.Create(product =>
+        var constructor = Projection<StructuralProduct>.Create(product =>
             new StructuralConstructorDto(product.Name));
 
         var missing = Assert.Throws<InvalidOperationException>(
