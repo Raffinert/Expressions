@@ -193,11 +193,12 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         var adaptedCondition = condition.AdaptSource<DbProduct>();
         var adaptedProjection = projection.Adapt<DbProduct, ProductRow>();
 
-        var rows = await _db.Products
+        var query = _db.Products
             .Where(adaptedCondition)
             .Select(adaptedProjection)
-            .OrderBy(product => product.Name)
-            .ToArrayAsync();
+            .OrderBy(product => product.Name);
+
+        var rows = await query.ToListAsync();
 
         Assert.Equal(
             "product => (product.PriceCents > 1000) && (product.Name != \"Hidden\")",

@@ -21,6 +21,31 @@ public class ProjectionTests
     }
 
     [Fact]
+    public void SourceOnlyFactoryInfersAnonymousResultType()
+    {
+        var projection = Projection<Product>.Create(product => new
+        {
+            product.Name,
+            Total = product.Price * 2
+        });
+
+        var result = projection.Invoke(new Product { Name = "Book", Price = 12m });
+
+        Assert.Equal("Book", result.Name);
+        Assert.Equal(24m, result.Total);
+        Assert.Equal(
+            """
+            product => new 
+            {
+                Name = product.Name,
+                Total = product.Price * 2m
+            }
+            """,
+            projection.GetExpandedExpression().ToReadableString(),
+            ignoreLineEndingDifferences: true);
+    }
+
+    [Fact]
     public void NullSafeNestedProjectionUsesConditionalAndDefault()
     {
         var category = Projection<Category, CategoryDto>.Create(value => new CategoryDto { Name = value.Name });
