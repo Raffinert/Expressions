@@ -70,6 +70,17 @@ bool matches = wanted.Invoke(product);
 
 ## Projections
 
+When the result is an anonymous type, specify only the source type; the result type is inferred from the
+lambda:
+
+```csharp
+var summary = Projection<Product>.Create(product => new
+{
+    product.Name,
+    Total = product.Price * 2
+});
+```
+
 ```csharp
 var summary = Projection<Product, ProductSummary>.Create(product => new ProductSummary
 {
