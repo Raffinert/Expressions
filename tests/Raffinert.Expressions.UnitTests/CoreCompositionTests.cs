@@ -9,7 +9,7 @@ public class CoreCompositionTests
     public void ConditionInsideProjectionIsInlinedAndExecutes()
     {
         var expensive = Condition<Product>.Create(product => product.Price > 100m);
-        var projection = Projection<Product, ProductDto>.Create(product => new ProductDto
+        var projection = Projection<Product>.Create(product => new ProductDto
         {
             Name = product.Name,
             IsExpensive = expensive.Invoke(product)
@@ -38,7 +38,7 @@ public class CoreCompositionTests
     [Fact]
     public void ProjectionInsideConditionIsInlinedAndExecutes()
     {
-        var total = Projection<Order, decimal>.Create(order =>
+        var total = Projection<Order>.Create(order =>
             order.Lines.Sum(line => line.Price * line.Quantity));
         var expensive = Condition<Order>.Create(order => total.Invoke(order) > 1000m);
 
@@ -56,10 +56,10 @@ public class CoreCompositionTests
     [Fact]
     public void DeepMixedCompositionExpandsRecursively()
     {
-        var price = Projection<Product, decimal>.Create(product => product.Price);
-        var rounded = Projection<Product, decimal>.Create(product => decimal.Round(price.Invoke(product)));
+        var price = Projection<Product>.Create(product => product.Price);
+        var rounded = Projection<Product>.Create(product => decimal.Round(price.Invoke(product)));
         var high = Condition<Product>.Create(product => rounded.Invoke(product) >= 10m);
-        var result = Projection<Product, bool>.Create(product => high.Invoke(product));
+        var result = Projection<Product>.Create(product => high.Invoke(product));
 
         var expanded = result.GetExpandedExpression();
 
@@ -72,8 +72,8 @@ public class CoreCompositionTests
     [Fact]
     public void ThenComposesProjectionAndProjectionWithoutInvocationNodes()
     {
-        var customer = Projection<Order, Customer>.Create(order => order.Customer);
-        var name = Projection<Customer, string>.Create(value => value.Name);
+        var customer = Projection<Order>.Create(order => order.Customer);
+        var name = Projection<Customer>.Create(value => value.Name);
 
         var composed = customer.Then(name);
         var expanded = composed.GetExpandedExpression();
@@ -86,7 +86,7 @@ public class CoreCompositionTests
     [Fact]
     public void ThenComposesProjectionAndCondition()
     {
-        var customer = Projection<Order, Customer>.Create(order => order.Customer);
+        var customer = Projection<Order>.Create(order => order.Customer);
         var active = Condition<Customer>.Create(value => value.IsActive);
 
         var composed = customer.Then(active);
@@ -135,8 +135,8 @@ public class CoreCompositionTests
     public void CanonicalInvocationMethodsAreExpanded()
     {
         var positive = Condition<Product>.Create(product => product.Price > 0m);
-        var name = Projection<Product, string>.Create(product => product.Name);
-        var outer = Projection<Product, ProductDto>.Create(product => new ProductDto
+        var name = Projection<Product>.Create(product => product.Name);
+        var outer = Projection<Product>.Create(product => new ProductDto
         {
             IsExpensive = positive.Invoke(product),
             Name = name.Invoke(product)
@@ -156,9 +156,9 @@ public class CoreCompositionTests
     public void InvokeOrDefaultIsSharedByConditionsAndProjections()
     {
         var active = Condition<Customer>.Create(customer => customer.IsActive);
-        var nameLength = Projection<Customer, int>.Create(customer => customer.Name.Length);
+        var nameLength = Projection<Customer>.Create(customer => customer.Name.Length);
         var condition = Condition<NullableCustomerHolder>.Create(holder => active.InvokeOrDefault(holder.Customer));
-        var projection = Projection<NullableCustomerHolder, int>.Create(
+        var projection = Projection<NullableCustomerHolder>.Create(
             holder => nameLength.InvokeOrDefault(holder.Customer));
 
         Assert.Equal(
@@ -177,8 +177,8 @@ public class CoreCompositionTests
     public void MethodGroupsInAnyAndSelectAreExpanded()
     {
         var positive = Condition<Product>.Create(product => product.Price > 0m);
-        var name = Projection<Product, string>.Create(product => product.Name);
-        var groupProjection = Projection<ProductGroup, GroupDto>.Create(group => new GroupDto
+        var name = Projection<Product>.Create(product => product.Name);
+        var groupProjection = Projection<ProductGroup>.Create(group => new GroupDto
         {
             HasPositive = group.Products.Any(positive.Invoke),
             Names = group.Products.Select(name.Invoke).ToArray()

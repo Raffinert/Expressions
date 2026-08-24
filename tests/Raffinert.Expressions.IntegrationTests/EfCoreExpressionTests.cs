@@ -24,8 +24,8 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     {
         var expensive = Condition<DbProduct>.Create(product => product.PriceCents > 1000);
         var named = Condition<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
-        var category = Projection<DbCategory, CategoryRow>.Create(value => new CategoryRow { Name = value.Name });
-        var product = Projection<DbProduct, ProductRow>.Create(value => new ProductRow
+        var category = Projection<DbCategory>.Create(value => new CategoryRow { Name = value.Name });
+        var product = Projection<DbProduct>.Create(value => new ProductRow
         {
             Id = value.Id,
             Name = value.Name,
@@ -69,9 +69,9 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ConditionInsideProjectionAndProjectionInsideConditionTranslate()
     {
-        var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
+        var price = Projection<DbProduct>.Create(product => product.PriceCents);
         var expensive = Condition<DbProduct>.Create(product => price.Invoke(product) > 1000);
-        var row = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
+        var row = Projection<DbProduct>.Create(product => new ProductRow
         {
             Id = product.Id,
             Name = product.Name,
@@ -107,12 +107,12 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ThenAndDeepMixedCompositionTranslate()
     {
-        var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
-        var doubled = Projection<int, int>.Create(value => value * 2);
+        var price = Projection<DbProduct>.Create(product => product.PriceCents);
+        var doubled = Projection<int>.Create(value => value * 2);
         var threshold = Condition<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
         var composedCondition = composedScalar.Then(threshold);
-        var mixed = Projection<DbProduct, bool>.Create(product => composedCondition.Invoke(product));
+        var mixed = Projection<DbProduct>.Create(product => composedCondition.Invoke(product));
 
         var values = await _db.Products
             .Where(composedCondition)
@@ -129,12 +129,12 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ThenAndDeepMixedCompositionTranslateProjectionAsConditionAndConditionAsProjection()
     {
-        var price = Projection<DbProduct, int>.Create(product => product.PriceCents);
-        var doubled = Projection<int, int>.Create(value => value * 2);
+        var price = Projection<DbProduct>.Create(product => product.PriceCents);
+        var doubled = Projection<int>.Create(value => value * 2);
         var threshold = Condition<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
         var composedCondition = composedScalar.Then(threshold);
-        var mixed = Projection<DbProduct, bool>.Create(product => composedCondition.Invoke(product));
+        var mixed = Projection<DbProduct>.Create(product => composedCondition.Invoke(product));
 
         var values = await _db.Products
             .Where(mixed)
@@ -151,12 +151,12 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task MergedProjectionTranslatesWithOverlaySemantics()
     {
-        var basis = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
+        var basis = Projection<DbProduct>.Create(product => new ProductRow
         {
             Id = product.Id,
             Name = product.Name
         });
-        var overlay = Projection<DbProduct, ProductRow>.Create(product => new ProductRow
+        var overlay = Projection<DbProduct>.Create(product => new ProductRow
         {
             Name = product.Name + "!",
             IsExpensive = product.PriceCents > 1000
@@ -183,7 +183,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     {
         var condition = Condition<StructuralDbProduct>.Create(product =>
             product.PriceCents > 1000 && product.Name != "Hidden");
-        var projection = Projection<StructuralDbProduct, StructuralDbProductRow>.Create(product =>
+        var projection = Projection<StructuralDbProduct>.Create(product =>
             new StructuralDbProductRow
             {
                 Id = product.Id,
