@@ -1,5 +1,8 @@
 <Solution>
   <Project Path="src/Raffinert.Expressions/Raffinert.Expressions.csproj" />
+  <Project Path="src/Raffinert.Expressions.QuerySyntax/Raffinert.Expressions.QuerySyntax.csproj" />
   <Project Path="tests/Raffinert.Expressions.IntegrationTests/Raffinert.Expressions.IntegrationTests.csproj" />
+  <Project Path="tests/Raffinert.Expressions.NetFrameworkCompatibility/Raffinert.Expressions.NetFrameworkCompatibility.csproj" />
+  <Project Path="tests/Raffinert.Expressions.QuerySyntax.UnitTests/Raffinert.Expressions.QuerySyntax.UnitTests.csproj" />
   <Project Path="tests/Raffinert.Expressions.UnitTests/Raffinert.Expressions.UnitTests.csproj" />
 </Solution>

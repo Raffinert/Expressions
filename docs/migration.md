@@ -10,6 +10,10 @@ using Raffinert.Expressions;
 
 The runtime remains `netstandard2.0` and has no EF Core dependency.
 
+The optional `Raffinert.Expressions.QuerySyntax` package targets `netstandard2.1`, depends on the core package,
+and adds `AsRaffinertQuery()` plus provider-independent `ToListAsync()` and `ToArrayAsync()` instance methods in
+the same `Raffinert.Expressions` namespace.
+
 ## Renamed semantic types
 
 The aggregate package uses full names for its public semantic types:
@@ -66,3 +70,13 @@ Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(con
 ## Query behavior
 
 `IQueryable` extensions always submit expanded expressions. `IEnumerable` extensions use the cached compiled expanded delegate. This applies to filtering and projection, condition terminal operations, ordering, grouping, and flattening. No `AsExpandable()` call or provider wrapper is needed.
+
+For C# query syntax, install `Raffinert.Expressions.QuerySyntax` and opt in at the source with
+`AsRaffinertQuery()`. The returned facade expands each query clause before forwarding it to the original provider
+and supports direct `ToListAsync()` and `ToArrayAsync()` materialization. Apply provider-specific query-shaping
+methods before entering the facade, or call `AsRaffinertQuery()` again after an operation returns an ordinary
+`IQueryable<T>`.
+
+.NET Framework 4.7.2 consumers remain on the core package. Use method-style calls such as
+`query.Where(condition).Select(projection)` and materialize with the provider's async extension, such as EF Core
+3.1's `ToListAsync()`.

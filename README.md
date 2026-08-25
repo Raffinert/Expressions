@@ -16,6 +16,16 @@ It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Ra
 dotnet add package Raffinert.Expressions
 ```
 
+The core package targets `netstandard2.0` and contains pure expression composition plus LINQ method-style
+extensions. To opt into the C# query-syntax facade and its provider-independent async materializers, add the
+`netstandard2.1` satellite package instead (it brings in the core package transitively):
+
+```shell
+dotnet add package Raffinert.Expressions.QuerySyntax
+```
+
+Both packages expose their public API in the `Raffinert.Expressions` namespace.
+
 ## 30-second example
 
 ```csharp
@@ -210,8 +220,8 @@ overloads by selecting first:
 var total = db.Products.Select(priceProjection).Sum();
 ```
 
-Provider-specific async operators are also outside the dependency-free runtime package. Pass the expanded
-expression to those APIs explicitly:
+Provider-specific async operators that accept lambdas are outside the provider-independent runtime package.
+Pass the expanded expression to those APIs explicitly:
 
 ```csharp
 var exists = await db.Products.AnyAsync(condition.GetExpandedExpression());
@@ -244,43 +254,63 @@ var query = db.Products.Select(row);
 
 ### LINQ query syntax
 
-LINQ query syntax can be used for ordinary provider-translatable expressions, but Raffinert invocation markers
-inside `where` and `select` clauses are not automatically expanded:
+Install `Raffinert.Expressions.QuerySyntax`, then call `AsRaffinertQuery()` once at the query source to expand
+invocation markers throughout a C# query expression:
 
 ```csharp
-// Not automatically expanded for IQueryable<T>:
 var query =
-    from product in db.Products
+    from product in db.Products.AsRaffinertQuery()
     where condition.Invoke(product)
+    orderby sortProjection.Invoke(product), nameProjection.Invoke(product)
     select projection.Invoke(product);
+
+var rows = await query.ToListAsync();
 ```
 
-Query syntax can be combined with Raffinert's method-based expansion boundaries:
+The facade supports the complete query-expression pattern: `where`, `select`, `let`, multiple `from` clauses,
+joins, group joins, ordering, grouping, continuations, and explicit range-variable types. It expands each
+compiler-created lambda and then calls the standard `Queryable` operator. Its `Expression`, `Provider`, and
+synchronous or asynchronous enumeration are delegated to the provider query; it does not replace or intercept
+`IQueryProvider`.
+
+Apply provider-specific operators such as EF Core's `Include`, `AsNoTracking`, and temporal-query methods before
+`AsRaffinertQuery()`. An operator that returns an ordinary `IQueryable<T>` leaves the facade; call
+`AsRaffinertQuery()` again if later lambdas contain invocation markers.
+
+The facade provides unambiguous `ToListAsync` and `ToArrayAsync` instance methods and targets `netstandard2.1`.
+Providers that do not support asynchronous enumeration fail with a descriptive `InvalidOperationException`.
+
+.NET Framework 4.7.2 applications use the `netstandard2.0` core package and method-style composition, then call
+the async materializer supplied by their LINQ provider. For example, with EF Core 3.1:
 
 ```csharp
-var filtered =
-    from product in db.Products.Where(condition)
-    where product.IsActive
-    select product;
-
-var rows = filtered.Select(projection);
+var rows = await db.Products
+    .Where(condition)
+    .Select(projection)
+    .ToListAsync();
 ```
 
-Direct invocation in query syntax works normally for in-memory `IEnumerable<T>` sequences because no LINQ
-provider needs to translate the expression.
+The query-syntax satellite cannot be referenced from .NET Framework 4.7.2 because that platform does not implement
+`netstandard2.1`.
+
+Without `AsRaffinertQuery()`, invocation markers inside ordinary provider-facing query-syntax lambdas are not
+expanded. Direct invocation in query syntax works normally for in-memory `IEnumerable<T>` sequences because no
+LINQ provider needs to translate the expression.
 
 ### Trade-off
 
 Libraries such as LINQKit can wrap the query provider and expand reusable expressions anywhere in the complete
-query. Raffinert instead uses explicit expansion boundaries. This keeps the runtime provider-independent and
-makes the final expression tree directly inspectable, but reusable invocations must be contained in a Raffinert
-wrapper or passed through `GetExpandedExpression()`.
+query. Raffinert instead uses explicit expansion boundaries. Core method overloads expand one supplied condition
+or projection; the optional `AsRaffinertQuery()` facade expands compiler-created query-syntax lambdas clause by
+clause while delegating to the original provider. This keeps both packages provider-independent and the final
+expression tree directly inspectable.
 
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
 supported by the selected LINQ provider.
 
-SQLite integration tests cover nested and cross-composed conditions/projections, ordering, condition consumers,
-grouping, flattening, `Then`, structural adaptation, null-safe mapping, and merged member initializers.
+SQLite integration tests cover nested and cross-composed conditions/projections, method and query syntax,
+asynchronous materialization, ordering, condition consumers, joins, grouping, flattening, `Then`, structural
+adaptation, null-safe mapping, and merged member initializers.
 
 ## Runtime execution
 
