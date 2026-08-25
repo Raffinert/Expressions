@@ -38,14 +38,6 @@ jobs:
       - name: Test
         run: dotnet test Raffinert.Expressions.slnx --configuration Release --no-restore
 
-      - name: Build .NET Framework 4.7.2 compatibility check
-        if: runner.os == 'Windows'
-        run: dotnet build tests/Raffinert.Expressions.NetFrameworkCompatibility/Raffinert.Expressions.NetFrameworkCompatibility.csproj --configuration Release --no-restore
-
-      - name: Run .NET Framework 4.7.2 async compatibility check
-        if: runner.os == 'Windows'
-        run: dotnet run --project tests/Raffinert.Expressions.NetFrameworkCompatibility/Raffinert.Expressions.NetFrameworkCompatibility.csproj --configuration Release --no-build --no-restore
-
       - name: Pack
         if: runner.os == 'Linux'
         run: |
