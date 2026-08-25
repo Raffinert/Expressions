@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2 - 2026-08-25
+
+- Added queryable and enumerable composable-expression overloads for condition terminals, ordering, grouping, and flattening.
+- Added unit coverage for the full extension surface and EF Core SQLite coverage for expression expansion and translation.
+
 ## 1.0.1 - 2026-08-24
 
 - Added `Projection<TSource>.Create(...)` for inferring projection result types from the expression, including anonymous types.

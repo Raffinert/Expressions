@@ -65,4 +65,4 @@ Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(con
 
 ## Query behavior
 
-`IQueryable` extensions always submit expanded expressions. `IEnumerable` extensions use the cached compiled expanded delegate. No `AsExpandable()` call or provider wrapper is needed.
+`IQueryable` extensions always submit expanded expressions. `IEnumerable` extensions use the cached compiled expanded delegate. This applies to filtering and projection, condition terminal operations, ordering, grouping, and flattening. No `AsExpandable()` call or provider wrapper is needed.

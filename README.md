@@ -170,8 +170,8 @@ var rows = await db.Products
     .ToArrayAsync();
 ```
 
-The `Where` and `Select` overloads above call `GetExpandedExpression()`. EF Core therefore receives normal
-expression nodes such as member access, LINQ calls, Boolean operators, member initialization, and conditionals.
+The provided `IQueryable` overloads call `GetExpandedExpression()`. EF Core therefore receives normal expression
+nodes such as member access, LINQ calls, Boolean operators, member initialization, and conditionals.
 
 This design requires:
 
@@ -186,18 +186,35 @@ This design requires:
 Because Raffinert.Expressions does not wrap the query provider, it does not scan or rewrite an entire `IQueryable`
 expression tree. Invocation markers must be expanded before the expression reaches EF Core.
 
-Pass wrappers directly to the provided `Where` and `Select` overloads:
+Pass wrappers directly to the provided LINQ overloads:
 
 ```csharp
 db.Products.Where(condition);
 db.Products.Select(projection);
+db.Products.OrderBy(sortProjection).ThenBy(nameProjection);
+db.Products.Any(condition);
+db.Products.GroupBy(categoryProjection);
 ```
 
-For other LINQ operators, pass the expanded expression explicitly:
+The direct condition consumers are `Where`, `Any`, `All`, `Count`, `LongCount`, `First`, `FirstOrDefault`,
+`Last`, `LastOrDefault`, `Single`, `SingleOrDefault`, `SkipWhile`, and `TakeWhile`. The direct projection consumers
+are `Select`, `SelectMany`, `OrderBy`, `OrderByDescending`, `ThenBy`, `ThenByDescending`, and `GroupBy` with either
+a key selector or key and element selectors. Each is available for both `IQueryable` and `IEnumerable`.
+
+Operators requiring binary or indexed expressions, such as join result selectors and indexed predicates, are not
+represented by the unary `ComposableExpression<TSource, TResult>` abstraction. Pass ordinary expressions to those
+operators and expand wrapper arguments explicitly where needed. Numeric aggregates can be expressed without extra
+overloads by selecting first:
 
 ```csharp
-db.Products.OrderBy(sortProjection.GetExpandedExpression());
-db.Products.Any(condition.GetExpandedExpression());
+var total = db.Products.Select(priceProjection).Sum();
+```
+
+Provider-specific async operators are also outside the dependency-free runtime package. Pass the expanded
+expression to those APIs explicitly:
+
+```csharp
+var exists = await db.Products.AnyAsync(condition.GetExpandedExpression());
 ```
 
 Do not place invocation markers directly inside an ordinary provider-facing lambda:
@@ -262,8 +279,8 @@ wrapper or passed through `GetExpandedExpression()`.
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
 supported by the selected LINQ provider.
 
-SQLite integration tests cover nested and cross-composed conditions/projections, `Then`, structural adaptation,
-null-safe mapping, and merged member initializers.
+SQLite integration tests cover nested and cross-composed conditions/projections, ordering, condition consumers,
+grouping, flattening, `Then`, structural adaptation, null-safe mapping, and merged member initializers.
 
 ## Runtime execution
 

@@ -16,4 +16,106 @@ public static class ConditionQueryableExtensions
 
         return source.Where(condition.GetExpandedExpression());
     }
+
+    /// <summary>Determines whether any query element satisfies an expanded composable condition.</summary>
+    public static bool Any<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.Any(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Determines whether every query element satisfies an expanded composable condition.</summary>
+    public static bool All<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.All(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns the number of query elements satisfying an expanded composable condition.</summary>
+    public static int Count<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.Count(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns an <see cref="long"/> count of query elements satisfying an expanded composable condition.</summary>
+    public static long LongCount<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.LongCount(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns the first query element satisfying an expanded composable condition.</summary>
+    public static T First<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.First(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns the first query element satisfying an expanded composable condition, or its default value.</summary>
+    public static T? FirstOrDefault<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.FirstOrDefault(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns the last query element satisfying an expanded composable condition.</summary>
+    public static T Last<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.Last(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns the last query element satisfying an expanded composable condition, or its default value.</summary>
+    public static T? LastOrDefault<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.LastOrDefault(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns the only query element satisfying an expanded composable condition.</summary>
+    public static T Single<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.Single(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns the only query element satisfying an expanded composable condition, or its default value.</summary>
+    public static T? SingleOrDefault<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.SingleOrDefault(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Skips query elements while an expanded composable condition is satisfied.</summary>
+    public static IQueryable<T> SkipWhile<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.SkipWhile(condition.GetExpandedExpression());
+    }
+
+    /// <summary>Returns query elements while an expanded composable condition is satisfied.</summary>
+    public static IQueryable<T> TakeWhile<T>(this IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        ValidateArguments(source, condition);
+
+        return source.TakeWhile(condition.GetExpandedExpression());
+    }
+
+    private static void ValidateArguments<T>(IQueryable<T> source, ComposableExpression<T, bool> condition)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (condition == null) throw new ArgumentNullException(nameof(condition));
+    }
 }
