@@ -40,7 +40,9 @@ jobs:
 
       - name: Pack
         if: runner.os == 'Linux'
-        run: dotnet pack src/Raffinert.Expressions/Raffinert.Expressions.csproj --configuration Release --no-restore --output artifacts/package
+        run: |
+          dotnet pack src/Raffinert.Expressions/Raffinert.Expressions.csproj --configuration Release --no-restore --output artifacts/package
+          dotnet pack src/Raffinert.Expressions.QuerySyntax/Raffinert.Expressions.QuerySyntax.csproj --configuration Release --no-restore --output artifacts/package
 
       - name: Upload package
         if: runner.os == 'Linux'

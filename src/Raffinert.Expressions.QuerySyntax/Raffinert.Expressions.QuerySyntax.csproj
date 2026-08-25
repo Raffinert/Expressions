@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <AssemblyName>Raffinert.Expressions</AssemblyName>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>Raffinert.Expressions.QuerySyntax</AssemblyName>
     <RootNamespace>Raffinert.Expressions</RootNamespace>
     <Version>1.0.3</Version>
     <IsPackable>true</IsPackable>
@@ -9,12 +9,12 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <DebugType>portable</DebugType>
-    <PackageId>Raffinert.Expressions</PackageId>
-    <Title>Raffinert.Expressions</Title>
+    <PackageId>Raffinert.Expressions.QuerySyntax</PackageId>
+    <Title>Raffinert.Expressions.QuerySyntax</Title>
     <Authors>Yevhen Cherkes</Authors>
     <Copyright>Copyright (c) 2026 Raffinert</Copyright>
-    <Description>Lightweight composable and structurally adaptable expression trees for reusable conditions, projections, and LINQ/EF Core query logic.</Description>
-    <PackageTags>LINQ;Expressions;ExpressionTree;Condition;Predicate;Projection;EFCore;Composable;Selector</PackageTags>
+    <Description>An opt-in LINQ query-syntax facade for Raffinert.Expressions with async enumeration support.</Description>
+    <PackageTags>LINQ;Expressions;ExpressionTree;QuerySyntax;EFCore;Composable;AsyncEnumerable</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Raffinert/Raffinert.Expressions</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Raffinert/Raffinert.Expressions</RepositoryUrl>
@@ -26,5 +26,8 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Raffinert.Expressions\Raffinert.Expressions.csproj" />
   </ItemGroup>
 </Project>

@@ -153,6 +153,26 @@ public class CoreCompositionTests
     }
 
     [Fact]
+    public void PublicComposableExpressionBaseSupportsCustomSemanticWrappers()
+    {
+        var label = new ProductLabelExpression();
+        var condition = Condition<Product>.Create(product => label.Invoke(product).StartsWith("Desk"));
+
+        var firstExpansion = label.GetExpandedExpression();
+        var secondExpansion = label.GetExpandedExpression();
+        var expandedCondition = condition.GetExpandedExpression();
+
+        Assert.Same(firstExpansion, secondExpansion);
+        Assert.Equal("""product => product.Name + ":" + product.Price""", firstExpansion.ToReadableString());
+        Assert.False(ContainsInvocation(expandedCondition));
+        Assert.True(condition.Invoke(new Product { Name = "Desk", Price = 20m }));
+        Assert.Equal(1, label.ExpressionRequests);
+
+        IComposableExpression<Product, object> covariantView = label;
+        Assert.Equal("Desk:20", covariantView.Invoke(new Product { Name = "Desk", Price = 20m }));
+    }
+
+    [Fact]
     public void InvokeOrDefaultIsSharedByConditionsAndProjections()
     {
         var active = Condition<Customer>.Create(customer => customer.IsActive);
@@ -280,6 +300,17 @@ public class CoreCompositionTests
         {
             ExpressionRequests++;
             return product => product.Price > 0m;
+        }
+    }
+
+    private sealed class ProductLabelExpression : ComposableExpression<Product, string>
+    {
+        public int ExpressionRequests { get; private set; }
+
+        public override Expression<Func<Product, string>> GetExpression()
+        {
+            ExpressionRequests++;
+            return product => product.Name + ":" + product.Price;
         }
     }
 

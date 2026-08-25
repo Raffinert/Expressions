@@ -216,6 +216,155 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ComposableOrderingSelectorsExpandAndTranslate()
+    {
+        var price = Projection<DbProduct>.Create(product => product.PriceCents);
+        var adjustedPrice = Projection<DbProduct>.Create(product => price.Invoke(product) + 1);
+        var name = Projection<DbProduct>.Create(product => product.Name);
+
+        var query = _db.Products
+            .OrderByDescending(adjustedPrice)
+            .ThenBy(name);
+
+        var sql = query.ToQueryString();
+        var rows = await query.ToArrayAsync();
+
+        Assert.Contains("ORDER BY \"p\".\"PriceCents\" + 1 DESC, \"p\".\"Name\"", sql);
+        Assert.Equal(["Desk", "Hidden", "Uncategorized", "Pencil"], rows.Select(product => product.Name));
+    }
+
+    [Fact]
+    public void ComposableConditionConsumersExpandAndTranslate()
+    {
+        var price = Projection<DbProduct>.Create(product => product.PriceCents);
+        var expensive = Condition<DbProduct>.Create(product => price.Invoke(product) > 1000);
+
+        Assert.True(_db.Products.Any(expensive));
+        Assert.False(_db.Products.All(expensive));
+        Assert.Equal(3, _db.Products.Count(expensive));
+        Assert.Equal(3L, _db.Products.LongCount(expensive));
+        Assert.True(_db.Products.OrderBy(product => product.Id).First(expensive).PriceCents > 1000);
+        Assert.Null(_db.Products.FirstOrDefault(Condition<DbProduct>.False));
+    }
+
+    [Fact]
+    public async Task ComposableGroupingSelectorsExpandAndTranslate()
+    {
+        var categoryId = Projection<DbProduct>.Create(product => product.CategoryId);
+        var price = Projection<DbProduct>.Create(product => product.PriceCents);
+        var adjustedPrice = Projection<DbProduct>.Create(product => price.Invoke(product) + 1);
+
+        var query = _db.Products
+            .GroupBy(categoryId, adjustedPrice)
+            .Select(group => new { group.Key, Total = group.Sum() })
+            .OrderBy(row => row.Key);
+
+        var sql = query.ToQueryString();
+        var rows = await query.ToArrayAsync();
+
+        Assert.Contains("GROUP BY \"p\".\"CategoryId\"", sql);
+        Assert.Contains("SUM(\"p\".\"PriceCents\" + 1)", sql);
+        Assert.Collection(
+            rows,
+            row =>
+            {
+                Assert.Null(row.Key);
+                Assert.Equal(10502, row.Total);
+            },
+            row =>
+            {
+                Assert.NotNull(row.Key);
+                Assert.Equal(20202, row.Total);
+            });
+    }
+
+    [Fact]
+    public async Task ComposableSelectManySelectorExpandsAndTranslates()
+    {
+        var products = Projection<DbCategory>.Create(category => category.Products);
+        var name = Projection<DbProduct>.Create(product => product.Name);
+
+        var query = _db.Categories
+            .SelectMany(products)
+            .OrderBy(name);
+
+        var sql = query.ToQueryString();
+        var rows = await query.ToArrayAsync();
+
+        Assert.Contains("INNER JOIN \"Products\"", sql);
+        Assert.Equal(["Desk", "Pencil"], rows.Select(product => product.Name));
+    }
+
+    [Fact]
+    public async Task QuerySyntaxFacadeExpandsMarkersAndPreservesAsyncProviderExecution()
+    {
+        var source = _db.Products;
+        var price = Projection<DbProduct>.Create(product => product.PriceCents);
+        var expensive = Condition<DbProduct>.Create(product => price.Invoke(product) > 1000);
+        var name = Projection<DbProduct>.Create(product => product.Name);
+        var row = Projection<DbProduct>.Create(product => new ProductRow
+        {
+            Id = product.Id,
+            Name = name.Invoke(product),
+            IsExpensive = expensive.Invoke(product)
+        });
+
+        var query =
+            from product in source.AsRaffinertQuery()
+            where expensive.Invoke(product)
+            orderby price.Invoke(product) descending, name.Invoke(product)
+            select row.Invoke(product);
+
+        var sql = query.ToQueryString();
+        var rows = await query.ToListAsync();
+
+        Assert.Same(((IQueryable<DbProduct>)source).Provider, query.Provider);
+        Assert.Same(query.UnderlyingQuery.Provider, query.Provider);
+        Assert.DoesNotContain(nameof(ComposableExpression<,>.Invoke), query.Expression.ToString());
+        Assert.Contains("WHERE \"p\".\"PriceCents\" > 1000", sql);
+        Assert.Contains("ORDER BY \"p\".\"PriceCents\" DESC, \"p\".\"Name\"", sql);
+        Assert.Equal(["Desk", "Hidden", "Uncategorized"], rows.Select(product => product.Name));
+        Assert.All(rows, product => Assert.True(product.IsExpensive));
+    }
+
+    [Fact]
+    public async Task QuerySyntaxFacadeExpandsMultipleFromJoinAndGrouping()
+    {
+        var productName = Projection<DbProduct>.Create(product => product.Name);
+        var productCategoryId = Projection<DbProduct>.Create(product => product.CategoryId);
+        var categoryId = Projection<DbCategory>.Create(category => (int?)category.Id);
+        var categoryProducts = Projection<DbCategory>.Create(category => category.Products.AsEnumerable());
+
+        var flattened =
+            from category in _db.Categories.AsRaffinertQuery()
+            from product in categoryProducts.Invoke(category)
+            orderby productName.Invoke(product)
+            select productName.Invoke(product);
+
+        var joined =
+            from product in _db.Products.AsRaffinertQuery()
+            join category in _db.Categories
+                on productCategoryId.Invoke(product) equals categoryId.Invoke(category)
+            group productName.Invoke(product) by category.Name into namesByCategory
+            select new { namesByCategory.Key, Count = namesByCategory.Count() };
+
+        var flattenedSql = flattened.ToQueryString();
+        var joinedSql = joined.ToQueryString();
+        var flattenedNames = await flattened.ToArrayAsync();
+        var groups = await joined.ToListAsync();
+
+        Assert.DoesNotContain(nameof(ComposableExpression<,>.Invoke), flattened.Expression.ToString());
+        Assert.DoesNotContain(nameof(ComposableExpression<,>.Invoke), joined.Expression.ToString());
+        Assert.Contains("INNER JOIN \"Products\"", flattenedSql);
+        Assert.Contains("INNER JOIN \"Categories\"", joinedSql);
+        Assert.Contains("GROUP BY \"c\".\"Name\"", joinedSql);
+        Assert.Equal(["Desk", "Pencil"], flattenedNames);
+        var group = Assert.Single(groups);
+        Assert.Equal("Office", group.Key);
+        Assert.Equal(2, group.Count);
+    }
+
+    [Fact]
     public async Task MapToExistingPreservesTrackedCollectionNavigation()
     {
         var category = await _db.Categories

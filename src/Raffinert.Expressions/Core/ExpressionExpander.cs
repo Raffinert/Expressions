@@ -4,6 +4,15 @@ namespace Raffinert.Expressions;
 
 internal static class ExpressionExpander
 {
+    public static Expression<TDelegate> Expand<TDelegate>(Expression<TDelegate> expression)
+        where TDelegate : Delegate
+    {
+        if (expression == null) throw new ArgumentNullException(nameof(expression));
+
+        var stack = new HashSet<object>(ReferenceIdentityComparer.Instance);
+        return (Expression<TDelegate>)new Visitor(stack).Visit(expression)!;
+    }
+
     public static Expression<TDelegate> Expand<TDelegate>(
         IExpressionExpansionSource owner,
         Expression<TDelegate> expression)

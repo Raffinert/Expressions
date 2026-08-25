@@ -12,11 +12,90 @@ public static class ProjectionEnumerableExtensions
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="projection"/> is null.</exception>
     public static IEnumerable<TResult> Select<TSource, TResult>(
         this IEnumerable<TSource> source,
-        ComposableExpression<TSource, TResult> projection)
+        IComposableExpression<TSource, TResult> projection)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (projection == null) throw new ArgumentNullException(nameof(projection));
 
         return source.Select(projection.Invoke);
+    }
+
+    /// <summary>Projects each sequence element to a sequence and flattens the resulting sequences.</summary>
+    public static IEnumerable<TResult> SelectMany<TSource, TResult>(
+        this IEnumerable<TSource> source,
+        IComposableExpression<TSource, IEnumerable<TResult>> projection)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (projection == null) throw new ArgumentNullException(nameof(projection));
+
+        return source.SelectMany(projection.Invoke);
+    }
+
+    /// <summary>Sorts sequence elements in ascending order using a composable key selector.</summary>
+    public static IOrderedEnumerable<TSource> OrderBy<TSource, TKey>(
+        this IEnumerable<TSource> source,
+        IComposableExpression<TSource, TKey> keySelector)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+
+        return source.OrderBy(keySelector.Invoke);
+    }
+
+    /// <summary>Sorts sequence elements in descending order using a composable key selector.</summary>
+    public static IOrderedEnumerable<TSource> OrderByDescending<TSource, TKey>(
+        this IEnumerable<TSource> source,
+        IComposableExpression<TSource, TKey> keySelector)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+
+        return source.OrderByDescending(keySelector.Invoke);
+    }
+
+    /// <summary>Performs a subsequent ascending ordering using a composable key selector.</summary>
+    public static IOrderedEnumerable<TSource> ThenBy<TSource, TKey>(
+        this IOrderedEnumerable<TSource> source,
+        IComposableExpression<TSource, TKey> keySelector)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+
+        return source.ThenBy(keySelector.Invoke);
+    }
+
+    /// <summary>Performs a subsequent descending ordering using a composable key selector.</summary>
+    public static IOrderedEnumerable<TSource> ThenByDescending<TSource, TKey>(
+        this IOrderedEnumerable<TSource> source,
+        IComposableExpression<TSource, TKey> keySelector)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+
+        return source.ThenByDescending(keySelector.Invoke);
+    }
+
+    /// <summary>Groups sequence elements using a composable key selector.</summary>
+    public static IEnumerable<IGrouping<TKey, TSource>> GroupBy<TSource, TKey>(
+        this IEnumerable<TSource> source,
+        IComposableExpression<TSource, TKey> keySelector)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+
+        return source.GroupBy(keySelector.Invoke);
+    }
+
+    /// <summary>Groups projected sequence elements using composable key and element selectors.</summary>
+    public static IEnumerable<IGrouping<TKey, TElement>> GroupBy<TSource, TKey, TElement>(
+        this IEnumerable<TSource> source,
+        IComposableExpression<TSource, TKey> keySelector,
+        IComposableExpression<TSource, TElement> elementSelector)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (keySelector == null) throw new ArgumentNullException(nameof(keySelector));
+        if (elementSelector == null) throw new ArgumentNullException(nameof(elementSelector));
+
+        return source.GroupBy(keySelector.Invoke, elementSelector.Invoke);
     }
 }

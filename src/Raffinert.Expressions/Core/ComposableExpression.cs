@@ -12,7 +12,9 @@ namespace Raffinert.Expressions;
 /// </remarks>
 [DebuggerDisplay("{DebuggerDisplay,nq}")]
 [DebuggerTypeProxy(typeof(ExpressionDebugView))]
-public abstract class ComposableExpression<TSource, TResult> : IExpressionExpansionSource
+public abstract class ComposableExpression<TSource, TResult> :
+    IComposableExpression<TSource, TResult>,
+    IExpressionExpansionSource
 {
     private readonly object _cacheLock = new();
     private Expression<Func<TSource, TResult>>? _expandedExpression;
@@ -82,6 +84,9 @@ public abstract class ComposableExpression<TSource, TResult> : IExpressionExpans
     public TResult? InvokeOrDefault(TSource? value) => value is null ? default : Invoke(value);
 
     LambdaExpression IExpressionExpansionSource.GetExpression() => GetExpression();
+
+    LambdaExpression IComposableExpression<TSource, TResult>.GetExpandedLambdaExpression() =>
+        GetExpandedExpression();
 
     LambdaExpression? IExpressionExpansionSource.GetCachedExpandedExpression() => _expandedExpression;
 
