@@ -112,7 +112,7 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 
 `Invoke` is the common composition marker. A `Condition` can be embedded in a `Projection`, a `Projection` can be embedded in a `Condition`, and mixed chains can be nested to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
 
-`Invoke` is the only execution and composition primitive. Method groups such as `items.Any(spec.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
+`Invoke` is the only execution and composition primitive. Method groups such as `items.Any(condition.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
 
 ## `Then` composition
 
