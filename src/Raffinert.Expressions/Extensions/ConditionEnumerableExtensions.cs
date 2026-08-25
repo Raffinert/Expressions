@@ -9,7 +9,7 @@ public static class ConditionEnumerableExtensions
     /// <param name="condition">The expression used to test each element.</param>
     /// <returns>A sequence containing the elements accepted by <paramref name="condition"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="condition"/> is null.</exception>
-    public static IEnumerable<T> Where<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static IEnumerable<T> Where<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (condition == null) throw new ArgumentNullException(nameof(condition));
@@ -18,7 +18,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Determines whether any sequence element satisfies a composable condition.</summary>
-    public static bool Any<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static bool Any<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -26,7 +26,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Determines whether every sequence element satisfies a composable condition.</summary>
-    public static bool All<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static bool All<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -34,7 +34,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns the number of sequence elements satisfying a composable condition.</summary>
-    public static int Count<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static int Count<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -42,7 +42,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns an <see cref="long"/> count of sequence elements satisfying a composable condition.</summary>
-    public static long LongCount<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static long LongCount<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -50,7 +50,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns the first sequence element satisfying a composable condition.</summary>
-    public static T First<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static T First<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -58,7 +58,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns the first sequence element satisfying a composable condition, or its default value.</summary>
-    public static T? FirstOrDefault<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static T? FirstOrDefault<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -66,7 +66,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns the last sequence element satisfying a composable condition.</summary>
-    public static T Last<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static T Last<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -74,7 +74,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns the last sequence element satisfying a composable condition, or its default value.</summary>
-    public static T? LastOrDefault<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static T? LastOrDefault<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -82,7 +82,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns the only sequence element satisfying a composable condition.</summary>
-    public static T Single<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static T Single<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -90,7 +90,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns the only sequence element satisfying a composable condition, or its default value.</summary>
-    public static T? SingleOrDefault<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static T? SingleOrDefault<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -98,7 +98,7 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Skips sequence elements while a composable condition is satisfied.</summary>
-    public static IEnumerable<T> SkipWhile<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static IEnumerable<T> SkipWhile<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
@@ -106,14 +106,14 @@ public static class ConditionEnumerableExtensions
     }
 
     /// <summary>Returns sequence elements while a composable condition is satisfied.</summary>
-    public static IEnumerable<T> TakeWhile<T>(this IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    public static IEnumerable<T> TakeWhile<T>(this IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         ValidateArguments(source, condition);
 
         return source.TakeWhile(condition.Invoke);
     }
 
-    private static void ValidateArguments<T>(IEnumerable<T> source, ComposableExpression<T, bool> condition)
+    private static void ValidateArguments<T>(IEnumerable<T> source, IComposableExpression<T, bool> condition)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (condition == null) throw new ArgumentNullException(nameof(condition));

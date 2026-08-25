@@ -281,7 +281,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ComposableSelectManySelectorExpandsAndTranslates()
     {
-        var products = Projection<DbCategory>.Create(category => category.Products.AsEnumerable());
+        var products = Projection<DbCategory>.Create(category => category.Products);
         var name = Projection<DbProduct>.Create(product => product.Name);
 
         var query = _db.Categories

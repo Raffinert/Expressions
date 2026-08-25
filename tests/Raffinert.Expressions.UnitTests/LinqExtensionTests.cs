@@ -64,7 +64,8 @@ public sealed class LinqExtensionTests
         var name = Projection<Product>.Create(product => product.Name);
         var price = Projection<Product>.Create(product => product.Price);
         var category = Projection<Product>.Create(product => product.Category);
-        var tags = Projection<Product>.Create(product => product.Tags.AsEnumerable());
+        var tags = Projection<Product>.Create(product => product.Tags);
+        var tagArray = Projection<Product>.Create(product => product.Tags.ToArray());
 
         Assert.Equal(["Desk", "Apple", "Pen"], source.OrderByDescending(price).ThenBy(name).Select(name));
         Assert.Equal(["Desk", "Pen", "Apple"], source.OrderByDescending(price).ThenByDescending(name).Select(name));
@@ -73,6 +74,7 @@ public sealed class LinqExtensionTests
         Assert.Equal(["Food", "Office"], source.GroupBy(category).Select(group => group.Key).OrderBy(value => value));
         Assert.Equal(3, source.GroupBy(category, name).SelectMany(group => group).Count());
         Assert.Equal(["furniture", "writing", "fruit"], source.SelectMany(tags));
+        Assert.Equal(["furniture", "writing", "fruit"], source.SelectMany(tagArray));
     }
 
     [Fact]
@@ -82,7 +84,8 @@ public sealed class LinqExtensionTests
         var name = Projection<Product>.Create(product => product.Name);
         var price = Projection<Product>.Create(product => product.Price);
         var category = Projection<Product>.Create(product => product.Category);
-        var tags = Projection<Product>.Create(product => product.Tags.AsEnumerable());
+        var tags = Projection<Product>.Create(product => product.Tags);
+        var tagArray = Projection<Product>.Create(product => product.Tags.ToArray());
 
         Assert.Equal(["Desk", "Apple", "Pen"], source.OrderByDescending(price).ThenBy(name).Select(name));
         Assert.Equal(["Desk", "Pen", "Apple"], source.OrderByDescending(price).ThenByDescending(name).Select(name));
@@ -91,6 +94,7 @@ public sealed class LinqExtensionTests
         Assert.Equal(["Food", "Office"], source.GroupBy(category).Select(group => group.Key).OrderBy(value => value));
         Assert.Equal(3, source.GroupBy(category, name).SelectMany(group => group).Count());
         Assert.Equal(["furniture", "writing", "fruit"], source.SelectMany(tags));
+        Assert.Equal(["furniture", "writing", "fruit"], source.SelectMany(tagArray));
     }
 
     private sealed class Product
@@ -98,6 +102,6 @@ public sealed class LinqExtensionTests
         public required string Name { get; init; }
         public required string Category { get; init; }
         public required int Price { get; init; }
-        public string[] Tags { get; init; } = [];
+        public List<string> Tags { get; init; } = [];
     }
 }

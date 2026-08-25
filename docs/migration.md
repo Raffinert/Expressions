@@ -22,6 +22,10 @@ The aggregate package uses full names for its public semantic types:
 - `Proj<TIn,TOut>` becomes `Projection<TSource,TResult>`;
 - `Expr<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>` for custom semantic wrappers.
 
+`IComposableExpression<TSource,out TResult>` is the covariant consumption contract used by LINQ extensions.
+Continue to inherit `ComposableExpression<TSource,TResult>` when implementing a custom semantic wrapper; the base
+provides invocation expansion and caching that direct interface implementations do not provide.
+
 The aggregate package otherwise preserves the structural capabilities:
 
 - `Create`, subclassing, `GetExpression`, `True`, `False`, Boolean combinators and operators;

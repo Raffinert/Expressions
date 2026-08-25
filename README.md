@@ -211,8 +211,14 @@ The direct condition consumers are `Where`, `Any`, `All`, `Count`, `LongCount`, 
 are `Select`, `SelectMany`, `OrderBy`, `OrderByDescending`, `ThenBy`, `ThenByDescending`, and `GroupBy` with either
 a key selector or key and element selectors. Each is available for both `IQueryable` and `IEnumerable`.
 
+These operators consume `IComposableExpression<TSource,TResult>`. Its covariant result type allows sequence
+projections returning concrete types such as `List<T>` or arrays to be passed directly to `SelectMany` without an
+`AsEnumerable()` conversion. `ComposableExpression<TSource,TResult>` remains the supported base class for custom
+semantic wrappers and owns expansion and compiled-delegate caching; custom wrappers should inherit it rather than
+implementing the consumption interface directly.
+
 Operators requiring binary or indexed expressions, such as join result selectors and indexed predicates, are not
-represented by the unary `ComposableExpression<TSource, TResult>` abstraction. Pass ordinary expressions to those
+represented by the unary `IComposableExpression<TSource, TResult>` contract. Pass ordinary expressions to those
 operators and expand wrapper arguments explicitly where needed. Numeric aggregates can be expressed without extra
 overloads by selecting first:
 

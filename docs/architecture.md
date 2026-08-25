@@ -2,7 +2,14 @@
 
 ## Shared expression abstraction
 
-`ComposableExpression<TSource,TResult>` owns expansion and compiled-delegate caching. `Condition<T>` and `Projection<TSource,TResult>` add domain vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
+`IComposableExpression<TSource,out TResult>` is the covariant public consumption contract used by the LINQ
+extensions. `ComposableExpression<TSource,TResult>` is the supported public implementation base for custom semantic
+wrappers and owns expansion and compiled-delegate caching. `Condition<T>` and `Projection<TSource,TResult>` add domain
+vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
+
+Custom semantic wrappers should inherit `ComposableExpression<TSource,TResult>` rather than implementing
+`IComposableExpression<TSource,TResult>` directly. This preserves invocation-marker expansion, cycle detection, and
+per-instance caching while allowing consumer APIs to benefit from result covariance.
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
