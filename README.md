@@ -330,6 +330,11 @@ The aggregate package deliberately uses one canonical invocation vocabulary. Rep
 
 See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blob/main/docs/migration.md) for details.
 
+## Examples
+
+- [LINQKit comparison](examples/LinqKitComparison/README.md) — the LINQKit README scenarios implemented three
+  ways in a .NET 10 / EF Core 10 console app: plain EF Core lambdas, LINQKit, and Raffinert.Expressions.
+
 ## Useful reading
 
 Expression composition and reusable query logic:

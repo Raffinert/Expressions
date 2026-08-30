@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/LinqKitComparison/LinqKitComparison.csproj" />
+  </Folder>
   <Project Path="src/Raffinert.Expressions/Raffinert.Expressions.csproj" />
   <Project Path="src/Raffinert.Expressions.QuerySyntax/Raffinert.Expressions.QuerySyntax.csproj" />
   <Project Path="tests/Raffinert.Expressions.IntegrationTests/Raffinert.Expressions.IntegrationTests.csproj" />
