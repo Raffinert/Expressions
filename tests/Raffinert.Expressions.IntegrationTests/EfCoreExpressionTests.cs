@@ -136,10 +136,11 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         var composedCondition = composedScalar.Then(threshold);
         var mixed = Projection<DbProduct>.Create(product => composedCondition.Invoke(product));
 
-        var values = await _db.Products
+        var query = _db.Products
             .Where(mixed)
-            .Select(composedCondition)
-            .ToArrayAsync();
+            .Select(composedCondition);
+
+        var values = await query.ToArrayAsync();
 
         Assert.Equal(
             "product => (product.PriceCents * 2) >= 3000",
