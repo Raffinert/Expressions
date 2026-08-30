@@ -20,8 +20,8 @@ public static class PureDotNetExamples
         ExampleDbContext db,
         decimal minimumPrice) =>
         from customer in db.Customers
-        // Limitation: the price rule is duplicated inside the correlated subquery. LINQKit and Raffinert.Expressions
-        // are both designed to inject a separately declared predicate at this point.
+            // Limitation: the price rule is duplicated inside the correlated subquery. LINQKit and Raffinert.Expressions
+            // are both designed to inject a separately declared predicate at this point.
         where db.Purchases.Any(purchase =>
             purchase.CustomerId == customer.Id && purchase.Price > minimumPrice)
         orderby customer.Name
