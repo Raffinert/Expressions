@@ -31,13 +31,13 @@ Both packages expose their public API in the `Raffinert.Expressions` namespace.
 ```csharp
 using Raffinert.Expressions;
 
-var total = Projection<Order, decimal>.Create(order =>
+var total = Projection<Order>.Create(order =>
     order.Lines.Sum(line => line.Price * line.Quantity));
 
 var expensive = Condition<Order>.Create(order =>
     total.Invoke(order) > 1000m);
 
-var projection = Projection<Order, OrderDto>.Create(order => new OrderDto
+var projection = Projection<Order>.Create(order => new OrderDto
 {
     Id = order.Id,
     Total = total.Invoke(order),
@@ -151,8 +151,8 @@ ambiguous, inaccessible, and incompatible members fail descriptively when adapta
 Use `InvokeOrDefault` only where a null input should produce `default(TOut)`:
 
 ```csharp
-var category = Projection<Category, CategoryDto>.Create(value => new CategoryDto { Name = value.Name });
-var product = Projection<Product, ProductDto>.Create(value => new ProductDto
+var category = Projection<Category>.Create(value => new CategoryDto { Name = value.Name });
+var product = Projection<Product>.Create(value => new ProductDto
 {
     Category = category.InvokeOrDefault(value.Category)
 });
