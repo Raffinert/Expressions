@@ -334,7 +334,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         var productName = Projection<DbProduct>.Create(product => product.Name);
         var productCategoryId = Projection<DbProduct>.Create(product => product.CategoryId);
         var categoryId = Projection<DbCategory>.Create(category => (int?)category.Id);
-        var categoryProducts = Projection<DbCategory>.Create(category => category.Products.AsEnumerable());
+        var categoryProducts = Projection<DbCategory>.Create(category => category.Products);
 
         var flattened =
             from category in _db.Categories.AsRaffinertQuery()
