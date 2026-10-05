@@ -50,7 +50,7 @@ public static class RaffinertExamples
     {
         var predicate = keywords
             .Select(keyword => Condition<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(Condition<Product>.True, (current, next) => current.And(next));
+            .Aggregate(Condition<Product>.Start(defaultWhenEmpty: true), (current, next) => current.And(next));
 
         return db.Products
             .Where(predicate)
@@ -64,7 +64,7 @@ public static class RaffinertExamples
     {
         var predicate = keywords
             .Select(keyword => Condition<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(Condition<Product>.False, (current, next) => current.Or(next));
+            .Aggregate(Condition<Product>.Start(), (current, next) => current.Or(next));
 
         return db.Products
             .Where(predicate)
@@ -138,7 +138,7 @@ public static class RaffinertExamples
     private static Condition<Product> ContainsInDescription(params string[] keywords) =>
         keywords
             .Select(keyword => Condition<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(Condition<Product>.False, (current, next) => current.Or(next));
+            .Aggregate(Condition<Product>.Start(), (current, next) => current.Or(next));
 
     private static Condition<Product> IsSelling(DateTime recentSaleCutoff) =>
         Condition<Product>.Create(product =>

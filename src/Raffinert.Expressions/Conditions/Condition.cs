@@ -20,6 +20,17 @@ public abstract class Condition<T> : ComposableExpression<T, bool>
             : new InlineCondition(expression);
     }
 
+    /// <summary>Starts a condition chain without adding a Boolean seed to the first composed expression.</summary>
+    /// <param name="defaultWhenEmpty">The result if no condition is added. The default is <see langword="false"/>.</param>
+    /// <returns>An immutable starting condition whose first <see cref="And(Condition{T})"/> or
+    /// <see cref="Or(Condition{T})"/> returns the supplied condition without a Boolean seed.</returns>
+    /// <remarks>Composition returns a new condition. Retain the returned value when adding conditions in a loop.</remarks>
+    public static Condition<T> Start(bool defaultWhenEmpty = false) =>
+        defaultWhenEmpty ? StartTrue : StartFalse;
+
+    private static Condition<T> StartTrue { get; } = new StartCondition(true);
+    private static Condition<T> StartFalse { get; } = new StartCondition(false);
+
     /// <summary>Gets a condition that accepts every value.</summary>
     public static Condition<T> True { get; } = Create(static value => true);
 
@@ -32,8 +43,9 @@ public abstract class Condition<T> : ComposableExpression<T, bool>
     /// <exception cref="ArgumentNullException"><paramref name="condition"/> is null.</exception>
     public Condition<T> And(Condition<T> condition)
     {
-        return condition == null
-            ? throw new ArgumentNullException(nameof(condition))
+        if (condition == null) throw new ArgumentNullException(nameof(condition));
+        return this is StartCondition
+            ? condition
             : Create(BooleanExpressionComposer.And(GetExpression(), condition.GetExpression()));
     }
 
@@ -43,8 +55,9 @@ public abstract class Condition<T> : ComposableExpression<T, bool>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> is null.</exception>
     public Condition<T> And(Expression<Func<T, bool>> expression)
     {
-        return expression == null
-            ? throw new ArgumentNullException(nameof(expression))
+        if (expression == null) throw new ArgumentNullException(nameof(expression));
+        return this is StartCondition
+            ? Create(expression)
             : Create(BooleanExpressionComposer.And(GetExpression(), expression));
     }
 
@@ -54,8 +67,9 @@ public abstract class Condition<T> : ComposableExpression<T, bool>
     /// <exception cref="ArgumentNullException"><paramref name="condition"/> is null.</exception>
     public Condition<T> Or(Condition<T> condition)
     {
-        return condition == null
-            ? throw new ArgumentNullException(nameof(condition))
+        if (condition == null) throw new ArgumentNullException(nameof(condition));
+        return this is StartCondition
+            ? condition
             : Create(BooleanExpressionComposer.Or(GetExpression(), condition.GetExpression()));
     }
 
@@ -65,8 +79,9 @@ public abstract class Condition<T> : ComposableExpression<T, bool>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> is null.</exception>
     public Condition<T> Or(Expression<Func<T, bool>> expression)
     {
-        return expression == null
-            ? throw new ArgumentNullException(nameof(expression))
+        if (expression == null) throw new ArgumentNullException(nameof(expression));
+        return this is StartCondition
+            ? Create(expression)
             : Create(BooleanExpressionComposer.Or(GetExpression(), expression));
     }
 
@@ -128,6 +143,12 @@ public abstract class Condition<T> : ComposableExpression<T, bool>
     private sealed class InlineCondition(Expression<Func<T, bool>> expression) : Condition<T>
     {
         public override Expression<Func<T, bool>> GetExpression() => expression;
+    }
+
+    private sealed class StartCondition(bool defaultWhenEmpty) : Condition<T>
+    {
+        public override Expression<Func<T, bool>> GetExpression() =>
+            defaultWhenEmpty ? True.GetExpression() : False.GetExpression();
     }
 }
 

@@ -78,6 +78,21 @@ bool matches = wanted.Invoke(product);
 
 `And`, `Or`, `Not`, `&`, `|`, `!`, `&&`, and `||` build direct Boolean expression nodes with correctly rebound parameters.
 
+For a dynamic chain, `Start()` lets the first `And` or `Or` supply the condition without adding a Boolean
+seed to the expression tree. An unchanged starter evaluates to `false`; use `defaultWhenEmpty: true` for
+an empty chain that should evaluate to `true`:
+
+```csharp
+var condition = Condition<Product>.Start(defaultWhenEmpty: true);
+foreach (var keyword in keywords)
+    condition = condition.And(product => product.Name.Contains(keyword));
+
+var query = db.Products.Where(condition);
+```
+
+Conditions remain immutable, so retain the result of each composition call. `Condition<T>.True` and
+`Condition<T>.False` remain ordinary unconditional conditions; they do not skip the first composition.
+
 ## Projections
 
 When the result is an anonymous type, specify only the source type; the result type is inferred from the
@@ -313,6 +328,10 @@ expression tree directly inspectable.
 
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
 supported by the selected LINQ provider.
+
+`InvokeOrDefault` binds nontrivial inputs once when expanding them. The resulting tree uses a lambda invocation
+for that binding; EF Core's SQLite translation is covered by the integration tests for projections and predicates.
+Other LINQ providers may differ in whether they can translate this node.
 
 SQLite integration tests cover nested and cross-composed conditions/projections, method and query syntax,
 asynchronous materialization, ordering, condition consumers, joins, grouping, flattening, `Then`, structural

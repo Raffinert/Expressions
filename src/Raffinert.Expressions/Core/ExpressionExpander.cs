@@ -57,17 +57,25 @@ internal static class ExpressionExpander
                     $"Expression instance '{value.GetType().FullName}' must expose a one-parameter lambda.");
             }
 
-            var body = new ReplaceExpressionVisitor(inner.Parameters[0], argument).Visit(inner.Body)!;
-
-            if (node.Method.Name == nameof(ComposableExpression<,>.InvokeOrDefault) && CanBeNull(argument.Type))
+            if (node.Method.Name == nameof(ComposableExpression<,>.InvokeOrDefault))
             {
-                body = Expression.Condition(
-                    Expression.Equal(argument, Expression.Default(argument.Type)),
-                    Expression.Default(body.Type),
-                    body);
+                var parameter = inner.Parameters[0];
+                var body = CanBeNull(argument.Type)
+                    ? Expression.Condition(
+                        Expression.Equal(parameter, Expression.Default(parameter.Type)),
+                        Expression.Default(inner.Body.Type),
+                        inner.Body)
+                    : inner.Body;
+
+                // Binding through a lambda evaluates nontrivial arguments once, including
+                // when the expanded body refers to the input multiple times.
+                if (argument is not ParameterExpression and not ConstantExpression)
+                    return Visit(Expression.Invoke(Expression.Lambda(body, parameter), argument))!;
+
+                return Visit(new ReplaceExpressionVisitor(parameter, argument).Visit(body)!)!;
             }
 
-            return Visit(body)!;
+            return Visit(new ReplaceExpressionVisitor(inner.Parameters[0], argument).Visit(inner.Body)!)!;
         }
 
         protected override Expression VisitUnary(UnaryExpression node)

@@ -182,15 +182,55 @@ public class CoreCompositionTests
             holder => nameLength.InvokeOrDefault(holder.Customer));
 
         Assert.Equal(
-            "holder => (holder.Customer == null) ? default(bool) : holder.Customer.IsActive",
+            "holder => (customer => (customer == null) ? default(bool) : customer.IsActive).Invoke(holder.Customer)",
             condition.GetExpandedExpression().ToReadableString());
         Assert.Equal(
-            "holder => (holder.Customer == null) ? default(int) : holder.Customer.Name.Length",
+            "holder => (customer => (customer == null) ? default(int) : customer.Name.Length).Invoke(holder.Customer)",
             projection.GetExpandedExpression().ToReadableString());
         Assert.False(condition.Invoke(new NullableCustomerHolder()));
         Assert.Equal(0, projection.Invoke(new NullableCustomerHolder()));
         Assert.True(condition.Invoke(new NullableCustomerHolder { Customer = new Customer { IsActive = true } }));
         Assert.Equal(3, projection.Invoke(new NullableCustomerHolder { Customer = new Customer { Name = "Ada" } }));
+    }
+
+    [Fact]
+    public void InvokeOrDefaultEvaluatesMethodArgumentOnlyOnce()
+    {
+        var length = Projection<Customer>.Create(customer => customer.Name.Length + customer.Name.Length);
+        var projection = Projection<CustomerAccessor>.Create(source =>
+            length.InvokeOrDefault(source.GetCustomer()));
+        var source = new CustomerAccessor();
+
+        Assert.Equal(0, projection.Invoke(source));
+        Assert.Equal(1, source.Reads);
+
+        source.Current = new Customer { Name = "Ada" };
+        Assert.Equal(6, projection.Invoke(source));
+        Assert.Equal(2, source.Reads);
+    }
+
+    [Fact]
+    public void InvokeOrDefaultEvaluatesPropertyArgumentOnlyOnce()
+    {
+        var active = Condition<Customer>.Create(customer => customer.IsActive);
+        var condition = Condition<CustomerAccessor>.Create(source =>
+            active.InvokeOrDefault(source.Customer));
+        var source = new CustomerAccessor { Current = new Customer { IsActive = true } };
+
+        Assert.True(condition.Invoke(source));
+        Assert.Equal(1, source.Reads);
+    }
+
+    [Fact]
+    public void InvokeOrDefaultEvaluatesNonNullableArgumentOnlyOnce()
+    {
+        var doubled = Projection<int>.Create(value => value + value);
+        var projection = Projection<IntAccessor>.Create(source =>
+            doubled.InvokeOrDefault(source.GetValue()));
+        var source = new IntAccessor();
+
+        Assert.Equal(8, projection.Invoke(source));
+        Assert.Equal(1, source.Reads);
     }
 
     [Fact]
@@ -327,6 +367,31 @@ public class CoreCompositionTests
     private sealed class NestedConditionHolder(Condition<Product> minimum)
     {
         public readonly Condition<Product> Minimum = minimum;
+    }
+
+    private sealed class CustomerAccessor
+    {
+        public Customer? Current { get; set; }
+        public int Reads { get; private set; }
+
+        public Customer? Customer => GetCustomer();
+
+        public Customer? GetCustomer()
+        {
+            Reads++;
+            return Current;
+        }
+    }
+
+    private sealed class IntAccessor
+    {
+        public int Reads { get; private set; }
+
+        public int GetValue()
+        {
+            Reads++;
+            return 4;
+        }
     }
 }
 

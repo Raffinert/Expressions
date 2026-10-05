@@ -13,6 +13,10 @@ per-instance caching while allowing consumer APIs to benefit from result covaria
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
+`Condition<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
+condition without composing a Boolean seed. An unchanged starter uses its configured result when empty,
+which defaults to `false`. Ordinary `True` and `False` conditions retain standard Boolean composition.
+
 ## Invocation expansion
 
 `ExpressionExpander` recognizes only two methods on Raffinert expression objects: `Invoke` and `InvokeOrDefault`.
@@ -27,7 +31,9 @@ A reference-identity stack detects cycles and produces an `InvalidOperationExcep
 
 `ReplaceExpressionVisitor` replaces one exact expression node with an arbitrary expression. When the source is a parameter declared by a nested lambda, that lambda is treated as a scope boundary. Composition therefore preserves deliberately shadowed nested scopes.
 
-The engine never introduces `Expression.Invoke`.
+The engine normally substitutes directly. For `InvokeOrDefault` with a nontrivial input expression, it uses
+`Expression.Invoke` to bind the input once, preserving in-memory evaluation semantics when the input has side
+effects or the inner body reads it more than once. Providers must be able to reduce this invocation for translation.
 
 ## Cross-composition and `Then`
 
@@ -37,7 +43,10 @@ Because all semantic wrappers implement the same internal contract, nested expan
 
 ## Null-safe invocation
 
-`InvokeOrDefault` is rewritten to `argument == default ? default(TOut) : expandedBody` for nullable inputs. It is defined on the shared expression base, so it can explicitly produce defaults such as `false` for conditions and `0` for value projections. Normal invocation has no implicit null semantics.
+`InvokeOrDefault` is rewritten to a null test and a default result for nullable inputs. Nontrivial inputs are bound
+once before the null test and expanded body run. It is defined on the shared expression base, so it can explicitly
+produce defaults such as `false` for conditions and `0` for value projections. Normal invocation has no implicit null
+semantics.
 
 ## Projection transformations
 

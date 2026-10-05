@@ -48,10 +48,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
                      {
                          Id = value.Id,
                          Name = value.Name,
-                         Category = (value.Category == null) ? null : new CategoryRow
-                         {
-                             Name = value.Category.Name
-                         }
+                         Category = (value => (value == null) ? null : new CategoryRow { Name = value.Name }).Invoke(value.Category)
                      }
                      """, product.GetExpandedExpression().ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Equal("""
@@ -64,6 +61,53 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         Assert.Equal(["Desk", "Uncategorized"], rows.Select(row => row.Name));
         Assert.Equal("Office", rows[0].Category!.Name);
         Assert.Null(rows[1].Category);
+    }
+
+    [Fact]
+    public async Task NullSafeConditionTranslatesInWherePredicate()
+    {
+        var office = Condition<DbCategory>.Create(category => category.Name == "Office");
+        var inOffice = Condition<DbProduct>.Create(product =>
+            office.InvokeOrDefault(product.Category));
+
+        var query = _db.Products.Where(inOffice).OrderBy(product => product.Name);
+        var sql = query.ToQueryString();
+        var names = await query.Select(product => product.Name).ToArrayAsync();
+
+        Assert.Equal(
+            "product => (category => (category == null) ? default(bool) : category.Name == \"Office\").Invoke(product.Category)",
+            inOffice.GetExpandedExpression().ToReadableString());
+        Assert.Equal("""
+                     SELECT "p"."Id", "p"."CategoryId", "p"."Name", "p"."PriceCents"
+                     FROM "Products" AS "p"
+                     LEFT JOIN "Categories" AS "c" ON "p"."CategoryId" = "c"."Id"
+                     WHERE CASE
+                         WHEN "c"."Id" IS NULL THEN 0
+                         ELSE "c"."Name" = 'Office'
+                     END
+                     ORDER BY "p"."Name"
+                     """, sql, ignoreLineEndingDifferences: true);
+        Assert.Equal(["Desk", "Pencil"], names);
+    }
+
+    [Fact]
+    public async Task StartedConditionTranslatesWithoutBooleanSeed()
+    {
+        var condition = Condition<DbProduct>.Start(defaultWhenEmpty: true)
+            .And(product => product.PriceCents > 1000);
+
+        var query = _db.Products.Where(condition);
+        var sql = query.ToQueryString();
+        var names = await query.OrderBy(product => product.Name)
+            .Select(product => product.Name).ToArrayAsync();
+
+        Assert.Equal("product => product.PriceCents > 1000", condition.GetExpandedExpression().ToReadableString());
+        Assert.Equal("""
+                     SELECT "p"."Id", "p"."CategoryId", "p"."Name", "p"."PriceCents"
+                     FROM "Products" AS "p"
+                     WHERE "p"."PriceCents" > 1000
+                     """, sql, ignoreLineEndingDifferences: true);
+        Assert.Equal(["Desk", "Hidden", "Uncategorized"], names);
     }
 
     [Fact]

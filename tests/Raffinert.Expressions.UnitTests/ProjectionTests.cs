@@ -61,10 +61,7 @@ public class ProjectionTests
                      value => new ProductDto
                      {
                          Name = value.Name,
-                         Category = (value.Category == null) ? null : new CategoryDto
-                         {
-                             Name = value.Category.Name
-                         }
+                         Category = (value => (value == null) ? null : new CategoryDto { Name = value.Name }).Invoke(value.Category)
                      }
                      """, expression.ToReadableString(), ignoreLineEndingDifferences: true);
         Assert.Null(product.Invoke(new Product()).Category);
@@ -78,7 +75,7 @@ public class ProjectionTests
         var wrapper = Projection<NullableHolder, int>.Create(value => twice.InvokeOrDefault(value.Value));
 
         Assert.Equal(
-            "value => (value.Value == null) ? default(int) : value.Value.Value * 2",
+            "value => (value => (value == null) ? default(int) : value.Value * 2).Invoke(value.Value)",
             wrapper.GetExpandedExpression().ToReadableString());
         Assert.Equal(0, wrapper.Invoke(new NullableHolder()));
         Assert.Equal(8, wrapper.Invoke(new NullableHolder { Value = 4 }));
