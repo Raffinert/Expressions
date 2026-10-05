@@ -19,6 +19,49 @@ public class ConditionTests
     }
 
     [Fact]
+    public void StartDefaultsToFalseWhenEmpty()
+    {
+        var product = new Product();
+        var start = Condition<Product>.Start();
+
+        Assert.False(start.Invoke(product));
+        Assert.Equal("value => false", start.GetExpandedExpression().ToReadableString());
+    }
+
+    [Fact]
+    public void StartCanReturnTrueWhenEmpty()
+    {
+        var product = new Product();
+        var start = Condition<Product>.Start(defaultWhenEmpty: true);
+        var named = Condition<Product>.Create(value => value.Name == "Apple");
+
+        Assert.True(start.Invoke(product));
+        Assert.Equal("value => true", start.GetExpandedExpression().ToReadableString());
+        Assert.Same(named, start.And(named));
+    }
+
+    [Fact]
+    public void StartDropsTheSeedForEitherFirstOperatorAndRemainsImmutable()
+    {
+        var start = Condition<Product>.Start();
+        var named = Condition<Product>.Create(product => product.Name == "Apple");
+        var cheap = Condition<Product>.Create(product => product.Price < 10m);
+
+        Assert.Same(named, start.And(named));
+        Assert.Same(named, start.Or(named));
+        Assert.Equal("product => product.Name == \"Apple\"",
+            start.And(product => product.Name == "Apple").GetExpandedExpression().ToReadableString());
+        Assert.Equal("product => product.Name == \"Apple\"",
+            start.Or(product => product.Name == "Apple").GetExpandedExpression().ToReadableString());
+
+        var mixed = start.Or(named).And(cheap);
+        Assert.Equal("product => (product.Name == \"Apple\") && (product.Price < 10m)",
+            mixed.GetExpandedExpression().ToReadableString());
+        Assert.False(start.Invoke(new Product { Name = "Apple", Price = 5m }));
+        Assert.True(mixed.Invoke(new Product { Name = "Apple", Price = 5m }));
+    }
+
+    [Fact]
     public void BooleanCompositionProducesReadableExpandedConditions()
     {
         Condition<Product> named = Condition<Product>.Create(product => product.Name == "Apple");

@@ -67,6 +67,37 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartedConditionTranslatesWithoutBooleanSeed()
+    {
+        Condition<DbProduct>[] filters =
+        [
+            Condition<DbProduct>.Create(product => product.PriceCents > 1000),
+            Condition<DbProduct>.Create(product => product.Name != "Hidden")
+        ];
+
+        var condition = Condition<DbProduct>.Start();
+        foreach (var filter in filters)
+        {
+            condition = condition.And(filter);
+        }
+
+        var query = _db.Products.Where(condition);
+        var sql = query.ToQueryString();
+        var names = await query.OrderBy(product => product.Name)
+            .Select(product => product.Name).ToArrayAsync();
+
+        Assert.Equal(
+            "product => (product.PriceCents > 1000) && (product.Name != \"Hidden\")",
+            condition.GetExpandedExpression().ToReadableString());
+        Assert.Equal("""
+                     SELECT "p"."Id", "p"."CategoryId", "p"."Name", "p"."PriceCents"
+                     FROM "Products" AS "p"
+                     WHERE "p"."PriceCents" > 1000 AND "p"."Name" <> 'Hidden'
+                     """, sql, ignoreLineEndingDifferences: true);
+        Assert.Equal(["Desk", "Uncategorized"], names);
+    }
+
+    [Fact]
     public async Task ConditionInsideProjectionAndProjectionInsideConditionTranslate()
     {
         var price = Projection<DbProduct>.Create(product => product.PriceCents);

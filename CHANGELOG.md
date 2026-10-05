@@ -1,5 +1,14 @@
 # Changelog
 
+## Raffinert.Expressions.QuerySyntax 1.1.0 - 2026-10-05
+
+- Bumped the satellite package alongside `Raffinert.Expressions` so the packaged dependency points to the 1.1.0 core release. The query-syntax API is unchanged.
+
+## 1.1.0 - 2026-10-05
+
+- Added `Condition<T>.Start()` for dynamic condition chains without a Boolean seed in the first composed expression. Empty chains return `false` by default or `true` with `defaultWhenEmpty: true`.
+- Added unit and EF Core SQLite coverage for starter conditions.
+
 ## Raffinert.Expressions.QuerySyntax 1.0.3 - 2026-08-25
 
 - Added the opt-in `AsRaffinertQuery()` facade for expanding reusable conditions and projections throughout C# LINQ query syntax without replacing the underlying provider.

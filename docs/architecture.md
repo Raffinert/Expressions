@@ -13,6 +13,10 @@ per-instance caching while allowing consumer APIs to benefit from result covaria
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
+`Condition<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
+condition without composing a Boolean seed. An unchanged starter uses its configured result when empty,
+which defaults to `false`. Ordinary `True` and `False` conditions retain standard Boolean composition.
+
 ## Invocation expansion
 
 `ExpressionExpander` recognizes only two methods on Raffinert expression objects: `Invoke` and `InvokeOrDefault`.
