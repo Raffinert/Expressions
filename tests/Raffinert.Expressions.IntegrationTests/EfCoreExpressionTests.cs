@@ -69,7 +69,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task StartedConditionTranslatesWithoutBooleanSeed()
     {
-        var condition = Condition<DbProduct>.Start(defaultWhenEmpty: true)
+        var condition = Condition<DbProduct>.Start()
             .And(product => product.PriceCents > 1000);
 
         var query = _db.Products.Where(condition);

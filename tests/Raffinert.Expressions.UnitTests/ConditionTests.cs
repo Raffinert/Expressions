@@ -19,16 +19,25 @@ public class ConditionTests
     }
 
     [Fact]
-    public void StartUsesConfiguredResultOnlyWhenNoConditionIsAdded()
+    public void StartDefaultsToFalseWhenEmpty()
     {
         var product = new Product();
-        var emptyFalse = Condition<Product>.Start();
-        var emptyTrue = Condition<Product>.Start(defaultWhenEmpty: true);
+        var start = Condition<Product>.Start();
 
-        Assert.False(emptyFalse.Invoke(product));
-        Assert.True(emptyTrue.Invoke(product));
-        Assert.Equal("value => false", emptyFalse.GetExpandedExpression().ToReadableString());
-        Assert.Equal("value => true", emptyTrue.GetExpandedExpression().ToReadableString());
+        Assert.False(start.Invoke(product));
+        Assert.Equal("value => false", start.GetExpandedExpression().ToReadableString());
+    }
+
+    [Fact]
+    public void StartCanReturnTrueWhenEmpty()
+    {
+        var product = new Product();
+        var start = Condition<Product>.Start(defaultWhenEmpty: true);
+        var named = Condition<Product>.Create(value => value.Name == "Apple");
+
+        Assert.True(start.Invoke(product));
+        Assert.Equal("value => true", start.GetExpandedExpression().ToReadableString());
+        Assert.Same(named, start.And(named));
     }
 
     [Fact]
@@ -40,7 +49,6 @@ public class ConditionTests
 
         Assert.Same(named, start.And(named));
         Assert.Same(named, start.Or(named));
-        Assert.Same(named, Condition<Product>.Start(defaultWhenEmpty: true).Or(named));
         Assert.Equal("product => product.Name == \"Apple\"",
             start.And(product => product.Name == "Apple").GetExpandedExpression().ToReadableString());
         Assert.Equal("product => product.Name == \"Apple\"",

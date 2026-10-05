@@ -79,16 +79,18 @@ bool matches = wanted.Invoke(product);
 `And`, `Or`, `Not`, `&`, `|`, `!`, `&&`, and `||` build direct Boolean expression nodes with correctly rebound parameters.
 
 For a dynamic chain, `Start()` lets the first `And` or `Or` supply the condition without adding a Boolean
-seed to the expression tree. An unchanged starter evaluates to `false`; use `defaultWhenEmpty: true` for
-an empty chain that should evaluate to `true`:
+seed to the expression tree:
 
 ```csharp
-var condition = Condition<Product>.Start(defaultWhenEmpty: true);
+var condition = Condition<Product>.Start();
 foreach (var keyword in keywords)
-    condition = condition.And(product => product.Name.Contains(keyword));
+    condition = condition.Or(product => product.Name.Contains(keyword));
 
 var query = db.Products.Where(condition);
 ```
+
+An unchanged starter evaluates to `false`. Use `Start(defaultWhenEmpty: true)` when an empty chain
+should evaluate to `true`.
 
 Conditions remain immutable, so retain the result of each composition call. `Condition<T>.True` and
 `Condition<T>.False` remain ordinary unconditional conditions; they do not skip the first composition.

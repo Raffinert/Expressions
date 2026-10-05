@@ -50,7 +50,10 @@ public static class RaffinertExamples
     {
         var predicate = keywords
             .Select(keyword => Condition<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(Condition<Product>.Start(defaultWhenEmpty: true), (current, next) => current.And(next));
+            .Aggregate(Condition<Product>.Start(), (current, next) => current.And(next));
+
+        if (keywords.Length == 0)
+            predicate = Condition<Product>.True;
 
         return db.Products
             .Where(predicate)
