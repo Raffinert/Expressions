@@ -1,14 +1,9 @@
 # Changelog
 
-## Raffinert.Expressions.QuerySyntax 1.1.0 - 2026-10-05
-
-- Updated the package version alongside the core package; the query-syntax API is unchanged.
-
 ## 1.1.0 - 2026-10-05
 
 - Added `Condition<T>.Start()` for dynamic condition chains without a Boolean seed in the first composed expression. Empty chains return `false` by default or `true` with `defaultWhenEmpty: true`.
-- Fixed `InvokeOrDefault` expansion so nontrivial inputs are evaluated once, including method and property inputs and nonnullable value inputs.
-- Added unit and EF Core SQLite coverage for starter conditions and null-safe invocation.
+- Added unit and EF Core SQLite coverage for starter conditions.
 
 ## Raffinert.Expressions.QuerySyntax 1.0.3 - 2026-08-25
 

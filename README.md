@@ -329,10 +329,6 @@ expression tree directly inspectable.
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
 supported by the selected LINQ provider.
 
-`InvokeOrDefault` binds nontrivial inputs once when expanding them. The resulting tree uses a lambda invocation
-for that binding; EF Core's SQLite translation is covered by the integration tests for projections and predicates.
-Other LINQ providers may differ in whether they can translate this node.
-
 SQLite integration tests cover nested and cross-composed conditions/projections, method and query syntax,
 asynchronous materialization, ordering, condition consumers, joins, grouping, flattening, `Then`, structural
 adaptation, null-safe mapping, and merged member initializers.

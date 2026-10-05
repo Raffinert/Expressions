@@ -31,9 +31,7 @@ A reference-identity stack detects cycles and produces an `InvalidOperationExcep
 
 `ReplaceExpressionVisitor` replaces one exact expression node with an arbitrary expression. When the source is a parameter declared by a nested lambda, that lambda is treated as a scope boundary. Composition therefore preserves deliberately shadowed nested scopes.
 
-The engine normally substitutes directly. For `InvokeOrDefault` with a nontrivial input expression, it uses
-`Expression.Invoke` to bind the input once, preserving in-memory evaluation semantics when the input has side
-effects or the inner body reads it more than once. Providers must be able to reduce this invocation for translation.
+The engine never introduces `Expression.Invoke`.
 
 ## Cross-composition and `Then`
 
@@ -43,10 +41,7 @@ Because all semantic wrappers implement the same internal contract, nested expan
 
 ## Null-safe invocation
 
-`InvokeOrDefault` is rewritten to a null test and a default result for nullable inputs. Nontrivial inputs are bound
-once before the null test and expanded body run. It is defined on the shared expression base, so it can explicitly
-produce defaults such as `false` for conditions and `0` for value projections. Normal invocation has no implicit null
-semantics.
+`InvokeOrDefault` is rewritten to `argument == default ? default(TOut) : expandedBody` for nullable inputs. It is defined on the shared expression base, so it can explicitly produce defaults such as `false` for conditions and `0` for value projections. Normal invocation has no implicit null semantics.
 
 ## Projection transformations
 
