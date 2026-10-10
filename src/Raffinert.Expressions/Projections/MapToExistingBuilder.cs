@@ -273,7 +273,7 @@ internal static class MapToExistingBuilder
             }
 
             destination = (TCollection)CreateMutableCollection(typeof(TCollection), typeof(TElement));
-            collection = (ICollection<TElement>)(object)destination!;
+            collection = (ICollection<TElement>)destination!;
         }
 
         // Clearing a collection which is also the projected source would otherwise erase
@@ -306,7 +306,7 @@ internal static class MapToExistingBuilder
             }
 
             destination = (TCollection)CreateMutableCollection(typeof(TCollection), typeof(object));
-            collection = (IList)(object)destination!;
+            collection = (IList)destination!;
         }
 
         var items = ReferenceEquals(collection, source) ? source!.Cast<object?>().ToArray() : source;

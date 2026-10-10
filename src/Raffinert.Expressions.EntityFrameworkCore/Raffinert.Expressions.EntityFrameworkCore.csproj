@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework>
-    <AssemblyName>Raffinert.Expressions.QuerySyntax</AssemblyName>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Raffinert.Expressions.EntityFrameworkCore</AssemblyName>
     <RootNamespace>Raffinert.Expressions</RootNamespace>
     <Version>1.2.0</Version>
     <IsPackable>true</IsPackable>
@@ -9,12 +9,12 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <DebugType>portable</DebugType>
-    <PackageId>Raffinert.Expressions.QuerySyntax</PackageId>
-    <Title>Raffinert.Expressions.QuerySyntax</Title>
+    <PackageId>Raffinert.Expressions.EntityFrameworkCore</PackageId>
+    <Title>Raffinert.Expressions.EntityFrameworkCore</Title>
     <Authors>Yevhen Cherkes</Authors>
     <Copyright>Copyright (c) 2026 Raffinert</Copyright>
-    <Description>An opt-in LINQ query-syntax facade for Raffinert.Expressions with async enumeration support.</Description>
-    <PackageTags>LINQ;Expressions;ExpressionTree;QuerySyntax;EFCore;Composable;AsyncEnumerable</PackageTags>
+    <Description>EF Core 10 async condition operators and opt-in expression expansion with runtime parameter lifting for Raffinert.Expressions. Requires .NET 10.</Description>
+    <PackageTags>LINQ;Expressions;EFCore;Condition;Projection;Async;Interceptor</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Raffinert/Raffinert.Expressions</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Raffinert/Raffinert.Expressions</RepositoryUrl>
@@ -26,8 +26,8 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\Raffinert.Expressions\Raffinert.Expressions.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="[10.0.11,11.0.0)" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="[10.0.11,11.0.0)" />
   </ItemGroup>
 </Project>

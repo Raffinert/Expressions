@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 
 namespace Raffinert.Expressions;
 
@@ -6,11 +7,14 @@ internal static class ExpressionExpander
 {
     public static Expression<TDelegate> Expand<TDelegate>(Expression<TDelegate> expression)
         where TDelegate : Delegate
+        => (Expression<TDelegate>)Expand((Expression)expression);
+
+    internal static Expression Expand(Expression expression)
     {
         if (expression == null) throw new ArgumentNullException(nameof(expression));
 
         var stack = new HashSet<object>(ReferenceIdentityComparer.Instance);
-        return (Expression<TDelegate>)new Visitor(stack).Visit(expression)!;
+        return new Visitor(stack).Visit(expression)!;
     }
 
     public static Expression<TDelegate> Expand<TDelegate>(
@@ -29,18 +33,23 @@ internal static class ExpressionExpander
     {
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            if (!IsInvocationMarker(node.Method.Name) ||
-                node.Object == null ||
-                !typeof(IExpressionExpansionSource).IsAssignableFrom(node.Object.Type))
+            if (!IsInvocationMarker(node.Method) || node.Object == null)
             {
                 return base.VisitMethodCall(node);
             }
 
-            if (!SafeValueEvaluator.TryEvaluate(node.Object, out var value) || value is not IExpressionExpansionSource expansionSource)
+            if (!SafeValueEvaluator.TryEvaluate(node.Object, out var value) || value == null)
             {
                 throw new InvalidOperationException(
                     $"Unable to resolve expression instance for invocation marker '{node.Method.DeclaringType?.FullName}.{node.Method.Name}'. " +
                     "Only constant, closure-rooted member, static member, and direct constructor targets can be expanded.");
+            }
+
+            if (value is not IExpressionExpansionSource expansionSource)
+            {
+                throw new NotSupportedException(
+                    "Invocation marker expansion requires a wrapper derived from ComposableExpression<TSource, TResult>. " +
+                    "For external IComposableExpression implementations, pass the wrapper directly to an operator.");
             }
 
             if (node.Arguments.Count != 1)
@@ -91,7 +100,8 @@ internal static class ExpressionExpander
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
+            if (typeof(Delegate).IsAssignableFrom(node.Type) &&
+                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
             {
                 return expression;
             }
@@ -115,7 +125,7 @@ internal static class ExpressionExpander
         {
             if (value is Delegate @delegate &&
                 @delegate.Target is IExpressionExpansionSource expansionSource &&
-                IsInvocationMarker(@delegate.Method.Name))
+                IsInvocationMarker(@delegate.Method))
             {
                 expression = ExpandNested(expansionSource);
                 return true;
@@ -147,10 +157,15 @@ internal static class ExpressionExpander
             }
         }
 
-        private static bool IsInvocationMarker(string name)
+        private static bool IsInvocationMarker(MethodInfo method)
         {
-            return name == nameof(ComposableExpression<,>.Invoke) ||
-                   name == nameof(ComposableExpression<,>.InvokeOrDefault);
+            var declaringType = method.DeclaringType;
+            if (declaringType == null || !declaringType.IsGenericType) return false;
+            var contract = declaringType.GetGenericTypeDefinition();
+            return (contract == typeof(ComposableExpression<,>) || contract == typeof(IComposableExpression<,>)) &&
+                (method.Name == nameof(ComposableExpression<,>.Invoke) ||
+                 method.Name == nameof(ComposableExpression<,>.InvokeOrDefault)) &&
+                method == declaringType.GetMethod(method.Name);
         }
 
         private static bool CanBeNull(Type type)
