@@ -10,9 +10,14 @@ public class WholeQueryExpansionTests
         new Row { Id = 2, Value = 12, Child = new Row { Value = 4 } }
     }.AsQueryable();
 
-    // Exercise whole query roots with the existing generic API before adding a root entry point.
-    private static Expression Expand(Expression root) =>
-        ExpressionExpander.Expand(Expression.Lambda<Func<IQueryable>>(root)).Body;
+    private static Expression Expand(Expression root) => ExpressionExpander.Expand(root);
+
+    [Fact]
+    public void NullRootIsRejected()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() => Expand(null!));
+        Assert.Equal("expression", exception.ParamName);
+    }
 
     [Fact]
     public void RootWherePreservesQueryableAndExpandsCapturedCondition()

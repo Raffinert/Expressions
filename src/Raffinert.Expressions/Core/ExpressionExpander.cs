@@ -6,11 +6,14 @@ internal static class ExpressionExpander
 {
     public static Expression<TDelegate> Expand<TDelegate>(Expression<TDelegate> expression)
         where TDelegate : Delegate
+        => (Expression<TDelegate>)Expand((Expression)expression);
+
+    internal static Expression Expand(Expression expression)
     {
         if (expression == null) throw new ArgumentNullException(nameof(expression));
 
         var stack = new HashSet<object>(ReferenceIdentityComparer.Instance);
-        return (Expression<TDelegate>)new Visitor(stack).Visit(expression)!;
+        return new Visitor(stack).Visit(expression)!;
     }
 
     public static Expression<TDelegate> Expand<TDelegate>(
