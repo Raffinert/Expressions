@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 
@@ -118,7 +119,7 @@ public class AsyncConditionTests
         Assert.True(await fixture.Db.Orders.AnyAsync());
         Assert.Equal(2, await fixture.Db.Orders.CountAsync(x => x.Active));
         var error = await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            fixture.Db.Orders.AnyAsync((System.Linq.Expressions.Expression<Func<OrderRow, bool>>)null!));
+            fixture.Db.Orders.AnyAsync((Expression<Func<OrderRow, bool>>)null!));
         Assert.Equal("predicate", error.ParamName);
     }
 
