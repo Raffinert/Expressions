@@ -123,7 +123,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
         var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.Null(error.InnerException); // Do not expose a user's potentially sensitive getter exception.
+        Assert.NotNull(error.InnerException); // Native EF preserves getter exceptions after expansion.
         Assert.Empty(fixture.Commands.Executed);
         holder.Throw = false;
         holder.Value = 2;
@@ -157,14 +157,18 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var holder = new ReentrantHolder(fixture.Db);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => x.Id == holder.Current).ToArrayAsync());
+        var nativeReads = holder.Reads;
+        var nativeCommands = fixture.Commands.Executed.Count;
+        fixture.Commands.Clear();
         var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.Contains("Unable to read closure member", error.Message);
-        Assert.Equal(1, holder.Reads);
+        Assert.NotNull(error.InnerException);
+        Assert.Equal(nativeReads, holder.Reads - nativeReads);
         // The nested ordinary query executes; the controlled getter then fails, without recursion.
         Assert.Equal(4, holder.NestedCount);
-        Assert.Single(fixture.Commands.Executed);
+        Assert.Equal(nativeCommands, fixture.Commands.Executed.Count);
         fixture.Commands.Clear();
         var valid = Condition<OrderRow>.Create(x => x.Id == 2);
         Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => valid.Invoke(x)).Select(x => x.Id).ToArrayAsync());
@@ -172,7 +176,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task MissingRecordedStateFailsCapturedMarkersButAllowsOtherModes()
+    public async Task NativeExtractionDoesNotDependOnRecordingContextFactory()
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
         // Deliberately discard the helper's factory decorator using only public EF services.
@@ -182,15 +186,12 @@ public class ExecutionAuditTests(ITestOutputHelper output)
             new MissingStateExtension(fixture.Db.GetService<IQueryContextFactory>()));
         await using var broken = new OrdersContext(builder.Options);
         var condition = Condition<OrderRow>.Create(x => x.Active);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            broken.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.Contains("Unable to resolve expression instance", error.Message);
-        Assert.Empty(fixture.Commands.Executed);
+        Assert.Equal(2, (await broken.Orders.Where(x => condition.Invoke(x)).ToArrayAsync()).Length);
         Assert.Equal(4, await broken.Orders.CountAsync());
         Assert.Equal(2, await broken.Orders.CountAsync(condition));
         var compiled = EF.CompileQuery((OrdersContext db) => db.Orders.Count(x => condition.Invoke(x)));
         Assert.Equal(2, compiled(broken));
-        Assert.Equal(3, fixture.Commands.Executed.Count);
+        Assert.Equal(4, fixture.Commands.Executed.Count);
     }
 
     private sealed class MissingStateExtension(IQueryContextFactory factory) : IDbContextOptionsExtension

@@ -132,6 +132,7 @@ jobs:
       - name: Pack local consumer dependencies
         run: |
           dotnet pack src/Raffinert.Expressions/Raffinert.Expressions.csproj -c Release --output artifacts/local-feed
+          dotnet pack src/Raffinert.Expressions.QuerySyntax/Raffinert.Expressions.QuerySyntax.csproj -c Release --output artifacts/local-feed
           dotnet pack src/Raffinert.Expressions.EntityFrameworkCore/Raffinert.Expressions.EntityFrameworkCore.csproj -c Release --output artifacts/local-feed
 
       - name: Restore isolated package consumer

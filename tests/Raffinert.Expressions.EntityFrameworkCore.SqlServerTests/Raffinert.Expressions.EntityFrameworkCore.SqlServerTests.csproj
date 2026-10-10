@@ -6,6 +6,7 @@
     <DefineConstants>$(DefineConstants);SQLSERVER_TESTS</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/NativeExtractionAcceptanceTests.cs" Link="NativeExtractionAcceptanceTests.cs" />
     <Compile Include="../Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/ExplicitEfParameterizationTests.cs" Link="ExplicitEfParameterizationTests.cs" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />

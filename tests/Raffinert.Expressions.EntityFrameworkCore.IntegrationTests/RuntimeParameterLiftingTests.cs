@@ -41,11 +41,11 @@ public class RuntimeParameterLiftingTests
         Assert.Equal(100, Assert.Single(fixture.Commands.Executed.Last().Values));
         Assert.Equal(1, fixture.QueryCompilations);
         Assert.Single(fixture.Commands.Executed.Select(x => x.Sql).Distinct());
-        Assert.All(fixture.Commands.Executed, command => Assert.Equal("__raffinert_threshold_0", Assert.Single(command.Names)));
+        Assert.Single(fixture.Commands.Executed.Select(command => Assert.Single(command.Names)).Distinct());
     }
 
     [Fact]
-    public async Task DiagnosticsAndGetterExceptionsDoNotExposeCapturedValues()
+    public async Task DiagnosticsAndGetterFailuresFollowNativeEfAndRecover()
     {
         var messages = new List<string>();
         await using var fixture = await SqliteFixture.CreateAsync(configure: b =>
@@ -56,14 +56,12 @@ public class RuntimeParameterLiftingTests
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         await query.ToArrayAsync();
         Assert.DoesNotContain(messages, message => message.Contains(marker, StringComparison.Ordinal));
-        var rendering = Assert.Throws<NotSupportedException>(() => query.ToQueryString());
-        Assert.DoesNotContain(marker, rendering.ToString());
+        Assert.True(query.ToQueryString().Contains(marker, StringComparison.Ordinal));
         fixture.Commands.Clear();
         var holder = new ThrowingHolder(marker);
         condition = Condition<OrderRow>.Create(x => x.Name == holder.Value);
         var getter = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
-        Assert.DoesNotContain(marker, getter.ToString());
-        Assert.Null(getter.InnerException);
+        Assert.NotNull(getter.InnerException);
         Assert.Empty(fixture.Commands.Executed);
         condition = Condition<OrderRow>.Create(x => x.Id == 4);
         Assert.Equal(new[] { 4 }, (await query.ToArrayAsync()).Select(x => x.Id));
@@ -177,8 +175,7 @@ public class RuntimeParameterLiftingTests
         Assert.Contains(__raffinert_id_0, command.Values);
         Assert.Equal(2, command.Names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         var outerName = command.Names[Array.IndexOf(command.Values, __raffinert_id_0)];
-        Assert.Equal(outerName.Equals("__raffinert_id_0", StringComparison.OrdinalIgnoreCase)
-            ? "__raffinert_id_1" : "__raffinert_id_0", command.Names[Array.IndexOf(command.Values, id)]);
+        Assert.NotEqual(outerName, command.Names[Array.IndexOf(command.Values, id)]);
     }
 
     [Fact]
@@ -214,7 +211,7 @@ public class RuntimeParameterLiftingTests
         {
             var parameters = new ParameterObserver();
             parameters.Visit(expression);
-            Assert.Contains("__raffinert_marker_0", parameters.Names);
+            Assert.Single(parameters.Names);
             Assert.DoesNotContain(marker, expression.ToString());
             var constants = new ConstantObserver();
             constants.Visit(expression);
@@ -261,29 +258,24 @@ public class RuntimeParameterLiftingTests
     }
 
     [Fact]
-    public async Task UnsupportedReferenceCapturesFailWithoutSensitiveDiagnostics()
+    public async Task ReferenceCaptureProjectionUsesNativeClientProjection()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var secret = new Uri("https://synthetic-secret.example.invalid/path");
         var projection = Projection<OrderRow>.Create(x => secret);
-        var error = await Assert.ThrowsAsync<NotSupportedException>(() =>
-            fixture.Db.Orders.Select(x => projection.Invoke(x)).ToArrayAsync());
-        Assert.DoesNotContain(secret.ToString(), error.ToString());
-        Assert.Empty(fixture.Commands.Executed);
+        var expected = await fixture.Db.Orders.Select(x => secret).ToArrayAsync();
+        Assert.Equal(expected, await fixture.Db.Orders.Select(x => projection.Invoke(x)).ToArrayAsync());
     }
 
     [Fact]
-    public async Task DestructiveEarlierInterceptorsFailSafelyAndLeaveOrdinaryQueriesFunctional()
+    public async Task RebuildingInterceptorsPreserveExpandedNativeQueries()
     {
         await using var fixture = await SqliteFixture.CreateAsync(false, b =>
             b.EnableServiceProviderCaching(false).AddInterceptors(new RebuildWhereInterceptor()).UseRaffinertExpressions());
         var marker = "synthetic-rewrite@example.invalid";
         var condition = Condition<OrderRow>.Create(x => x.Name == marker);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.Contains("Another query interceptor", error.Message);
-        Assert.DoesNotContain(marker, error.ToString());
-        Assert.Empty(fixture.Commands.Executed);
+        Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
+        Assert.Equal(marker, Assert.Single(fixture.Commands.Executed.Last().Values));
         Assert.Equal(2, (await fixture.Db.Orders.Where(x => x.Active).ToArrayAsync()).Length);
     }
 
@@ -365,7 +357,7 @@ public class RuntimeParameterLiftingTests
         public List<string> Names { get; } = [];
         public override Expression? Visit(Expression? node)
         {
-            if (node != null && EfRuntimeParameters.Name(node) is { } name) Names.Add(name);
+            if (node is QueryParameterExpression parameter) Names.Add(parameter.Name);
             return base.Visit(node);
         }
     }
@@ -403,13 +395,12 @@ public class RuntimeParameterLiftingTests
         }
     }
 
-    // Isolated public-contract prototype. It handles ONLY this test's single Where,
-    // using the wrapper's existing core expansion; it is not a second Invoke expander.
+    // Native string/int/nullable bindings remain current on cache hits.
     [Theory]
     [InlineData("string")]
     [InlineData("int")]
     [InlineData("nullable")]
-    public async Task NativeLateParameterPrototypeBindsFreshValuesOnCacheHits(string kind)
+    public async Task NativeParametersBindFreshValuesOnCacheHits(string kind)
     {
         var text = kind == "string";
         var name = "Desk";
@@ -418,13 +409,7 @@ public class RuntimeParameterLiftingTests
         var condition = text ? Condition<OrderRow>.Create(x => x.Name == name)
             : kind == "int" ? Condition<OrderRow>.Create(x => x.Id == id)
             : Condition<OrderRow>.Create(x => x.CustomerId == customer);
-        var prototype = new Prototype(condition);
-        await using var fixture = await SqliteFixture.CreateAsync(false, b =>
-        {
-            b.EnableServiceProviderCaching(false);
-            ((IDbContextOptionsBuilderInfrastructure)b).AddOrUpdateExtension(prototype);
-            b.AddInterceptors(prototype);
-        });
+        await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         Assert.Equal(text || kind == "int" ? new[] { 2 } : new[] { 1, 2 }, (await query.ToArrayAsync()).Select(x => x.Id));
         name = "Hidden";
@@ -436,77 +421,10 @@ public class RuntimeParameterLiftingTests
         customer = null;
         Assert.Equal(text || kind == "int" ? new[] { 2 } : new[] { 3 }, (await query.ToArrayAsync()).Select(x => x.Id));
         Assert.Equal(1, fixture.QueryCompilations);
-        Assert.Equal(3, prototype.Preparations);
-        Assert.Equal(1, prototype.Compilations);
+        Assert.Equal(3, fixture.Commands.Executed.Count);
         Assert.Contains(text ? "Desk" : kind == "int" ? 2 : 1, fixture.Commands.Executed[0].Values);
         Assert.Contains(text ? "Hidden" : kind == "int" ? 4 : 2, fixture.Commands.Executed[1].Values);
         Assert.DoesNotContain("Desk", fixture.Commands.Executed[0].Sql);
     }
 
-    private sealed class Prototype(Condition<OrderRow> condition) : IDbContextOptionsExtension, IQueryExpressionInterceptor
-    {
-        private QueryContext? _context;
-        private Expression? _original;
-        private Expression? _prepared;
-        public int Preparations { get; private set; }
-        public int Compilations { get; private set; }
-        public DbContextOptionsExtensionInfo Info => new ExtensionInfo(this);
-        public void Validate(IDbContextOptions options) { }
-        public void ApplyServices(IServiceCollection services)
-        {
-            Wrap<IQueryContextFactory>(services, original => new Factory(original, this));
-            Wrap<ICompiledQueryCacheKeyGenerator>(services, original => new Keys(original, this));
-        }
-
-        private static void Wrap<T>(IServiceCollection services, Func<T, T> wrap) where T : class
-        {
-            var descriptor = services.Last(x => x.ServiceType == typeof(T));
-            services.Remove(descriptor);
-            services.Add(new ServiceDescriptor(typeof(T), provider => wrap((T)(descriptor.ImplementationInstance
-                ?? descriptor.ImplementationFactory?.Invoke(provider)
-                ?? ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType!))), descriptor.Lifetime));
-        }
-
-        public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData)
-        {
-            Assert.Same(_original, queryExpression);
-            Assert.Same(_context!.Context, eventData.Context);
-            Compilations++;
-            return _prepared!;
-        }
-
-        private Expression Prepare(Expression query)
-        {
-            Preparations++;
-            var lambda = condition.GetExpandedExpression();
-            var binary = Assert.IsAssignableFrom<BinaryExpression>(lambda.Body);
-            var capture = Assert.IsAssignableFrom<MemberExpression>(binary.Right);
-            var closure = Assert.IsAssignableFrom<ConstantExpression>(capture.Expression);
-            var value = ((FieldInfo)capture.Member).GetValue(closure.Value);
-            const string parameterName = "__raffinert_prototype_0";
-            var parameter = new QueryParameterExpression(parameterName, capture.Type);
-            _context!.Parameters.Add(parameterName, value);
-            var predicate = Expression.Lambda<Func<OrderRow, bool>>(binary.Update(binary.Left, binary.Conversion, parameter), lambda.Parameters);
-            var where = Assert.IsType<MethodCallExpression>(query, exactMatch: false);
-            _original = query;
-            return _prepared = Expression.Call(where.Method, where.Arguments[0], Expression.Quote(predicate));
-        }
-
-        private sealed class Factory(IQueryContextFactory original, Prototype prototype) : IQueryContextFactory
-        {
-            public QueryContext Create() => prototype._context = original.Create();
-        }
-        private sealed class Keys(ICompiledQueryCacheKeyGenerator original, Prototype prototype) : ICompiledQueryCacheKeyGenerator
-        {
-            public object GenerateCacheKey(Expression query, bool async) => original.GenerateCacheKey(prototype.Prepare(query), async);
-        }
-        private sealed class ExtensionInfo(IDbContextOptionsExtension extension) : DbContextOptionsExtensionInfo(extension)
-        {
-            public override bool IsDatabaseProvider => false;
-            public override string LogFragment => "LateParameterPrototype ";
-            public override int GetServiceProviderHashCode() => 0;
-            public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other) => false;
-            public override void PopulateDebugInfo(IDictionary<string, string> debugInfo) => debugInfo["Tests:LatePrototype"] = "1";
-        }
-    }
 }

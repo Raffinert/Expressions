@@ -100,8 +100,7 @@ public class ServiceCompositionTests
         {
             Wrap<IQueryContextFactory>(services, original => new ObservingFactory(original, counters));
             Wrap<ICompiledQueryCacheKeyGenerator>(services, original => new ObservingKeys(original, counters));
-            var state = services.SingleOrDefault(x => x.ServiceType.Name == "QueryExecutionState");
-            if (state != null) Assert.Equal(ServiceLifetime.Scoped, state.Lifetime);
+            Assert.DoesNotContain(services, x => x.ServiceType.Name == "QueryExecutionState");
         }
 
         private static void Wrap<T>(IServiceCollection services, Func<T, T> wrap) where T : class

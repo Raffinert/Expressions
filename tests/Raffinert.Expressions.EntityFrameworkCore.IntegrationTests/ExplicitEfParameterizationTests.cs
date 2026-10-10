@@ -62,7 +62,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             {
                 Assert.Equal(value, Assert.Single(native.Values));
                 Assert.Equal(value, Assert.Single(embedded.Values));
-                Assert.Equal("__raffinert_threshold_0", Assert.Single(embedded.Names));
+                Assert.Single(embedded.Names);
                 Assert.DoesNotContain(value.ToString(), embedded.Sql);
             }
         }
@@ -90,7 +90,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         else
         {
             Assert.Equal(1000, Assert.Single(embedded.Values));
-            Assert.Equal("__raffinert_p_0", Assert.Single(embedded.Names));
+            Assert.Single(embedded.Names);
             Assert.DoesNotContain("1000", embedded.Sql);
         }
     }
@@ -112,7 +112,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             Assert.Equal(expected, await query.ToArrayAsync());
             var command = fixture.Commands.Executed.Last();
             Assert.Equal(maximum, Assert.Single(command.Values));
-            Assert.Equal("__raffinert_maximum_0", Assert.Single(command.Names));
+            Assert.Single(command.Names);
         }
         outer = Condition<Row>.Create(x => x.TotalCents < EF.Constant(minimum) && x.Id < EF.Parameter(maximum));
         Assert.Equal(new[] { 1 }, await query.ToArrayAsync());
@@ -140,7 +140,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             var embedded = fixture.Commands.Executed.Last();
             Assert.Equal(native.Values, embedded.Values);
             if (constant) Assert.Equal(native.Sql, embedded.Sql);
-            else if (embedded.Names.Length > 0) Assert.Equal("__raffinert_customerId_0", Assert.Single(embedded.Names));
+            else if (embedded.Names.Length > 0) Assert.Single(embedded.Names);
         }
     }
 
@@ -164,7 +164,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task ExplicitParameterKeepsSyntheticStringPrivateAndConstantOnlyDiagnosticsWork()
+    public async Task ExplicitParameterStaysBoundAndDiagnosticRenderingMatchesNative()
     {
         await using var fixture = await CreateAsync();
         var customerEmail = "synthetic-ef10-directive-private@example.invalid";
@@ -179,7 +179,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             Assert.Equal(customerEmail, Assert.Single(command.Values));
             Assert.DoesNotContain(customerEmail, command.Sql);
         }
-        Assert.DoesNotContain(customerEmail, Assert.Throws<NotSupportedException>(() => query.ToQueryString()).ToString());
+        Assert.True(query.ToQueryString().Contains(customerEmail, StringComparison.Ordinal));
         var threshold = 1000;
         var constant = Condition<Row>.Create(x => x.TotalCents > EF.Constant(threshold));
         Assert.Contains("1000", fixture.Db.Orders.Where(x => constant.Invoke(x)).ToQueryString());
@@ -196,8 +196,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         await Assert.ThrowsAsync<InvalidOperationException>(() => control.ToArrayAsync());
         var condition = constant ? Condition<Row>.Create(x => x.Id == EF.Constant(x.TotalCents))
             : Condition<Row>.Create(x => x.Id == EF.Parameter(x.TotalCents));
-        var error = await Assert.ThrowsAsync<NotSupportedException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.Contains("operand", error.Message);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         Assert.Null(error.InnerException);
         Assert.Empty(fixture.Commands.Executed);
     }
@@ -226,27 +225,24 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             _ => fixture.Db.Orders.Where(x => x.TotalCents > EF.Parameter(EF.Parameter(threshold)))
         };
         await Assert.ThrowsAsync<InvalidOperationException>(() => control.ToArrayAsync());
-        var error = await Assert.ThrowsAsync<NotSupportedException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.Contains("operand", error.Message);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         Assert.Null(error.InnerException);
         Assert.Empty(fixture.Commands.Executed);
     }
 
     [Fact]
-    public async Task ComputedOperandIsRejectedWithoutReadingGetters()
+    public async Task ComputedOperandUsesNativeEvaluationAndReadsGetterOnce()
     {
         await using var fixture = await CreateAsync();
         var holder = new Holder();
         var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(holder.Value + 1));
-        var error = await Assert.ThrowsAsync<NotSupportedException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.Contains("operand", error.Message);
-        Assert.Equal(0, holder.Reads);
-        Assert.Null(error.InnerException);
-        Assert.Empty(fixture.Commands.Executed);
+        Assert.Equal(3, await fixture.Db.Orders.Where(x => condition.Invoke(x)).CountAsync());
+        Assert.Equal(1, holder.Reads);
+        Assert.Equal(1001, Assert.Single(fixture.Commands.Executed.Last().Values));
     }
 
     [Fact]
-    public async Task DirectiveGetterReadsOnceAndFailuresStaySanitized()
+    public async Task DirectiveGetterReadsOnceAndUsesNativeFailureBehavior()
     {
         await using var fixture = await CreateAsync();
         var holder = new Holder();
@@ -258,8 +254,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         holder.Throw = true;
         fixture.Commands.Executed.Clear();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
-        Assert.DoesNotContain(Holder.Marker, error.ToString());
-        Assert.Null(error.InnerException);
+        Assert.NotNull(error.InnerException);
         Assert.Empty(fixture.Commands.Executed);
     }
 
@@ -307,7 +302,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             {
                 Assert.Equal(value, Assert.Single(nativeCommand.Values));
                 Assert.Equal(value, Assert.Single(embeddedCommand.Values));
-                Assert.Equal("__raffinert_threshold_0", Assert.Single(embeddedCommand.Names));
+                Assert.Single(embeddedCommand.Names);
                 Assert.DoesNotContain(value.ToString(), embeddedCommand.Sql);
             }
         }
@@ -316,9 +311,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             Assert.Matches(@">\s*1000\b", embedded.ToQueryString());
         else
         {
-            var error = Assert.Throws<NotSupportedException>(() => embedded.ToQueryString());
-            Assert.DoesNotContain(threshold.ToString(), error.ToString());
-            Assert.Null(error.InnerException);
+            Assert.Contains(threshold.ToString(), embedded.ToQueryString());
         }
     }
 

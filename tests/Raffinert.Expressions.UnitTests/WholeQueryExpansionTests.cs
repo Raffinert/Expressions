@@ -15,6 +15,147 @@ public class WholeQueryExpansionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void CarriedDelegateFieldDoesNotReadItsPropertyReceiver(bool fail)
+    {
+        var holder = new FieldCallbackHolder { Fail = fail };
+        Expression<Func<int, Func<int, int>>> expression = value => holder.Provider.Callback;
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    private sealed class FieldCallbackHolder
+    {
+        public int Reads;
+        public bool Fail;
+        public FieldCallbackProvider Provider
+        {
+            get
+            {
+                Reads++;
+                if (Fail) throw new ApplicationException("synthetic property-backed field failure");
+                return new FieldCallbackProvider();
+            }
+        }
+    }
+
+    private sealed class FieldCallbackProvider
+    {
+        public Func<int, int> Callback = value => value + 1;
+    }
+
+    [Fact]
+    public void PropertyBackedMarkerDelegateFieldStillExpandsInCallbackPositions()
+    {
+        var condition = Condition<Row>.Create(row => row.Value > 10);
+        var holder = new MarkerFieldHolder(condition.Invoke);
+        var query = Rows.Where(row => holder.Provider.Callback(row))
+            .Select(row => row.Children.Any(holder.Provider.Callback));
+        Assert.Equal(new[] { false }, query.Provider.CreateQuery<bool>(Expand(query.Expression)));
+        Assert.Equal(2, holder.Reads);
+    }
+
+    [Fact]
+    public void ConstantMarkerDelegateStillExpands()
+    {
+        var condition = Condition<Row>.Create(row => row.Value > 10);
+        Func<Row, bool> callback = condition.Invoke;
+        var parameter = Expression.Parameter(typeof(Row));
+        var expression = Expression.Lambda<Func<Row, bool>>(Expression.Invoke(Expression.Constant(callback), parameter), parameter);
+        Assert.Equal(new[] { 2 }, Rows.Where((Expression<Func<Row, bool>>)Expand(expression)).Select(row => row.Id));
+    }
+
+    private sealed class MarkerFieldHolder(Func<Row, bool> callback)
+    {
+        public int Reads;
+        public MarkerFieldProvider Provider { get { Reads++; return new MarkerFieldProvider(callback); } }
+    }
+
+    private sealed class MarkerFieldProvider(Func<Row, bool> callback)
+    {
+        public Func<Row, bool> Callback = callback;
+    }
+
+    [Fact]
+    public void NonRaffinertDelegateMemberIsNotEagerlyReadByExpansion()
+    {
+        var holder = new OrdinaryDelegateHolder();
+        Expression<Func<int, Func<int, int>>> expression = value => holder.Callback;
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    [Fact]
+    public void ThrowingNonRaffinertDelegateMemberIsNotEagerlyReadByExpansion()
+    {
+        var holder = new OrdinaryDelegateHolder { Fail = true };
+        Expression<Func<int, Func<int, int>>> expression = value => holder.Callback;
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    private sealed class OrdinaryDelegateHolder
+    {
+        public int Reads;
+        public bool Fail;
+        public Func<int, int> Callback
+        {
+            get
+            {
+                Reads++;
+                if (Fail) throw new ApplicationException("synthetic delegate getter failure");
+                return static value => value + 1;
+            }
+        }
+    }
+
+    [Fact]
+    public void OrdinaryMethodGroupReceiverIsNotEagerlyReadByExpansion()
+    {
+        var holder = new MethodGroupHolder();
+        Expression<Func<Row, bool>> expression = row => row.Children.Any(holder.Target.Invoke);
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    private sealed class MethodGroupHolder
+    {
+        public int Reads;
+        public Unrelated Target { get { Reads++; return new Unrelated(); } }
+    }
+
+    [Fact]
+    public void OpaqueDelegatePropertyStillExpandsInCallbackPositions()
+    {
+        var positive = Condition<Row>.Create(row => row.Value > 10);
+        var holder = new MarkerDelegateHolder(positive.Invoke);
+        var query = Rows.Where(row => holder.Callback(row))
+            .Select(row => row.Children.Any(holder.Callback));
+        Assert.Equal(new[] { false }, query.Provider.CreateQuery<bool>(Expand(query.Expression)));
+        Assert.Equal(2, holder.Reads);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MarkerMethodGroupReadsWrapperTargetOnce(bool interfaceTyped)
+    {
+        var holder = new Holder();
+        var query = interfaceTyped
+            ? Rows.Select(row => row.Children.Any(((IComposableExpression<Row, bool>)holder.Condition).Invoke))
+            : Rows.Select(row => row.Children.Any(holder.Condition.Invoke));
+        Assert.Equal(new[] { false, false }, query.Provider.CreateQuery<bool>(Expand(query.Expression)));
+        Assert.Equal(1, holder.Reads);
+    }
+
+    private sealed class MarkerDelegateHolder(Func<Row, bool> callback)
+    {
+        public int Reads;
+        public Func<Row, bool> Callback { get { Reads++; return callback; } }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void InterfaceTypedInvocationExpands(bool explicitCast)
     {
         IComposableExpression<Row, bool> condition = Condition<Row>.Create(x => x.Value > 10);

@@ -29,7 +29,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
             threshold = value;
             Assert.Equal(4, await query.CountAsync());
             var command = fixture.Commands.Executed.Last();
-            Assert.Equal("__raffinert_threshold_0", Assert.Single(command.Names));
+            Assert.Single(command.Names);
             Assert.Equal(value, Assert.Single(command.Values));
         }
         Assert.Equal(26, fixture.Commands.Executed.Count);
@@ -51,7 +51,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
             id = value;
             Assert.Equal(new[] { value }, await query.ToArrayAsync());
             Assert.Equal(value, Assert.Single(fixture.Commands.Executed.Last().Values));
-            Assert.Equal("__raffinert_id_0", Assert.Single(fixture.Commands.Executed.Last().Names));
+            Assert.Single(fixture.Commands.Executed.Last().Names);
         }
         Assert.Equal(1, fixture.QueryCompilations);
         Assert.Single(fixture.Commands.Executed.Select(x => x.Sql).Distinct());
@@ -69,22 +69,22 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
             settings.Price = value;
             Assert.Equal(value == 1000 ? new[] { 2, 3, 4 } : new[] { 2 }, await query.ToArrayAsync());
             Assert.Equal(value, Assert.Single(fixture.Commands.Executed.Last().Values));
-            Assert.Equal("__raffinert_settings_MinPrice_0", Assert.Single(fixture.Commands.Executed.Last().Names));
+            Assert.Single(fixture.Commands.Executed.Last().Names);
         }
         Assert.Equal(3, settings.Reads);
         Assert.Equal(1, fixture.QueryCompilations);
     }
 
     [Fact]
-    public async Task RepeatedCaptureOccurrencesGetDistinctNamesAndBindings()
+    public async Task RepeatedCaptureOccurrencesUseNativeDeduplicationAndBindings()
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var threshold = 3;
         var condition = Condition<SqlOrderRow>.Create(x => x.TotalCents > threshold && x.Id < threshold);
         Assert.Equal(new[] { 1, 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
-        Assert.Equal(new[] { "__raffinert_threshold_0", "__raffinert_threshold_1" }, command.Names);
-        Assert.Equal(new object?[] { threshold, threshold }, command.Values);
+        Assert.Single(command.Names);
+        Assert.Equal(threshold, Assert.Single(command.Values));
     }
 
     [Fact]
@@ -101,8 +101,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
         var inner = Array.IndexOf(command.Values, id);
         var outer = Array.IndexOf(command.Values, __raffinert_id_0);
         Assert.True(inner >= 0 && outer >= 0 && inner != outer);
-        Assert.Equal(command.Names[outer].Equals("__raffinert_id_0", StringComparison.OrdinalIgnoreCase)
-            ? "__raffinert_id_1" : "__raffinert_id_0", command.Names[inner]);
+        Assert.NotEqual(command.Names[outer], command.Names[inner]);
         Assert.Contains("[Id] = " + command.CommandNames[inner], command.Sql);
         Assert.Contains("[TotalCents] > " + command.CommandNames[outer], command.Sql);
     }
@@ -122,7 +121,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
             if (command.Values.Length > 0)
             {
                 Assert.Equal(value, Assert.Single(command.Values));
-                Assert.Equal("__raffinert_customerId_0", Assert.Single(command.Names));
+                Assert.Single(command.Names);
             }
             else Assert.Null(value); // Provider may optimize a null parameter to IS NULL.
         }
@@ -139,7 +138,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
         var condition = Condition<SqlOrderRow>.Create(x => active.Invoke(x) && expensive.Invoke(x));
         Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
-        Assert.Equal("__raffinert_threshold_0", Assert.Single(command.Names));
+        Assert.Single(command.Names);
         Assert.Equal(threshold, Assert.Single(command.Values));
         Assert.Contains("[Active]", command.Sql);
         Assert.DoesNotContain("Invoke", command.Sql);
@@ -163,15 +162,13 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task LiftedCaptureToQueryStringFailsWithoutExposingValue()
+    public async Task CapturedValueToQueryStringUsesNativeRendering()
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var customerEmail = "synthetic-localdb-diagnostic@example.invalid";
         var condition = Condition<SqlOrderRow>.Create(x => x.Name == customerEmail);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
-        var error = Assert.Throws<NotSupportedException>(() => query.ToQueryString());
-        Assert.DoesNotContain(customerEmail, error.Message);
-        Assert.DoesNotContain(customerEmail, error.ToString());
+        Assert.True(query.ToQueryString().Contains(customerEmail, StringComparison.Ordinal));
         Assert.Empty(fixture.Commands.Executed);
         Assert.Contains("SELECT", fixture.Db.Orders.Where(x => x.Id > 1).ToQueryString());
         Assert.Contains("SELECT", fixture.Db.Orders.Where(condition).ToQueryString());
@@ -181,16 +178,13 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task UnsupportedLateCaptureFailsBeforeSql()
+    public async Task ReferenceCaptureProjectionMatchesNativeControl()
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var unsupported = new Uri("https://synthetic-localdb-private.example.invalid/path");
         var projection = Projection<SqlOrderRow>.Create(x => unsupported);
-        var error = await Assert.ThrowsAsync<NotSupportedException>(() => fixture.Db.Orders.Select(x => projection.Invoke(x)).ToArrayAsync());
-        Assert.Contains("captured type", error.Message);
-        Assert.DoesNotContain(unsupported.ToString(), error.ToString());
-        Assert.Null(error.InnerException);
-        Assert.Empty(fixture.Commands.Executed);
+        var expected = await fixture.Db.Orders.Select(x => unsupported).ToArrayAsync();
+        Assert.Equal(expected, await fixture.Db.Orders.Select(x => projection.Invoke(x)).ToArrayAsync());
     }
 
     [Fact]
@@ -241,8 +235,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
         var holder = new ThrowingHolder();
         var failing = Condition<SqlOrderRow>.Create(x => x.Name == holder.Value);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => failing.Invoke(x)).ToArrayAsync());
-        Assert.Null(error.InnerException);
-        Assert.DoesNotContain(ThrowingHolder.Marker, error.ToString());
+        Assert.NotNull(error.InnerException);
         Assert.Empty(fixture.Commands.Executed);
         var id = 2;
         var condition = Condition<SqlOrderRow>.Create(x => x.Id == id);
@@ -282,10 +275,10 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
         Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.True(command.SqlClientParameters);
-        Assert.Equal("__raffinert_customerEmail_0", Assert.Single(command.Names));
+        Assert.Single(command.Names);
         Assert.Equal(customerEmail, Assert.Single(command.Values));
         Assert.DoesNotContain(customerEmail, command.Sql);
-        Assert.Contains("@__raffinert_customerEmail_0", command.Sql);
+        Assert.Contains(command.CommandNames.Single(), command.Sql);
         Assert.DoesNotContain(fixture.Messages, message => message.Contains(customerEmail, StringComparison.Ordinal));
         output.WriteLine(command.Sql);
         output.WriteLine("SQL Client parameter binding verified; values omitted.");

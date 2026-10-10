@@ -35,6 +35,9 @@ internal static class ExpressionExpander
         {
             if (!IsInvocationMarker(node.Method) || node.Object == null)
             {
+                // Resolve delegate-typed arguments to preserve callback expansion.
+                if (node.Arguments.Any(argument => typeof(Delegate).IsAssignableFrom(argument.Type)))
+                    return node.Update(Visit(node.Object), node.Arguments.Select(VisitDelegateOperand));
                 return base.VisitMethodCall(node);
             }
 
@@ -85,6 +88,7 @@ internal static class ExpressionExpander
                 node.Operand is MethodCallExpression call &&
                 call.Method.Name == nameof(Delegate.CreateDelegate) &&
                 call.Arguments.Count >= 2 &&
+                call.Object is ConstantExpression { Value: MethodInfo method } && IsInvocationMarker(method) &&
                 TryResolveMethodGroup(call.Arguments[1], out var lambda))
             {
                 return lambda;
@@ -100,7 +104,8 @@ internal static class ExpressionExpander
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (typeof(Delegate).IsAssignableFrom(node.Type) &&
+            // A final field can still have a getter/constructor in its receiver chain.
+            if (IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
                 SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
             {
                 return expression;
@@ -108,6 +113,28 @@ internal static class ExpressionExpander
 
             return base.VisitMember(node);
         }
+
+        protected override Expression VisitInvocation(InvocationExpression node) =>
+            node.Update(VisitDelegateOperand(node.Expression), Visit(node.Arguments));
+
+        private Expression VisitDelegateOperand(Expression node)
+        {
+            // Opaque receiver chains must be read to identify a marker only when used as callbacks.
+            // Merely carrying one leaves its evaluation to the eventual execution provider.
+            if (node is MemberExpression && !IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
+                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
+                return expression;
+            return Visit(node)!;
+        }
+
+        private static bool IsFieldOnlyAccess(Expression? node) => node switch
+        {
+            null or ConstantExpression => true,
+            MemberExpression { Member: FieldInfo } member => IsFieldOnlyAccess(member.Expression),
+            UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked or ExpressionType.TypeAs } conversion =>
+                IsFieldOnlyAccess(conversion.Operand),
+            _ => false
+        };
 
         private bool TryResolveMethodGroup(Expression targetExpression, out LambdaExpression expression)
         {
