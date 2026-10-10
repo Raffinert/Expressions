@@ -172,9 +172,12 @@ alongside the helper duplicates callbacks; this is unnecessary.
   constructors. Keep these deterministic and free of database queries or other side effects.
   Getters can run more than once in a single query, including cache-key generation.
 - Supported inlined closure snapshots include primitive/enum values, strings, decimals,
-  Guid, DateTime, DateTimeOffset and TimeSpan, including nullable forms. Hidden captured
-  collections or arbitrary method-based evaluation are outside this contract. Prefer direct
-  wrapper overloads when EF must extract more complex captured values before translation.
+  Guid, DateTime, DateTimeOffset, DateOnly, TimeOnly and TimeSpan, including nullable forms.
+  Hidden captured arrays/lists are rejected before SQL with guidance to use direct
+  wrapper operators. Direct operators allow EF to extract collections and observe their
+  current contents. Use `Enumerable.Contains(ids, x.Id)` explicitly for array captures
+  when C# overload resolution would otherwise choose a span-based `Contains` method.
+  Arbitrary method-based evaluation remains outside the snapshot contract.
 - Scalar values must remain stable during one query execution. Standard EF `DbContext`
   concurrency restrictions still apply.
 - `InvokeOrDefault` returns the result type's default for a null reference/nullable input:
@@ -186,8 +189,11 @@ alongside the helper duplicates callbacks; this is unnecessary.
 - A wrapper supplied as an `EF.CompileQuery` / `EF.CompileAsyncQuery` delegate parameter
   cannot be expanded at compilation and fails before SQL execution. Use normal LINQ or a
   stable closed wrapper instead. EF precompiled/AOT queries have not been verified.
-- Manually supplied internal service providers, other replacements of the two decorated
-  services, and providers other than SQLite have not been verified. No private EF API is used.
+- Manually supplied internal service providers and service replacements that discard
+  existing decorators are unsupported. Configure the normal EF provider and use the helper.
+  Public service decorators that retain and forward the original scoped services are tested
+  in both registration orders; this does not establish arbitrary extension compatibility.
+  Providers other than SQLite remain unverified. No private EF API is used.
 
 ## Tested versions
 

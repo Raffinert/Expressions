@@ -27,6 +27,13 @@ internal static class EfQueryExpansion
 
         protected override Expression VisitMember(MemberExpression node)
         {
+            if (node.Type != typeof(string) && typeof(System.Collections.IEnumerable).IsAssignableFrom(node.Type) &&
+                SafeValueEvaluator.TryEvaluate(node, out _))
+            {
+                throw new NotSupportedException(
+                    "Captured collections inside invocation markers are unsupported in constant-snapshot mode. " +
+                    "Pass the wrapper directly to Where(condition) or an async condition operator so EF can extract the collection.");
+            }
             var type = Nullable.GetUnderlyingType(node.Type) ?? node.Type;
             if (IsScalar(type) &&
                 // Preserve provider translations such as DateTime.Now / DateTime.UtcNow.
@@ -42,6 +49,7 @@ internal static class EfQueryExpansion
 
         private static bool IsScalar(Type type) => type.IsPrimitive || type.IsEnum ||
             type == typeof(string) || type == typeof(decimal) || type == typeof(Guid) ||
-            type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan);
+            type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) ||
+            type == typeof(DateOnly) || type == typeof(TimeOnly);
     }
 }

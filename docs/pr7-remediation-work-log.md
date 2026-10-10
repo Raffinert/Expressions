@@ -37,4 +37,15 @@ SELECT COUNT(*) FROM "Orders" AS "o" WHERE "o"."TotalCents" > 124;
 SELECT COUNT(*) FROM "Orders" AS "o" WHERE "o"."TotalCents" > @threshold;
 ```
 
+## Phases 3 and 4: capture and service regressions
+
+- Red: DateOnly and TimeOnly captures failed SQL translation because scalar normalization omitted their types. Added them to the existing scalar snapshot allowlist; both now select ID 2 then ID 4 using literal values and no parameters.
+- Red: hidden array/list tests expected a descriptive unsupported exception but received generic EF translation errors. Added explicit collection rejection during late normalization, with guidance to direct operators. Direct array reassignment and list-content mutation return IDs [1,2] then [4] through normal EF extraction. Explicit `Enumerable.Contains` avoids C# 14 choosing the span overload; no span translator was added.
+- Immediate passes (no production changes): string, Guid, decimal, DateTimeOffset, enum, nullable value-to-null captures; interface wrapper holder property; shared-options interleaved contexts with separate closures; translation failure followed by success; standalone interceptor restriction; forwarding decorators in both registration orders.
+- Scalar SQL is recorded in test output: string `'Desk'` -> `'Hidden'`; Guid `'00000002-0000-0000-0000-000000000000'` -> corresponding 4; decimal `'3.0'` -> `'6.0'`; DateTimeOffset `'2020-01-02 00:00:00+00:00'` -> day 4; enum 2 -> 4; nullable `= 1` -> `IS NULL`. Parameters are empty for these snapshots.
+- Capture-focused: 11 passed. Service-focused: 5 passed. Entire adapter after both phases: 83 passed.
+- Existing InvokeOrDefault reference/nullable-value tests, fixed/parameterized compiled query tests, provider translation failures and cancellation tests remain in the full suite.
+- Service descriptor assertions verify IQueryContextFactory and ICompiledQueryCacheKeyGenerator are scoped; QueryExecutionState is scoped when installed. Default provider type descriptors and forwarding factory descriptors are exercised. Arbitrary instance descriptors, manually supplied internal providers, and extensions that discard decorated services are unsupported.
+- Invariants: the singleton interceptor stores no execution state; the scoped QueryExecutionState has only a weak reference to the execution QueryContext. Shared-options contexts resolve distinct decorated services. Operations on one DbContext remain sequential under EF's normal concurrency rules.
+
 Further phase results are recorded below as they execute.

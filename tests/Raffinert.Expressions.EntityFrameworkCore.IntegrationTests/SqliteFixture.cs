@@ -52,6 +52,15 @@ public sealed class SqliteFixture : IAsyncDisposable
                 },
                 new OrderRow { Id = 3, TotalCents = 1500, Active = false, Name = "Uncategorized" },
                 new OrderRow { Id = 4, TotalCents = 9000, Active = false, Name = "Hidden", Customer = bob });
+            foreach (var row in fixture.Db.ChangeTracker.Entries<OrderRow>().Select(x => x.Entity))
+            {
+                row.Token = new Guid(row.Id, 0, 0, new byte[8]);
+                row.Price = row.Id * 1.5m;
+                row.RecordedAt = new DateTimeOffset(2020, 1, row.Id, 0, 0, 0, TimeSpan.Zero);
+                row.Day = new DateOnly(2020, 1, row.Id);
+                row.Time = new TimeOnly(row.Id, 0);
+                row.Status = (OrderStatus)row.Id;
+            }
             await fixture.Db.SaveChangesAsync();
             fixture.Db.ChangeTracker.Clear();
             fixture.Commands.Clear();
@@ -92,7 +101,15 @@ public sealed class OrderRow
     public int? CustomerId { get; set; }
     public CustomerRow? Customer { get; set; }
     public List<LineRow> Lines { get; set; } = [];
+    public Guid Token { get; set; }
+    public decimal Price { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+    public DateOnly Day { get; set; }
+    public TimeOnly Time { get; set; }
+    public OrderStatus Status { get; set; }
 }
+
+public enum OrderStatus { Draft = 1, Open = 2, Closed = 3, Archived = 4 }
 
 public sealed class CustomerRow
 {
