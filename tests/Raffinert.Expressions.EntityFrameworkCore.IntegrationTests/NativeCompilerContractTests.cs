@@ -2,6 +2,8 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 
@@ -37,11 +39,13 @@ public class NativeCompilerContractTests
     [Theory]
     [InlineData("missing")]
     [InlineData("singleton")]
+    [InlineData("instance")]
     [InlineData("duplicate")]
     public void UnsupportedDescriptorsFailEarly(string mode)
     {
         var services = new ServiceCollection();
         if (mode == "singleton") services.AddSingleton<IQueryCompiler, RecordingCompiler>();
+        if (mode == "instance") services.AddSingleton<IQueryCompiler>(new RecordingCompiler());
         if (mode == "duplicate")
         {
             services.AddScoped<IQueryCompiler, RecordingCompiler>();
@@ -82,6 +86,67 @@ public class NativeCompilerContractTests
         var failure = Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(compiler, [marker, false]));
         Assert.IsType<NotSupportedException>(failure.InnerException);
         Assert.Equal(1, inner.Calls);
+        Func<OrderRow, bool> callback = condition.Invoke;
+        Expression<Func<OrderRow, bool>> delegated = row => callback(row);
+        var delegatedFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(compiler, [delegated, false]));
+        Assert.IsType<NotSupportedException>(delegatedFailure.InnerException);
+        Assert.Equal(1, inner.Calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CustomCompilerDecoratorComposesInEitherExtensionOrder(bool first)
+    {
+        var calls = new CompilerCalls();
+        await using var f = await SqliteFixture.CreateAsync(false, builder =>
+        {
+            if (first) builder.UseRaffinertExpressions();
+            ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(new ObservingCompilerExtension(calls));
+            if (!first) builder.UseRaffinertExpressions();
+            builder.UseRaffinertExpressions();
+        });
+        calls.Count = 0;
+        var threshold = 1000;
+        var condition = Condition<OrderRow>.Create(x => x.TotalCents > threshold);
+        Assert.Equal(3, await f.Db.Orders.Where(x => condition.Invoke(x)).CountAsync());
+        threshold = 10000;
+        Assert.Equal(1, f.Db.Orders.Count(x => condition.Invoke(x)));
+        Assert.Equal(2, calls.Count);
+    }
+
+    private sealed class CompilerCalls { public int Count; }
+
+    private sealed class ObservingCompilerExtension(CompilerCalls calls) : IDbContextOptionsExtension
+    {
+        public DbContextOptionsExtensionInfo Info => new ExtensionInfo(this);
+        public void Validate(IDbContextOptions options) { }
+        public void ApplyServices(IServiceCollection services)
+        {
+            var original = services.Last(x => x.ServiceType == typeof(IQueryCompiler) && !x.IsKeyedService);
+            services.Remove(original);
+            services.AddScoped<IQueryCompiler>(provider => new ObservingCompiler((IQueryCompiler)(original.ImplementationFactory?.Invoke(provider)
+                ?? ActivatorUtilities.CreateInstance(provider, original.ImplementationType!)), calls));
+        }
+        private sealed class ExtensionInfo(IDbContextOptionsExtension extension) : DbContextOptionsExtensionInfo(extension)
+        {
+            public override bool IsDatabaseProvider => false;
+            public override string LogFragment => "ObservingCompiler ";
+            public override int GetServiceProviderHashCode() => 0;
+            public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other) => false;
+            public override void PopulateDebugInfo(IDictionary<string, string> debugInfo) => debugInfo["Tests:Compiler"] = "1";
+        }
+    }
+
+    private sealed class ObservingCompiler(IQueryCompiler inner, CompilerCalls calls) : IQueryCompiler
+    {
+        public TResult Execute<TResult>(Expression query) { calls.Count++; return inner.Execute<TResult>(query); }
+        public TResult ExecuteAsync<TResult>(Expression query, CancellationToken token) { calls.Count++; return inner.ExecuteAsync<TResult>(query, token); }
+        public Func<QueryContext, TResult> CreateCompiledQuery<TResult>(Expression query) => inner.CreateCompiledQuery<TResult>(query);
+        public Func<QueryContext, TResult> CreateCompiledAsyncQuery<TResult>(Expression query) => inner.CreateCompiledAsyncQuery<TResult>(query);
+#pragma warning disable EF9100 // Owner-authorized: test decorator forwards the experimental member only.
+        public Expression<Func<QueryContext, TResult>> PrecompileQuery<TResult>(Expression query, bool async) => inner.PrecompileQuery<TResult>(query, async);
+#pragma warning restore EF9100
     }
 
     public sealed class RecordingCompiler : IQueryCompiler, IDisposable

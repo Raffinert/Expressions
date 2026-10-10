@@ -48,7 +48,7 @@ for (var i = 0; i < 25; i++)
     threshold = 100 + i;
     Check(await lifted.CountAsync() == 2, "fresh lifted capture");
     Check(commands.Executed.Last().Values.Single() is int value && value == threshold, "current runtime binding");
-    Check(commands.Executed.Last().Names.Single() == "__raffinert_threshold_0", "readable stable lifted name");
+    Check(commands.Executed.Last().Names.Length == 1, "one native parameter");
 }
 threshold = 100;
 Check(await lifted.CountAsync() == 2, "lifted cache hit");
@@ -77,7 +77,7 @@ foreach (var constant in new[] { false, true })
         else
         {
             Check(Equals(command.Values.Single(), threshold), "explicit parameter binding");
-            Check(command.Names.Single() == "__raffinert_threshold_0", "explicit parameter readable name");
+            Check(command.Names.Length == 1, "one explicit native parameter");
             Check(!command.Sql.Contains(threshold.ToString(), StringComparison.Ordinal), "explicit parameter absent from SQL");
         }
     }
@@ -85,7 +85,7 @@ foreach (var constant in new[] { false, true })
 commands.Executed.Clear();
 var literalParameter = Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(1000));
 Check(await db.Rows.CountAsync(x => literalParameter.Invoke(x)) == 1, "literal EF.Parameter");
-Check(commands.Executed.Last().Names.Single() == "__raffinert_p_0", "literal fallback name");
+Check(commands.Executed.Last().Names.Length == 1, "literal native parameter");
 Check(Equals(commands.Executed.Last().Values.Single(), 1000), "literal forced binding");
 var literalConstant = Condition<SmokeRow>.Create(x => x.Value > EF.Constant(1000));
 Check(await db.Rows.CountAsync(x => literalConstant.Invoke(x)) == 1, "literal EF.Constant");
@@ -99,21 +99,46 @@ Check((await privateQuery.ToArrayAsync()).Length == 0, "private query result");
 var privateCommand = commands.Executed.Single();
 Check(!privateCommand.Sql.Contains(marker, StringComparison.Ordinal), "private capture absent from SQL");
 Check(privateCommand.Values.Contains(marker), "private capture bound as DbParameter");
-try
-{
-    privateQuery.ToQueryString();
-    throw new InvalidOperationException("Lifted ToQueryString must fail safely.");
-}
-catch (NotSupportedException error)
-{
-    Check(!error.ToString().Contains(marker, StringComparison.Ordinal), "sanitized rendering diagnostic");
-}
+Check(privateQuery.ToQueryString().Contains(marker, StringComparison.Ordinal), "native ToQueryString includes parameter value");
 
 commands.Executed.Clear();
 var explicitPrivate = Condition<SmokeRow>.Create(x => x.Name == EF.Parameter(marker));
 Check((await db.Rows.Where(x => explicitPrivate.Invoke(x)).ToArrayAsync()).Length == 0, "private explicit parameter result");
 Check(commands.Executed.Single().Values.Contains(marker), "private explicit parameter binding");
 Check(!commands.Executed.Single().Sql.Contains(marker, StringComparison.Ordinal), "private explicit parameter absent from SQL");
+
+var computed = Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(threshold + 100));
+var computedQuery = db.Rows.Where(x => computed.Invoke(x));
+foreach (var next in new[] { 1000, 30000, 1000 })
+{
+    threshold = next;
+    Check(await computedQuery.CountAsync() == (next == 30000 ? 0 : 1), "computed parameter A -> B -> A");
+    Check(Equals(commands.Executed.Last().Values.Single(), next + 100), "computed native binding");
+}
+int[] ids = [1];
+foreach (var mode in new[] { "parameter", "multiple", "constant" })
+{
+    Expression<Func<SmokeRow, bool>> predicate = mode switch
+    {
+        "constant" => x => Enumerable.Contains(EF.Constant(ids), x.Id),
+        "multiple" => x => Enumerable.Contains(EF.MultipleParameters(ids), x.Id),
+        _ => x => Enumerable.Contains(EF.Parameter(ids), x.Id)
+    };
+    var collection = Condition<SmokeRow>.Create(predicate);
+    var collectionQuery = db.Rows.Where(x => collection.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+    foreach (var next in new int[][] { [1], [2], [], [1, 1, 2], [1] })
+    {
+        ids = next;
+        var native = await db.Rows.Where(predicate).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+        var control = commands.Executed.Last();
+        Check((await collectionQuery.ToArrayAsync()).SequenceEqual(native), "collection native results");
+        Check(commands.Executed.Last().Values.SequenceEqual(control.Values), "collection native bindings");
+        Check(commands.Executed.Last().Sql == control.Sql, "collection native SQL shape");
+    }
+}
+var pattern = "D%";
+var like = Condition<SmokeRow>.Create(x => EF.Functions.Like(x.Name, pattern));
+Check(await db.Rows.CountAsync(x => like.Invoke(x)) == await db.Rows.CountAsync(x => EF.Functions.Like(x.Name, pattern)), "native Like function");
 
 Console.WriteLine($"Package smoke passed: EF {typeof(DbContext).Assembly.GetName().Version}, runtime {Environment.Version}.");
 

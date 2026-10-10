@@ -5,7 +5,7 @@ namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 public class ParameterNamingIntegrationTests
 {
     [Fact]
-    public async Task SensitiveDescriptiveNameStaysBoundAndDiagnosticsRemainSafe()
+    public async Task NativeParameterBindingAndDiagnosticRenderingMatchEf()
     {
         var messages = new List<string>();
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableSensitiveDataLogging(false).LogTo(messages.Add));
@@ -44,7 +44,7 @@ public class ParameterNamingIntegrationTests
     }
 
     [Fact]
-    public async Task RepeatedOccurrencesAreDistinctAndIndependentlyBound()
+    public async Task RepeatedOccurrencesUseNativeDeduplicationAndBindings()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var threshold = 3;

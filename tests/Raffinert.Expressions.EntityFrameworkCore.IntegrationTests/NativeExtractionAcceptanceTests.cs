@@ -301,4 +301,40 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
         public bool Fail = true;
         public int GetThreshold() => Fail ? throw new InvalidOperationException(Secret) : 1000;
     }
+
+    [Theory]
+    [InlineData("automatic")]
+    [InlineData("parameter")]
+    [InlineData("computed")]
+    [InlineData("mixed-projection")]
+    public async Task NativeDiagnosticRenderingAndBoundSensitiveValuesMatchControls(string mode)
+    {
+        await using var f = await CreateAsync();
+        var secret = "synthetic-native-diagnostics@example.invalid";
+        var suffix = "-computed";
+        var ordinary = Condition<Row>.Create(x => x.Name == secret);
+        var parameter = Condition<Row>.Create(x => x.Name == EF.Parameter(secret));
+        var computed = Condition<Row>.Create(x => x.Name == EF.Parameter(secret + suffix));
+        var projection = Projection<Row, bool>.Create(x => x.Name == EF.Parameter(secret) || x.Id == EF.Constant(1));
+        for (var i = 0; i < 2; i++)
+        {
+            if (mode == "mixed-projection")
+            {
+                var native = await f.Db.Orders.Select(x => x.Name == EF.Parameter(secret) || x.Id == EF.Constant(1)).ToArrayAsync();
+                var query = f.Db.Orders.Select(x => projection.Invoke(x));
+                Assert.Equal(native, await query.ToArrayAsync());
+                Assert.True(query.ToQueryString().Contains(secret, StringComparison.Ordinal));
+            }
+            else
+            {
+                var condition = mode == "automatic" ? ordinary : mode == "parameter" ? parameter : computed;
+                var query = f.Db.Orders.Where(x => condition.Invoke(x));
+                await query.ToArrayAsync();
+                Assert.True(query.ToQueryString().Contains(secret, StringComparison.Ordinal));
+            }
+            var command = f.Commands.Executed.Last();
+            Assert.False(command.Sql.Contains(secret, StringComparison.Ordinal));
+            Assert.Contains(command.Values.OfType<string>(), value => value.StartsWith(secret, StringComparison.Ordinal));
+        }
+    }
 }

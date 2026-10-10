@@ -76,7 +76,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task RepeatedCaptureOccurrencesGetDistinctNamesAndBindings()
+    public async Task RepeatedCaptureOccurrencesUseNativeDeduplicationAndBindings()
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var threshold = 3;
@@ -162,7 +162,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task LiftedCaptureToQueryStringFailsWithoutExposingValue()
+    public async Task CapturedValueToQueryStringUsesNativeRendering()
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var customerEmail = "synthetic-localdb-diagnostic@example.invalid";
@@ -178,7 +178,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task UnsupportedLateCaptureFailsBeforeSql()
+    public async Task ReferenceCaptureProjectionMatchesNativeControl()
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var unsupported = new Uri("https://synthetic-localdb-private.example.invalid/path");

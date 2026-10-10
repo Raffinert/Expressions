@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Raffinert.Expressions;
 
-// Experimental adapter. EF10 internal contract only; no extraction APIs called.
+// EF10 compiler boundary: Raffinert expands; the original compiler owns all extraction and execution.
 #pragma warning disable EF1001 // Implement and forward the provider's scoped IQueryCompiler.
 internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQueryCompiler
 {
@@ -38,7 +38,7 @@ internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQue
 
 #pragma warning disable EF9100 // Owner-authorized: forward EF10's experimental precompiled-query API only.
     public Expression<Func<QueryContext, TResult>> PrecompileQuery<TResult>(Expression query, bool async) =>
-        new MarkerFinder().Contains(query)
+        !ReferenceEquals(query, Expand(query))
             ? throw new NotSupportedException("Precompiled queries containing Raffinert wrappers are unsupported. Use ordinary LINQ or supported EF compiled queries.")
             : inner.PrecompileQuery<TResult>(query, async);
 #pragma warning restore EF9100
@@ -52,20 +52,6 @@ internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQue
         catch (InvalidOperationException error) when (error.InnerException != null)
         {
             throw new InvalidOperationException("Unable to expand a Raffinert query. Getter and constructor failures are not included in diagnostics.");
-        }
-    }
-
-    private sealed class MarkerFinder : ExpressionVisitor
-    {
-        private bool _found;
-        public bool Contains(Expression query) { Visit(query); return _found; }
-        public override Expression? Visit(Expression? node)
-        {
-            if (node != null && (typeof(IExpressionExpansionSource).IsAssignableFrom(node.Type) ||
-                node.Type.IsGenericType && node.Type.GetGenericTypeDefinition() == typeof(IComposableExpression<,>) ||
-                node is ConstantExpression { Value: Delegate { Target: IExpressionExpansionSource } }))
-                _found = true;
-            return _found ? node : base.Visit(node);
         }
     }
 

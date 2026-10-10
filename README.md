@@ -311,31 +311,27 @@ var rows = await db.Orders
     .ToListAsync();
 ```
 
-Create `db` using those options. Registration is local to the configured contexts and uses public EF APIs.
-The adapter preserves extracted wrapper values and generates the provider's cache key from the expanded
-query, so changing a captured wrapper or a scalar inside it cannot reuse an obsolete predicate.
-Newly inlined scalar captures are bound as native EF execution parameters. Names use captured
-member paths, for example `__raffinert_threshold_0` and `__raffinert_settings_MinPrice_0`,
-with deterministic collision suffixes; runtime values never enter names. Different source capture
-names may produce different cache keys. See [naming rules](docs/efcore-integration.md#readable-parameter-names).
-Cache-key generation and
-compilation share one prepared tree; 25 changing thresholds reuse one compilation and SQL shape.
-Hidden captured collections require direct operators.
+Create `db` using those options. Registration is local to the configured contexts.
+Raffinert expands wrappers before the original EF10 compiler extracts parameters. EF owns
+evaluation, parameter naming/binding, caching and SQL translation; there is no custom lifting
+or naming pipeline. Changing captures and reassigning wrappers uses the current expanded expression.
 Native wrappers accessed through `IComposableExpression<,>` interfaces also expand.
 
 SQLite and SQL Server providers **10.0.11** are tested on .NET 10, with SQL Server
 executing against real Windows LocalDB in a separate project and CI job.
 See [tested versions](docs/efcore-integration.md#tested-versions) for evidence and coverage limits.
 Azure SQL and other SQL Server versions/collations are not certified.
-The adapter uses native EF10 parameter nodes and QueryContext.Parameters directly.
-Embedded `EF.Constant` / `EF.Parameter` support scalar captures and literals in conditions and projections;
-see [directive scope](docs/efcore-integration.md#explicit-ef-directives) for restrictions.
-Explicit `EF.Constant` intentionally puts its value in SQL and is outside the capture privacy guarantee.
+Embedded `EF.Constant`, `EF.Parameter`, `EF.MultipleParameters`, computed operands, collections
+and provider functions use native EF semantics. Explicit constants intentionally appear in SQL.
+See [directive scope](docs/efcore-integration.md#explicit-ef-directives).
+The adapter has a narrowly scoped dependency on EF10's internal `IQueryCompiler` contract;
+EF patch upgrades need revalidation.
 Compiled EF queries support stable closed
 wrappers without runtime captures and scalar delegate parameters. Wrapper delegate parameters,
 runtime captures inside compiled wrappers and changing closed wrappers are unsupported.
-Captured scalar values stay out of executed SQL text, but remain in DbParameter.Value and can be exposed
-by sensitive parameter logging or custom telemetry. ToQueryString fails safely for lifted captures.
+Native `ToQueryString()` may expose parameter values even when sensitive-data logging is disabled.
+The adapter adds no diagnostic privacy guard. Native EF client-evaluation exceptions may retain user details.
+Raffinert invocation markers in experimental precompiled queries are rejected; NativeAOT is not certified.
 
 See [EF Core integration](docs/efcore-integration.md) for examples, caching details and limitations.
 

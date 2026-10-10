@@ -164,7 +164,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task ExplicitParameterKeepsSyntheticStringPrivateAndConstantOnlyDiagnosticsWork()
+    public async Task ExplicitParameterStaysBoundAndDiagnosticRenderingMatchesNative()
     {
         await using var fixture = await CreateAsync();
         var customerEmail = "synthetic-ef10-directive-private@example.invalid";
