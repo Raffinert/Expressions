@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.0
+
+- Added the optional `Raffinert.Expressions.EntityFrameworkCore` package for .NET 10 and EF Core/Relational >= 10.0.11 and < 11.0.0.
+- Added composable-condition async overloads for Any, All, Count, LongCount, First, FirstOrDefault, Single, SingleOrDefault, Last and LastOrDefault, with cancellation support and no registration requirement.
+- Added opt-in `UseRaffinertExpressions()` expansion for conditions, projections, nested invocations, typed interfaces and Raffinert delegate callbacks in ordinary EF LINQ queries.
+- Supports native EF parameterization and caching, current captured values, computed operands, `EF.Parameter`, `EF.Constant` and `EF.MultipleParameters`.
+- Supports stable closed wrappers and scalar parameters in EF compiled queries. Runtime captures in compiled wrapper bodies and Raffinert invocation expansion in precompiled queries are unsupported.
+- Follows native `ToQueryString()` behavior, which can include parameter values even with sensitive-data logging disabled.
+- Added SQLite and real Windows SQL Server LocalDB integration coverage and isolated package consumers on Windows and Linux.
+- Updated Core and QuerySyntax package versions together to 1.2.0; their provider-independent APIs and target frameworks are unchanged.
+
+
 ## Raffinert.Expressions.QuerySyntax 1.1.0 - 2026-10-05
 
 - Bumped the satellite package alongside `Raffinert.Expressions` so the packaged dependency points to the 1.1.0 core release. The query-syntax API is unchanged.
