@@ -325,7 +325,7 @@ Native wrappers accessed through `IComposableExpression<,>` interfaces also expa
 
 SQLite and SQL Server providers **10.0.11** are tested on .NET 10, with SQL Server
 executing against real Windows LocalDB in a separate project and CI job.
-See [EF10 validation](docs/pr7-ef10-only-validation.md) for evidence and coverage limits.
+See [tested versions](docs/efcore-integration.md#tested-versions) for evidence and coverage limits.
 Azure SQL and other SQL Server versions/collations are not certified.
 The adapter uses native EF10 parameter nodes and QueryContext.Parameters directly.
 Embedded `EF.Constant` / `EF.Parameter` support scalar captures and literals;

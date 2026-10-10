@@ -164,9 +164,6 @@ Changing values preserves names and cache reuse for the same capture metadata;
 different source capture names may produce different compiled-query keys.
 `ToQueryString()` blocks all lifted names under the shared prefix before rendering.
 
-See [current EF10 validation](pr7-ef10-only-validation.md) and
-[historical naming validation](pr7-parameter-naming-validation.md).
-
 ### Explicit EF directives
 
 Ordinary queries registered with `UseRaffinertExpressions()` preserve native EF10
@@ -230,9 +227,7 @@ expand before EF extraction and require no interception. Standalone
 AddInterceptors(RaffinertExpressionInterceptor.Instance) supports constant wrapper targets
 without runtime captures; extracted wrappers and runtime captures require the helper.
 
-See [current validation](pr7-ef10-only-validation.md),
-[historical runtime validation](pr7-parameter-lifting-validation.md) and
-[acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/RuntimeParameterLiftingTests.cs).
+See [acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/RuntimeParameterLiftingTests.cs).
 
 ## Limits and compiled queries
 
@@ -306,8 +301,19 @@ zero failures/skips. Counts include 19 explicit-directive cases per provider and
 EF7/8/9 compatibility projects and CI lanes have been removed; historical results
 do not establish current support. Other providers/future major versions are not certified.
 
-See [EF10 validation details](pr7-ef10-only-validation.md) for commands, test counts,
-directive/cache regression coverage and final CI evidence.
+The [EF10 source checkpoint CI](https://github.com/Raffinert/Expressions/actions/runs/38065677880)
+passed all five jobs: Windows/Linux solution verification, Windows/Linux isolated
+nupkg consumers, and real Windows LocalDB. The latest exact-head CI result is
+recorded in [PR #7](https://github.com/Raffinert/Expressions/pull/7).
+
+Run the cross-platform checks from the repository root:
+
+```shell
+dotnet restore Raffinert.Expressions.slnx
+dotnet build Raffinert.Expressions.slnx -c Release --no-restore
+dotnet test Raffinert.Expressions.slnx -c Release --no-restore
+dotnet format Raffinert.Expressions.slnx --no-restore --verify-no-changes
+```
 
 ### SQL Server LocalDB
 
@@ -335,6 +341,5 @@ The supplied catalog is replaced with `master` for prerequisite checks and then
 with the generated fixture database. Default `Encrypt=False` is for ephemeral local
 tests, not production guidance.
 
-See [current EF10 evidence](pr7-ef10-only-validation.md) and
-[historical LocalDB evidence](pr7-sqlserver-localdb-validation.md). EF7–9 are unsupported.
+EF7–9 are unsupported.
 This coverage does not certify Azure SQL, Linux SQL Server or all server collations/versions.
