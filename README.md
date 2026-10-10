@@ -322,6 +322,8 @@ Native wrappers accessed through `IComposableExpression<,>` interfaces also expa
 SQLite execution tests verify the same EF 7-compiled adapter on EF **7.0.20**, **8.0.31**, **9.0.20** and
 **10.0.11**. EF 7 / .NET 6 are retired compatibility baselines. Compiled EF queries support stable closed
 wrappers and scalar delegate parameters; wrapper delegate parameters and changing closed wrappers are unsupported.
+Embedded captured values can appear as SQL literals in logs and telemetry even with sensitive logging disabled; use direct `Where(condition)` or async condition overloads for sensitive captures.
+
 See [EF Core integration](docs/efcore-integration.md) for examples, caching details and limitations.
 
 ### LINQ query syntax

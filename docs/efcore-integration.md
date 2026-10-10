@@ -105,9 +105,28 @@ Registration affects only those context options; installing the package has no g
 
 ### Release policy: constant-snapshot interception
 
+**Captured values in embedded wrappers can appear directly in SQL text**, including
+EF command logs, database query monitoring/Query Store, APM traces and other SQL-text
+telemetry, even with sensitive parameter-value logging disabled. Do not embed secrets
+or sensitive user data in these captures. Prefer `Where(condition)` or the async
+condition overloads, which expand before EF parameter extraction; verify parameterized
+SQL and command-log behavior with your own provider and telemetry configuration.
+This exposure is in addition to cache fragmentation. EF still translates and escapes
+the literals; this is not a SQL injection claim.
+
+The [executed-command characterization test](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/ExecutionAuditTests.cs)
+compares command text and parameter values separately with sensitive logging disabled:
+
+```csharp
+var marker = "synthetic-private-value-pr7"; // synthetic test data only
+var condition = Condition<OrderRow>.Create(x => x.Name == marker);
+await db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync(); // marker in SQL literal
+await db.Orders.Where(condition).ToArrayAsync(); // marker bound as parameter on tested SQLite
+```
+
 `UseRaffinertExpressions()` opts into **constant-snapshot mode** for captures introduced
 by wrapper expansion. This is a limited interceptor, not a promise of generic EF
-parameterization. Values are correct for each execution, but a different in-wrapper
+parameterization. With captures stable throughout execution, values are correct for each execution, but a different in-wrapper
 scalar value creates a different EF compiled-query cache key and usually different SQL.
 Hot paths can fragment both EF's query cache and the database's execution-plan cache.
 
@@ -127,6 +146,15 @@ The factory exposes extracted wrapper values within that context's execution sco
 the key generator applies the same expansion as the interceptor before delegating to
 the provider's existing cache-key logic. The adapter retains no expanded-root cache or
 global query state. Execution tracking uses a scoped weak reference.
+
+Cache-key generation and compilation expand independently; they do not share a single
+immutable per-execution snapshot. Captured getters and scalars must remain stable for
+the entire execution, including both passes. A controlled changing-getter test reproduces
+a key for value 2 associated with SQL for value 4, then a cache hit returning ID 4 for
+key 2. This violates the supported stable-capture contract and is intentionally excluded.
+Side-effecting getters, including reentrant database calls, are unsupported. Stable
+getter tests verify matching SQL/results on misses, hits and A → B → A changes between
+executions, for both sync and async queries. No stronger snapshot guarantee is provided.
 
 The shared core visitor still performs all invocation expansion, nested composition,
 parameter substitution, cycle detection and cached wrapper-body reuse. EF normalization
@@ -178,7 +206,8 @@ alongside the helper duplicates callbacks; this is unnecessary.
   current contents. Use `Enumerable.Contains(ids, x.Id)` explicitly for array captures
   when C# overload resolution would otherwise choose a span-based `Contains` method.
   Arbitrary method-based evaluation remains outside the snapshot contract.
-- Scalar values must remain stable during one query execution. Standard EF `DbContext`
+- Scalar values and getters must remain stable during one query execution, including
+  cache-key generation and compilation. Standard EF `DbContext`
   concurrency restrictions still apply.
 - `InvokeOrDefault` returns the result type's default for a null reference/nullable input:
   null for reference results, zero for numeric results and false for bool. It adds no null
@@ -194,6 +223,16 @@ alongside the helper duplicates callbacks; this is unnecessary.
   Public service decorators that retain and forward the original scoped services are tested
   in both registration orders; this does not establish arbitrary extension compatibility.
   Providers other than SQLite remain unverified. No private EF API is used.
+- `AddDbContextPool` and pooled context leases are unverified and outside the currently
+  tested support contract. Do not assume a weak reference resets state on pool return.
+- In helper mode, the factory records the newly created QueryContext before expansion.
+  An absent recorded context leaves the query unchanged; extracted captured markers then
+  fail with the existing resolution diagnostic. Discarding this decorator is unsupported.
+  Ordinary queries, direct operators and stable closed compiled wrappers can legitimately
+  work without extracted-wrapper state, so absence alone is not an unconditional error.
+  Standalone interception still supports constant targets, and cannot recover extracted
+  captured targets. Tests cover failure/cancellation followed by valid queries and
+  sequential deferred enumeration; concurrent operations on one context remain unsupported.
 
 ## Tested versions
 

@@ -1,5 +1,9 @@
 # EF Core integration validation
 
+The updated QueryExecutionState action plan is covered by the
+[execution audit work log](pr7-execution-audit-work-log.md), including the new local
+EF 7–10 runs, SQL-literal privacy assertions and explicit stable-capture contract decision.
+
 ## Baseline
 
 Inspected on 2026-10-10 at commit `8c8c9ad`, on `main`. Existing untracked

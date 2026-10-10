@@ -8,6 +8,7 @@
 - Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
 - Fixed embedded native wrapper invocation through `IComposableExpression<,>` interfaces/casts; unrelated methods named Invoke remain untouched.
 - Documented interception as constant-snapshot mode, with measured cache costs and parameterized alternatives. Added DateOnly/TimeOnly snapshots and descriptive rejection of hidden captured collections.
+- Documented SQL-literal exposure even with sensitive parameter logging disabled, the whole-execution stable-getter requirement and unverified pooling support; added execution-state characterization tests.
 - Added capture/service-composition regressions and isolated NuGet consumers on each tested EF major.
 - Added SQLite execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage, plus EF 7/8/9/10 compatibility projects and CI matrix.
 - Bumped QuerySyntax alongside core to align its package dependency; its API and behavior remain unchanged.

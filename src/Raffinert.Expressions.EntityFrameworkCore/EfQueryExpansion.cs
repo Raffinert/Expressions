@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -27,7 +28,7 @@ internal static class EfQueryExpansion
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (node.Type != typeof(string) && typeof(System.Collections.IEnumerable).IsAssignableFrom(node.Type) &&
+            if (node.Type != typeof(string) && typeof(IEnumerable).IsAssignableFrom(node.Type) &&
                 SafeValueEvaluator.TryEvaluate(node, out _))
             {
                 throw new NotSupportedException(
