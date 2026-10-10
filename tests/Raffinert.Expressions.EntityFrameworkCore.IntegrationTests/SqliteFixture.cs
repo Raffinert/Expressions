@@ -11,8 +11,10 @@ public sealed class SqliteFixture : IAsyncDisposable
     public CommandRecorder Commands { get; } = new();
     public DbContextOptions<OrdersContext> Options { get; private set; } = null!;
     public OrdersContext Db { get; private set; } = null!;
+    public int QueryCompilations { get; private set; }
 
-    public static async Task<SqliteFixture> CreateAsync(bool intercept = true)
+    public static async Task<SqliteFixture> CreateAsync(bool intercept = true,
+        Action<DbContextOptionsBuilder<OrdersContext>>? configure = null)
     {
         var fixture = new SqliteFixture();
         try
@@ -20,8 +22,10 @@ public sealed class SqliteFixture : IAsyncDisposable
             await fixture._connection.OpenAsync();
             var builder = new DbContextOptionsBuilder<OrdersContext>()
                 .UseSqlite(fixture._connection)
-                .AddInterceptors(fixture.Commands);
+                .AddInterceptors(fixture.Commands)
+                .LogTo(_ => fixture.QueryCompilations++, new[] { CoreEventId.QueryCompilationStarting });
             if (intercept) builder.UseRaffinertExpressions();
+            configure?.Invoke(builder);
             fixture.Options = builder.Options;
             fixture.Db = new OrdersContext(fixture.Options);
             await fixture.Db.Database.EnsureCreatedAsync();
@@ -51,6 +55,7 @@ public sealed class SqliteFixture : IAsyncDisposable
             await fixture.Db.SaveChangesAsync();
             fixture.Db.ChangeTracker.Clear();
             fixture.Commands.Clear();
+            fixture.QueryCompilations = 0;
             return fixture;
         }
         catch
