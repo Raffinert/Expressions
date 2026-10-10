@@ -46,3 +46,12 @@ outer wrapper had cached its expanded structure. Corrected the harness to replac
 the captured outer wrapper, preserving core's documented stable-expression contract.
 It then passed without a production change. No assertions about actual directive
 semantics were relaxed. Literal/invalid-operand failures reproduce on real SQL.
+
+## Phase 3 — adapter retarget
+
+Phase 2 checkpoint: `9238fb9` (test: specify EF10 explicit parameterization behavior).
+Changed only the adapter project: net10.0, EF Core/Relational 10.0.11; version stays
+1.2.0 and all package/symbol/readme/core references remain. Restore and adapter
+Release build passed with zero warnings/errors. Old compatibility projects are
+not retargeted; removal follows after native APIs/directive checks. Core and
+QuerySyntax project files are unchanged. HEAD before this phase: `9238fb9`.
