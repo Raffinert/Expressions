@@ -48,6 +48,7 @@ for (var i = 0; i < 25; i++)
     threshold = 100 + i;
     Check(await lifted.CountAsync() == 2, "fresh lifted capture");
     Check(commands.Executed.Last().Values.Single() is int value && value == threshold, "current runtime binding");
+    Check(commands.Executed.Last().Names.Single() == "__raffinert_threshold_0", "readable stable lifted name");
 }
 threshold = 100;
 Check(await lifted.CountAsync() == 2, "lifted cache hit");
@@ -93,12 +94,13 @@ public sealed class SmokeRow
 
 public sealed class SmokeCommands : DbCommandInterceptor
 {
-    public List<(string Sql, object?[] Values)> Executed { get; } = [];
+    public List<(string Sql, object?[] Values, string[] Names)> Executed { get; } = [];
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        Executed.Add((command.CommandText, command.Parameters.Cast<DbParameter>().Select(x => x.Value).ToArray()));
+        Executed.Add((command.CommandText, command.Parameters.Cast<DbParameter>().Select(x => x.Value).ToArray(),
+            command.Parameters.Cast<DbParameter>().Select(x => x.ParameterName.TrimStart('@', ':', '$')).ToArray()));
         return ValueTask.FromResult(result);
     }
 }

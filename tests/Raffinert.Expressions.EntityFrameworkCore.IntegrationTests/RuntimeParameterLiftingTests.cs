@@ -41,6 +41,7 @@ public class RuntimeParameterLiftingTests
         Assert.Equal(100, Assert.Single(fixture.Commands.Executed.Last().Values));
         Assert.Equal(1, fixture.QueryCompilations);
         Assert.Single(fixture.Commands.Executed.Select(x => x.Sql).Distinct());
+        Assert.All(fixture.Commands.Executed, command => Assert.Equal("__raffinert_threshold_0", Assert.Single(command.Names)));
     }
 
     [Fact]
@@ -165,15 +166,19 @@ public class RuntimeParameterLiftingTests
     public async Task ParameterNamesDoNotCollideWithOuterCaptures()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var __raffinert_runtime = 1000;
+        var __raffinert_id_0 = 1000;
         var id = 2;
         var condition = Condition<OrderRow>.Create(x => x.Id == id);
-        Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x) && x.TotalCents > __raffinert_runtime)
+        Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x) && x.TotalCents > __raffinert_id_0)
             .Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.Equal(2, command.Values.Length);
         Assert.Contains(id, command.Values);
-        Assert.Contains(__raffinert_runtime, command.Values);
+        Assert.Contains(__raffinert_id_0, command.Values);
+        Assert.Equal(2, command.Names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        var outerName = command.Names[Array.IndexOf(command.Values, __raffinert_id_0)];
+        Assert.Equal(outerName.Equals("__raffinert_id_0", StringComparison.OrdinalIgnoreCase)
+            ? "__raffinert_id_1" : "__raffinert_id_0", command.Names[Array.IndexOf(command.Values, id)]);
     }
 
     [Fact]
@@ -207,6 +212,9 @@ public class RuntimeParameterLiftingTests
         Assert.Single(observer.Compiled);
         Assert.All(observer.Keys, expression =>
         {
+            var parameters = new ParameterObserver();
+            parameters.Visit(expression);
+            Assert.Contains("__raffinert_marker_0", parameters.Names);
             Assert.DoesNotContain(marker, expression.ToString());
             var constants = new ConstantObserver();
             constants.Visit(expression);
@@ -349,6 +357,16 @@ public class RuntimeParameterLiftingTests
             public override int GetServiceProviderHashCode() => 0;
             public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other) => false;
             public override void PopulateDebugInfo(IDictionary<string, string> debugInfo) => debugInfo["Tests:ShapeObserver"] = "1";
+        }
+    }
+
+    private sealed class ParameterObserver : ExpressionVisitor
+    {
+        public List<string> Names { get; } = [];
+        public override Expression? Visit(Expression? node)
+        {
+            if (node != null && EfRuntimeParameters.Name(node) is { } name) Names.Add(name);
+            return base.Visit(node);
         }
     }
 

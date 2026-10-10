@@ -7,7 +7,7 @@ namespace Raffinert.Expressions;
 // Only public EF contracts are reflected; the assembly is compiled against EF 7.
 internal static class EfRuntimeParameters
 {
-    internal const string Prefix = "__raffinert_runtime_";
+    internal const string Prefix = RaffinertParameterNameGenerator.Prefix;
     private static readonly int Major = typeof(QueryContext).Assembly.GetName().Version!.Major;
     private static readonly PropertyInfo ValuesProperty = typeof(QueryContext).GetProperty(Major == 10 ? "Parameters" : "ParameterValues")
         ?? throw new NotSupportedException("This EF Core version does not expose public query parameter storage.");

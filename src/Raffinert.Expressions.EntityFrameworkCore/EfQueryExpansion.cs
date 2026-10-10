@@ -22,8 +22,7 @@ internal static class EfQueryExpansion
 
     private sealed class RuntimeCaptureVisitor(QueryContext? context) : ExpressionVisitor
     {
-        private readonly HashSet<string> _names = context == null ? [] : new(EfRuntimeParameters.Values(context).Keys, StringComparer.Ordinal);
-        private int _next;
+        private readonly RaffinertParameterNameGenerator _names = new(context == null ? [] : EfRuntimeParameters.Values(context).Keys);
         protected override Expression VisitDefault(DefaultExpression node)
         {
             // EF normally folds these before compilation; late expansion introduces new defaults.
@@ -45,9 +44,7 @@ internal static class EfQueryExpansion
             if (context == null)
                 throw new NotSupportedException("Runtime captures inside standalone interception or explicitly compiled wrappers are unsupported. Use UseRaffinertExpressions with ordinary LINQ, or direct operators/scalar compiled-query parameters.");
             if (!SafeValueEvaluator.TryEvaluate(node, out var value)) return base.VisitMember(node);
-            string name;
-            do name = EfRuntimeParameters.Prefix + _next++;
-            while (!_names.Add(name));
+            var name = _names.Next(node);
             var parameter = EfRuntimeParameters.Create(node.Type, name);
             EfRuntimeParameters.Add(context, name, value);
             return parameter;

@@ -125,7 +125,10 @@ public sealed class LineRow
     public int AmountCents { get; set; }
 }
 
-public sealed record RecordedCommand(string Sql, object?[] Values, CancellationToken CancellationToken);
+public sealed record RecordedCommand(string Sql, object?[] Values, CancellationToken CancellationToken)
+{
+    public string[] Names { get; init; } = [];
+}
 
 public sealed class CommandRecorder : DbCommandInterceptor
 {
@@ -134,7 +137,10 @@ public sealed class CommandRecorder : DbCommandInterceptor
 
     private void Record(DbCommand command, CancellationToken cancellationToken) =>
         Executed.Add(new RecordedCommand(command.CommandText,
-            command.Parameters.Cast<DbParameter>().Select(x => x.Value).ToArray(), cancellationToken));
+            command.Parameters.Cast<DbParameter>().Select(x => x.Value).ToArray(), cancellationToken)
+        {
+            Names = command.Parameters.Cast<DbParameter>().Select(x => x.ParameterName.TrimStart('@', ':', '$')).ToArray()
+        });
 
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
