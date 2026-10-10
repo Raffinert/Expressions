@@ -1,20 +1,15 @@
 # Changelog
 
-## 1.2.0 (unreleased)
+## 1.2.0
 
-- Added the optional `Raffinert.Expressions.EntityFrameworkCore` package, requiring .NET 10 and EF Core/Relational >= 10.0.11 and < 11.0.0. EF Core 7/8/9 are unsupported.
-- Added async composable-condition overloads for Any, All, Count, LongCount, First, FirstOrDefault, Single, SingleOrDefault, Last and LastOrDefault. They expand before calling EF and need no interceptor.
-- Added opt-in `UseRaffinertExpressions()` with expansion before native EF10 parameter extraction, using a narrowly scoped internal `IQueryCompiler` decorator. Retained the public standalone `RaffinertExpressionInterceptor` and closed compiled-wrapper behavior.
-- Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
-- Fixed embedded native wrapper invocation through `IComposableExpression<,>` interfaces/casts; unrelated methods named Invoke remain untouched.
-- Avoided eager getter reads for carried delegate properties and ordinary method-group receivers; preserved Raffinert callback expansion, native results and cache-hit values.
-- EF now owns evaluation, extraction, naming, binding, cache keys and translation. Removed custom runtime lifting, parameter naming, execution state and cache/context decorators after regression validation.
-- Embedded scalar/collection directives, computed operands and native provider functions match EF controls on SQLite and LocalDB; captures remain fresh on cache hits and wrapper reassignment.
-- Adopted native ToQueryString behavior: rendering may include parameter values even with sensitive-data logging disabled. Removed the Raffinert privacy guard; native EF client-evaluation errors may retain user details.
-- Kept compiled-wrapper runtime captures unsupported before getter evaluation; stable closed wrappers and scalar delegate parameters remain supported. Raffinert invocation markers in experimental precompiled queries are rejected; NativeAOT support is not claimed.
-- Added capture/service-composition regressions and isolated EF10 NuGet consumers on Windows and Linux; removed obsolete compatibility projects and matrix.
-- Added EF10 SQLite and real Windows SQL Server LocalDB execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage.
-- Bumped QuerySyntax alongside core to align its package dependency; its API and behavior remain unchanged.
+- Added the optional `Raffinert.Expressions.EntityFrameworkCore` package for .NET 10 and EF Core/Relational >= 10.0.11 and < 11.0.0.
+- Added composable-condition async overloads for Any, All, Count, LongCount, First, FirstOrDefault, Single, SingleOrDefault, Last and LastOrDefault, with cancellation support and no registration requirement.
+- Added opt-in `UseRaffinertExpressions()` expansion for conditions, projections, nested invocations, typed interfaces and Raffinert delegate callbacks in ordinary EF LINQ queries.
+- Supports native EF parameterization and caching, current captured values, computed operands, `EF.Parameter`, `EF.Constant` and `EF.MultipleParameters`.
+- Supports stable closed wrappers and scalar parameters in EF compiled queries. Runtime captures in compiled wrapper bodies and Raffinert invocation expansion in precompiled queries are unsupported.
+- Follows native `ToQueryString()` behavior, which can include parameter values even with sensitive-data logging disabled.
+- Added SQLite and real Windows SQL Server LocalDB integration coverage and isolated package consumers on Windows and Linux.
+- Updated Core and QuerySyntax package versions together to 1.2.0; their provider-independent APIs and target frameworks are unchanged.
 
 
 ## Raffinert.Expressions.QuerySyntax 1.1.0 - 2026-10-05

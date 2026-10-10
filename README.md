@@ -27,7 +27,7 @@ dotnet add package Raffinert.Expressions.QuerySyntax
 For EF Core async condition overloads and optional expansion in ordinary LINQ lambdas, add:
 
 ```shell
-dotnet add package Raffinert.Expressions.EntityFrameworkCore
+dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
 ```
 
 This adapter requires **.NET 10**, EF Core and Relational **>= 10.0.11 and < 11.0.0**, depends on core,
@@ -219,7 +219,7 @@ This design requires:
 ### Explicit expansion boundaries
 
 The core package expands wrappers at explicit operator boundaries. Invocation markers must be expanded
-before EF Core translates the query. The optional EF Core adapter can expand an entire query during compilation.
+before EF Core translates the query. The optional EF Core adapter enables expansion inside ordinary query lambdas.
 
 Pass wrappers directly to the provided LINQ overloads:
 
@@ -284,56 +284,38 @@ var query = db.Products.Select(row);
 
 ### Optional EF Core integration
 
-Install `Raffinert.Expressions.EntityFrameworkCore` for predicate-consuming async methods:
+`Raffinert.Expressions.EntityFrameworkCore` 1.2.0 adds async composable-condition
+operators and opt-in invocation expansion for ordinary EF LINQ queries. It requires
+**.NET 10**, EF Core and Relational **>= 10.0.11 and < 11.0.0**.
 
-```csharp
-using Raffinert.Expressions;
-using Microsoft.EntityFrameworkCore;
-
-var expensive = Condition<Order>.Create(x => x.TotalCents >= 10_000);
-bool exists = await db.Orders.AnyAsync(expensive);
+```shell
+dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
 ```
 
-All ten async condition operators expand before calling EF and work without registration.
-Existing EF `ToListAsync()` and `ToArrayAsync()` already work when the query is expanded.
-
-For invocation markers inside ordinary EF LINQ lambdas, opt in when configuring the context:
+For an application with an `OrdersContext` exposing an `Orders` set:
 
 ```csharp
+using Microsoft.EntityFrameworkCore;
+using Raffinert.Expressions;
+
 var options = new DbContextOptionsBuilder<OrdersContext>()
-    .UseSqlite(connection) // Keep an in-memory SQLite connection open throughout its use.
+    .UseSqlite("Data Source=orders.db")
     .UseRaffinertExpressions()
     .Options;
 
-var rows = await db.Orders
-    .Where(x => expensive.Invoke(x))
-    .Select(x => new { x.Id, IsExpensive = expensive.Invoke(x) })
-    .ToListAsync();
+await using var db = new OrdersContext(options);
+var expensive = Condition<Order>.Create(x => x.TotalCents >= 10_000);
+var rows = await db.Orders.Where(x => expensive.Invoke(x)).ToListAsync();
 ```
 
-Create `db` using those options. Registration is local to the configured contexts.
-Raffinert expands wrappers before the original EF10 compiler extracts parameters. EF owns
-evaluation, parameter naming/binding, caching and SQL translation; there is no custom lifting
-or naming pipeline. Changing captures and reassigning wrappers uses the current expanded expression.
-Native wrappers accessed through `IComposableExpression<,>` interfaces also expand.
+Register `UseRaffinertExpressions()` for invocations inside ordinary EF-facing
+lambdas. Passing wrappers directly, such as `.Where(expensive)` or
+`await db.Orders.AnyAsync(expensive)`, needs no registration.
 
-SQLite and SQL Server providers **10.0.11** are tested on .NET 10, with SQL Server
-executing against real Windows LocalDB in a separate project and CI job.
-See [tested versions](docs/efcore-integration.md#tested-versions) for evidence and coverage limits.
-Azure SQL and other SQL Server versions/collations are not certified.
-Embedded `EF.Constant`, `EF.Parameter`, `EF.MultipleParameters`, computed operands, collections
-and provider functions use native EF semantics. Explicit constants intentionally appear in SQL.
-See [directive scope](docs/efcore-integration.md#explicit-ef-directives).
-The adapter has a narrowly scoped dependency on EF10's internal `IQueryCompiler` contract;
-EF patch upgrades need revalidation.
-Compiled EF queries support stable closed
-wrappers without runtime captures and scalar delegate parameters. Wrapper delegate parameters,
-runtime captures inside compiled wrappers and changing closed wrappers are unsupported.
-Native `ToQueryString()` may expose parameter values even when sensitive-data logging is disabled.
-The adapter adds no diagnostic privacy guard. Native EF client-evaluation exceptions may retain user details.
-Raffinert invocation markers in experimental precompiled queries are rejected; NativeAOT is not certified.
-
-See [EF Core integration](docs/efcore-integration.md) for examples, caching details and limitations.
+The adapter supports nested conditions/projections, current captured values, native
+EF parameterization and explicit scalar/collection directives. SQLite and SQL Server
+are tested. See the [EF Core integration guide](docs/efcore-integration.md) for a
+complete quick start, supported methods, diagnostics and compatibility limits.
 
 ### LINQ query syntax
 
@@ -376,7 +358,7 @@ var rows = await db.Products
 The query-syntax satellite cannot be referenced from .NET Framework 4.7.2 because that platform does not implement
 `netstandard2.1`.
 
-Without `AsRaffinertQuery()` or the optional EF interceptor, invocation markers inside ordinary provider-facing
+Without `AsRaffinertQuery()` or `UseRaffinertExpressions()`, invocation markers inside ordinary provider-facing
 query-syntax lambdas are not expanded. Direct invocation in query syntax works normally for in-memory `IEnumerable<T>` sequences because no
 LINQ provider needs to translate the expression.
 
@@ -388,7 +370,7 @@ or projection; the optional `AsRaffinertQuery()` facade expands compiler-created
 clause while delegating to the original provider. This keeps both packages provider-independent and the final
 expression tree directly inspectable.
 
-The separate EF Core adapter adds async predicate consumers and optional whole-query expansion at compilation.
+The optional EF Core adapter adds async condition operators and expansion inside ordinary EF query lambdas.
 The core and QuerySyntax packages keep their existing provider-independent boundaries.
 
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
