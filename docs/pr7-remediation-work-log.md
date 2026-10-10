@@ -70,6 +70,11 @@ SELECT COUNT(*) FROM "Orders" AS "o" WHERE "o"."TotalCents" > @threshold;
 
 ## Remaining limitations and recommendation
 
+Remote remediation source validation: `70d612b37b23558701dee3330b2e6c832455bad1`,
+[run 38045212951](https://github.com/Raffinert/Expressions/actions/runs/38045212951):
+all ten jobs succeeded, including package consumers on Windows and Linux. The subsequent
+documentation-only commit and its CI status are identified in the completion report.
+
 Constant-snapshot interception can fragment EF and database plan caches; use outer scalar
 parameters or direct operators for hot paths. Hidden captured collections and embedded
 external implementations require direct operators. Compiled wrappers must remain fixed;

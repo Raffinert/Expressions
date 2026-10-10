@@ -90,6 +90,11 @@ The original PR head `9658e5c83203105fe6b28d49047f5f3ee9214551` passed all ten j
 [run 38043704241](https://github.com/Raffinert/Expressions/actions/runs/38043704241).
 Final-head CI must also pass; consult the current [PR checks](https://github.com/Raffinert/Expressions/pull/7/checks).
 
+The remediation source commit `70d612b37b23558701dee3330b2e6c832455bad1` also passed
+all ten jobs in [run 38045212951](https://github.com/Raffinert/Expressions/actions/runs/38045212951),
+including the newly added NuGet consumer applications on both operating systems.
+Subsequent documentation commits retain the same source; their checks remain visible on the PR.
+
 ## Original implementation checkpoints
 
 - Project boundary: `dotnet build src/Raffinert.Expressions.EntityFrameworkCore/Raffinert.Expressions.EntityFrameworkCore.csproj` passed with zero warnings/errors.
