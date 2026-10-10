@@ -12,6 +12,21 @@ public class WholeQueryExpansionTests
 
     private static Expression Expand(Expression root) => ExpressionExpander.Expand(root);
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InterfaceTypedInvocationExpands(bool explicitCast)
+    {
+        IComposableExpression<Row, bool> condition = Condition<Row>.Create(x => x.Value > 10);
+        var concrete = Condition<Row>.Create(x => x.Value > 10);
+        var query = explicitCast
+            ? Rows.Where(x => ((IComposableExpression<Row, bool>)concrete).Invoke(x))
+            : Rows.Where(x => condition.Invoke(x));
+        var expanded = Expand(query.Expression);
+        Assert.DoesNotContain("Invoke", expanded.ToString());
+        Assert.Equal(new[] { 2 }, query.Provider.CreateQuery<Row>(expanded).Select(x => x.Id));
+    }
+
     [Fact]
     public void NullRootIsRejected()
     {
