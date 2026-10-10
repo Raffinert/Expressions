@@ -30,10 +30,10 @@ Implementation: none. Compatibility checked: exact upstream source tags below.
 
 | EF version | Native parameter node | Public QueryContext write API | PoC |
 | --- | --- | --- | --- |
-| 7.0.20 | ParameterExpression, name starts with `__` | AddParameter; ParameterValues | Pending |
-| 8.0.31 | ParameterExpression, name starts with `__` | AddParameter; ParameterValues | Pending |
-| 9.0.20 | ParameterExpression, name starts with `__` | AddParameter; ParameterValues | Pending |
-| 10.0.11 | public QueryParameterExpression(string, Type), Extension node | Parameters dictionary | Pending |
+| 7.0.20 | ParameterExpression, name starts with `__` | AddParameter; ParameterValues | Miss/hit/string/int/null passed |
+| 8.0.31 | ParameterExpression, name starts with `__` | AddParameter; ParameterValues | Miss/hit/string/int/null passed |
+| 9.0.20 | ParameterExpression, name starts with `__` | AddParameter; ParameterValues | Miss/hit/string/int/null passed |
+| 10.0.11 | public QueryParameterExpression(string, Type), Extension node | Parameters dictionary | Miss/hit/string/int/null passed |
 
 Inspected QueryCompiler, QueryContext, and RelationalSqlTranslatingExpressionVisitor
 at each tag under https://github.com/dotnet/efcore/tree/v7.0.20 (also v8.0.31,
@@ -143,3 +143,35 @@ GREEN test: `dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.Compati
 105 passed / 0 failed / 0 skipped on Windows, EF 9.0.20 / runtime 8.0.31.
 SQL evidence: all shared privacy/cache/null/getter/pooling assertions pass.
 Known risk: Linux/final-head CI not yet run. Commit: EF 9 checkpoint in git log.
+
+## Phase G — full regression, privacy and ownership
+
+HEAD before work: 29da7d3. Files changed: RuntimeParameterLiftingTests.cs and this report.
+Hypothesis: one preparation provides identical key/compile structure, fresh bindings,
+safe diagnostics and no stale values across pooling, contexts, failures or cache hits.
+RED test: the destructive-interceptor assertion initially failed on EF 7–9 because
+another test had already cached the same shape: compilation/interception was bypassed.
+Isolated EF service caches in both interceptor-order scenarios and asserted callback
+counts, then reran every version. This was a test-isolation error, not a provider failure.
+Implementation: extra positive/negative tests; no further production algorithm changes.
+GREEN test: Release solution 195 passed / 0 failed / 0 skipped; 114 adapter tests on
+each EF 7.0.20, 8.0.31, 9.0.20 and 10.0.11 leg. Commands are the Phase A/F commands
+rerun after the shared test additions. Formatting verification also passed.
+Compatibility checked: Windows with the exact runtimes recorded above; Linux pending CI.
+SQL evidence: bound synthetic string absent from CommandText and default diagnostic logs;
+ToQueryString rejects rendering before exposing binds. User getter exception containing
+the synthetic value is sanitized (including inner exception); unsupported Uri capture
+fails without value serialization or SQL. DateTime, TimeSpan, bool and double tests add
+to the Guid/decimal/enum/date/time/string/int/nullable coverage. Both sync and async
+compiled runtime captures fail safely, while supported scalar delegate parameters work.
+The test-only observing provider-key decorator and following interceptor assert the
+same prepared Expression instance and inspect constants: no captured string/wrapper.
+Both interceptor orders preserve Take filters on misses and hits; destructive earlier
+rewrites fail safely while ordinary queries remain valid. Names survive an intentional
+outer EF parameter-prefix collision. Existing nested/composed/correlated/default/method
+group/API/QuerySyntax tests remain green. Pooling/factory leases reuse scoped services
+without stale parameters; sequential deferred queries and independent contexts remain
+covered. No forced GC, concurrent operations or untested synchronization primitives.
+Known risks: side-effecting/reentrant getters remain unsupported; distinct repeated
+scalar occurrences are intentionally not deduplicated. No general AOT/provider claim.
+Commit: regression checkpoint in git log.

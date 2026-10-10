@@ -106,11 +106,13 @@ public class RuntimeParameterLiftingTests
     [InlineData(true)]
     public async Task OtherQueryInterceptorsKeepTheirAddedFiltersInEitherOrder(bool first)
     {
+        var interceptor = new TakeOneInterceptor();
         await using var fixture = await SqliteFixture.CreateAsync(false, b =>
         {
-            if (first) b.AddInterceptors(new TakeOneInterceptor());
+            b.EnableServiceProviderCaching(false);
+            if (first) b.AddInterceptors(interceptor);
             b.UseRaffinertExpressions();
-            if (!first) b.AddInterceptors(new TakeOneInterceptor());
+            if (!first) b.AddInterceptors(interceptor);
         });
         var id = 0;
         var condition = Condition<OrderRow>.Create(x => x.Id > id);
@@ -121,6 +123,7 @@ public class RuntimeParameterLiftingTests
         Assert.True(result.Id > 2);
         Assert.All(fixture.Commands.Executed, command => Assert.Contains("LIMIT", command.Sql));
         Assert.Contains(2, fixture.Commands.Executed[1].Values);
+        Assert.Equal(1, interceptor.Calls);
     }
 
     [Fact]
@@ -183,6 +186,170 @@ public class RuntimeParameterLiftingTests
         Assert.Contains("strftime", fixture.Commands.Executed[0].Sql);
     }
 
+    [Fact]
+    public async Task CacheKeyAndCompilationUseTheSamePreparedExpressionWithoutCaptureConstants()
+    {
+        var observer = new ShapeObserver();
+        await using var fixture = await SqliteFixture.CreateAsync(false, b =>
+        {
+            b.EnableServiceProviderCaching(false);
+            ((IDbContextOptionsBuilderInfrastructure)b).AddOrUpdateExtension(observer);
+            b.UseRaffinertExpressions().AddInterceptors(observer);
+        });
+        var marker = "synthetic-shape@example.invalid";
+        var condition = Condition<OrderRow>.Create(x => x.Name == marker);
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
+        await query.ToArrayAsync();
+        Assert.Same(Assert.Single(observer.Keys), Assert.Single(observer.Compiled));
+        marker = "synthetic-shape-next@example.invalid";
+        await query.ToArrayAsync();
+        Assert.Equal(2, observer.Keys.Count);
+        Assert.Single(observer.Compiled);
+        Assert.All(observer.Keys, expression =>
+        {
+            Assert.DoesNotContain(marker, expression.ToString());
+            var constants = new ConstantObserver();
+            constants.Visit(expression);
+            Assert.DoesNotContain(constants.Values, value => value is string text && text.Contains("synthetic-shape", StringComparison.Ordinal));
+            Assert.DoesNotContain(constants.Values, value => value is Condition<OrderRow>);
+        });
+    }
+
+    [Theory]
+    [InlineData("bool")]
+    [InlineData("DateTime")]
+    [InlineData("TimeSpan")]
+    [InlineData("double")]
+    public async Task AdditionalScalarTypesBindAsNativeParameters(string kind)
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        bool flag = true;
+        var date = new DateTime(2020, 1, 2);
+        var duration = TimeSpan.FromHours(2);
+        double number = 2.5;
+        switch (kind)
+        {
+            case "bool":
+                var condition = Condition<OrderRow>.Create(x => x.Active == flag);
+                Assert.Equal(2, await fixture.Db.Orders.CountAsync(x => condition.Invoke(x)));
+                Assert.NotNull(Assert.Single(fixture.Commands.Executed[0].Values));
+                break;
+            case "DateTime":
+                var dateProjection = Projection<OrderRow>.Create(x => date);
+                Assert.All(await fixture.Db.Orders.Select(x => dateProjection.Invoke(x)).ToArrayAsync(), value => Assert.Equal(date, value));
+                Assert.NotNull(Assert.Single(fixture.Commands.Executed[0].Values));
+                break;
+            case "TimeSpan":
+                var timeProjection = Projection<OrderRow>.Create(x => duration);
+                Assert.All(await fixture.Db.Orders.Select(x => timeProjection.Invoke(x)).ToArrayAsync(), value => Assert.Equal(duration, value));
+                Assert.NotNull(Assert.Single(fixture.Commands.Executed[0].Values));
+                break;
+            default:
+                var numberProjection = Projection<OrderRow>.Create(x => number);
+                Assert.All(await fixture.Db.Orders.Select(x => numberProjection.Invoke(x)).ToArrayAsync(), value => Assert.Equal(number, value));
+                Assert.Equal(number, Assert.Single(fixture.Commands.Executed[0].Values));
+                break;
+        }
+    }
+
+    [Fact]
+    public async Task UnsupportedReferenceCapturesFailWithoutSensitiveDiagnostics()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var secret = new Uri("https://synthetic-secret.example.invalid/path");
+        var projection = Projection<OrderRow>.Create(x => secret);
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() =>
+            fixture.Db.Orders.Select(x => projection.Invoke(x)).ToArrayAsync());
+        Assert.DoesNotContain(secret.ToString(), error.ToString());
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    [Fact]
+    public async Task DestructiveEarlierInterceptorsFailSafelyAndLeaveOrdinaryQueriesFunctional()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync(false, b =>
+            b.EnableServiceProviderCaching(false).AddInterceptors(new RebuildWhereInterceptor()).UseRaffinertExpressions());
+        var marker = "synthetic-rewrite@example.invalid";
+        var condition = Condition<OrderRow>.Create(x => x.Name == marker);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
+        Assert.Contains("Another query interceptor", error.Message);
+        Assert.DoesNotContain(marker, error.ToString());
+        Assert.Empty(fixture.Commands.Executed);
+        Assert.Equal(2, (await fixture.Db.Orders.Where(x => x.Active).ToArrayAsync()).Length);
+    }
+
+    [Fact]
+    public async Task CompiledAsyncRuntimeCapturesFailBeforeSqlWithSanitizedError()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var marker = "synthetic-compiled-async@example.invalid";
+        var condition = Condition<OrderRow>.Create(x => x.Name == marker);
+        var compiled = EF.CompileAsyncQuery((OrdersContext db) => db.Orders.Where(x => condition.Invoke(x)));
+        var error = await Assert.ThrowsAsync<NotSupportedException>(async () =>
+        {
+            await foreach (var _ in compiled(fixture.Db)) { }
+        });
+        Assert.DoesNotContain(marker, error.ToString());
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    private sealed class RebuildWhereInterceptor : IQueryExpressionInterceptor
+    {
+        public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData) =>
+            queryExpression is MethodCallExpression { Method.Name: nameof(Queryable.Where) } where
+                ? Expression.Call(where.Method, where.Arguments)
+                : queryExpression;
+    }
+
+    private sealed class ShapeObserver : IDbContextOptionsExtension, IQueryExpressionInterceptor
+    {
+        public List<Expression> Keys { get; } = [];
+        public List<Expression> Compiled { get; } = [];
+        public DbContextOptionsExtensionInfo Info => new ExtensionInfo(this);
+        public void Validate(IDbContextOptions options) { }
+        public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData)
+        {
+            Compiled.Add(queryExpression);
+            return queryExpression;
+        }
+        public void ApplyServices(IServiceCollection services)
+        {
+            var descriptor = services.Last(x => x.ServiceType == typeof(ICompiledQueryCacheKeyGenerator));
+            services.Remove(descriptor);
+            services.Add(new ServiceDescriptor(typeof(ICompiledQueryCacheKeyGenerator), provider =>
+                new KeysObserver((ICompiledQueryCacheKeyGenerator)(descriptor.ImplementationInstance
+                    ?? descriptor.ImplementationFactory?.Invoke(provider)
+                    ?? ActivatorUtilities.CreateInstance(provider, descriptor.ImplementationType!)), Keys), descriptor.Lifetime));
+        }
+        private sealed class KeysObserver(ICompiledQueryCacheKeyGenerator original, List<Expression> keys) : ICompiledQueryCacheKeyGenerator
+        {
+            public object GenerateCacheKey(Expression query, bool async)
+            {
+                keys.Add(query);
+                return original.GenerateCacheKey(query, async);
+            }
+        }
+        private sealed class ExtensionInfo(IDbContextOptionsExtension extension) : DbContextOptionsExtensionInfo(extension)
+        {
+            public override bool IsDatabaseProvider => false;
+            public override string LogFragment => "ShapeObserver ";
+            public override int GetServiceProviderHashCode() => 0;
+            public override bool ShouldUseSameServiceProvider(DbContextOptionsExtensionInfo other) => false;
+            public override void PopulateDebugInfo(IDictionary<string, string> debugInfo) => debugInfo["Tests:ShapeObserver"] = "1";
+        }
+    }
+
+    private sealed class ConstantObserver : ExpressionVisitor
+    {
+        public List<object?> Values { get; } = [];
+        protected override Expression VisitConstant(ConstantExpression node)
+        {
+            Values.Add(node.Value);
+            return node;
+        }
+    }
+
     private sealed class ThrowingHolder(string marker)
     {
         public string Value => throw new InvalidOperationException(marker);
@@ -190,20 +357,28 @@ public class RuntimeParameterLiftingTests
 
     private sealed class TakeOneInterceptor : IQueryExpressionInterceptor
     {
-        public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData) =>
-            Expression.Call(typeof(Queryable), nameof(Queryable.Take), new[] { typeof(OrderRow) }, queryExpression, Expression.Constant(1));
+        public int Calls { get; private set; }
+        public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData)
+        {
+            Calls++;
+            return Expression.Call(typeof(Queryable), nameof(Queryable.Take), new[] { typeof(OrderRow) }, queryExpression, Expression.Constant(1));
+        }
     }
 
     // Isolated public-contract prototype. It handles ONLY this test's single Where,
     // using the wrapper's existing core expansion; it is not a second Invoke expander.
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task NativeLateParameterPrototypeBindsFreshValuesOnCacheHits(bool text)
+    [InlineData("string")]
+    [InlineData("int")]
+    [InlineData("nullable")]
+    public async Task NativeLateParameterPrototypeBindsFreshValuesOnCacheHits(string kind)
     {
+        var text = kind == "string";
         var name = "Desk";
+        var id = 2;
         int? customer = 1;
         var condition = text ? Condition<OrderRow>.Create(x => x.Name == name)
+            : kind == "int" ? Condition<OrderRow>.Create(x => x.Id == id)
             : Condition<OrderRow>.Create(x => x.CustomerId == customer);
         var prototype = new Prototype(condition);
         await using var fixture = await SqliteFixture.CreateAsync(false, b =>
@@ -213,18 +388,20 @@ public class RuntimeParameterLiftingTests
             b.AddInterceptors(prototype);
         });
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
-        Assert.Equal(text ? new[] { 2 } : new[] { 1, 2 }, (await query.ToArrayAsync()).Select(x => x.Id));
+        Assert.Equal(text || kind == "int" ? new[] { 2 } : new[] { 1, 2 }, (await query.ToArrayAsync()).Select(x => x.Id));
         name = "Hidden";
+        id = 4;
         customer = 2;
         Assert.Equal(new[] { 4 }, (await query.ToArrayAsync()).Select(x => x.Id));
         name = "Desk";
+        id = 2;
         customer = null;
-        Assert.Equal(text ? new[] { 2 } : new[] { 3 }, (await query.ToArrayAsync()).Select(x => x.Id));
+        Assert.Equal(text || kind == "int" ? new[] { 2 } : new[] { 3 }, (await query.ToArrayAsync()).Select(x => x.Id));
         Assert.Equal(1, fixture.QueryCompilations);
         Assert.Equal(3, prototype.Preparations);
         Assert.Equal(1, prototype.Compilations);
-        Assert.Contains(text ? "Desk" : 1, fixture.Commands.Executed[0].Values);
-        Assert.Contains(text ? "Hidden" : 2, fixture.Commands.Executed[1].Values);
+        Assert.Contains(text ? "Desk" : kind == "int" ? 2 : 1, fixture.Commands.Executed[0].Values);
+        Assert.Contains(text ? "Hidden" : kind == "int" ? 4 : 2, fixture.Commands.Executed[1].Values);
         Assert.DoesNotContain("Desk", fixture.Commands.Executed[0].Sql);
     }
 
