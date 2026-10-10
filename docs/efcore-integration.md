@@ -137,6 +137,30 @@ Compilation consumes it; a new execution invalidates prior state, including pool
 and recovery after errors/cancellation. There is no global capture cache or persistent
 strong reference to user contexts. The core visitor remains the only Invoke expander.
 
+### Readable parameter names
+
+Lifted logical names use source member metadata with the reserved `__raffinert_`
+prefix and a per-base numeric suffix. For example, `threshold` becomes
+`__raffinert_threshold_0`, `customerEmail` becomes `__raffinert_customerEmail_0`,
+and `settings.MinPrice` becomes `__raffinert_settings_MinPrice_0`. A repeated
+`threshold` occurrence gets `_1`; an existing `_0` name also advances allocation
+to `_1`. Names compare case-insensitively to avoid collisions conservatively.
+
+Only ASCII letters, digits and underscores remain; unsupported character runs
+become an underscore, and an unavailable name falls back to `__raffinert_p_0`.
+Long paths are truncated with suffix space reserved, keeping logical names at
+most 96 characters. Allocation follows expression traversal within each execution.
+Naming never evaluates getters, serializes objects or reads captured values.
+
+This is EF-style naming using expression metadata, without EF's private naming
+implementation or a promise of identical EF/provider formatting. Providers may
+add SQL sigils or transform names. Values continue to use `DbParameter.Value`.
+Changing values preserves names and cache reuse for the same capture metadata;
+different source capture names may produce different compiled-query keys.
+`ToQueryString()` blocks all lifted names under the shared prefix before rendering.
+
+See [naming validation](pr7-parameter-naming-validation.md).
+
 ### SQL diagnostics and migration from constant snapshots
 
 This replaces the earlier constant-snapshot implementation; there is no implicit legacy

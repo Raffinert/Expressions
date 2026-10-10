@@ -1,5 +1,9 @@
 # PR #7 runtime parameter lifting validation
 
+The phase records below describe the historical runtime-lifting implementation through
+`cf75e37`. Current parameter-naming validation (209 solution tests, 128 adapter tests
+per EF major) is recorded in [the naming report](pr7-parameter-naming-validation.md).
+
 ## Phase A — baseline
 
 HEAD before work: `e12cf480fb008158e280f339aecc276ce5887089`.

@@ -313,7 +313,11 @@ var rows = await db.Orders
 Create `db` using those options. Registration is local to the configured contexts and uses public EF APIs.
 The adapter preserves extracted wrapper values and generates the provider's cache key from the expanded
 query, so changing a captured wrapper or a scalar inside it cannot reuse an obsolete predicate.
-Newly inlined scalar captures are bound as native EF execution parameters. Cache-key generation and
+Newly inlined scalar captures are bound as native EF execution parameters. Names use captured
+member paths, for example `__raffinert_threshold_0` and `__raffinert_settings_MinPrice_0`,
+with deterministic collision suffixes; runtime values never enter names. Different source capture
+names may produce different cache keys. See [naming rules](docs/efcore-integration.md#readable-parameter-names).
+Cache-key generation and
 compilation share one prepared tree; 25 changing thresholds reuse one compilation and SQL shape.
 Hidden captured collections require direct operators.
 Native wrappers accessed through `IComposableExpression<,>` interfaces also expand.

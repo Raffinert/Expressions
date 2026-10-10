@@ -8,6 +8,7 @@
 - Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
 - Fixed embedded native wrapper invocation through `IComposableExpression<,>` interfaces/casts; unrelated methods named Invoke remain untouched.
 - Lifted embedded scalar captures into native EF execution parameters, including DateOnly/TimeOnly and nullable values; cache keys and compilation share one prepared expression and changing thresholds reuse one cache shape.
+- Added deterministic EF-style lifted parameter names derived from captured member paths, with bounded ASCII identifiers and case-insensitive collision avoidance. Runtime values remain bound separately.
 - Prevented captured SQL literals, sanitized getter diagnostics and rejected ToQueryString rendering of lifted values. Verified pooled contexts/factories, deferred execution and interceptor composition. Explicit compiled wrappers with runtime captures fail safely; use scalar delegate parameters.
 - Added capture/service-composition regressions and isolated NuGet consumers on each tested EF major.
 - Added SQLite execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage, plus EF 7/8/9/10 compatibility projects and CI matrix.
