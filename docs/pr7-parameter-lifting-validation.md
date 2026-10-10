@@ -221,10 +221,14 @@ captures in explicitly compiled/standalone wrappers fail before SQL; compiled sc
 delegate parameters remain supported. AOT and arbitrary provider/extensions unverified.
 Values are still accessible to sensitive logging/bind profiling/custom telemetry.
 Side effects/reentrant getters and same-context concurrency remain unsupported.
-Remote verification: final-head Windows/Linux checks and NuGet consumers are available
-on [PR #7 checks](https://github.com/Raffinert/Expressions/pull/7/checks); their final
-completed run and exact source SHA will be reported after the release commit is pushed.
+Remote verification: release/source checkpoint `8cfaf21e3e40565be583bf5a699ee05847f373a4`
+passed [CI run 38060364691](https://github.com/Raffinert/Expressions/actions/runs/38060364691):
+completed/successful, all 10 jobs, including EF 7/8/9/10 tests and isolated package
+consumers on Windows and Linux. This evidence-only documentation commit does not change
+source or tests. Its follow-up final-head checks are visible on
+[PR #7 checks](https://github.com/Raffinert/Expressions/pull/7/checks).
 No merge or package publication is part of this work. Commit: release checkpoint in git log.
 
-Local decision: GO for the tested SQLite/EF runtime contract with the documented
-restrictions. Final-head remote CI must be green before treating cross-OS checks as verified.
+Decision: GO for the tested SQLite/EF runtime contract with the documented restrictions.
+The source/release checkpoint is verified across both operating systems, with no failed
+or skipped tests. Final evidence-only commit checks are tracked separately above.
