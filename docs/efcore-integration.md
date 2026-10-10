@@ -95,6 +95,7 @@ public sealed class OrderRow
     public int Id { get; set; }
     public int TotalCents { get; set; }
     public bool Active { get; set; }
+    public string Name { get; set; } = "";
 }
 ```
 
@@ -341,5 +342,151 @@ The supplied catalog is replaced with `master` for prerequisite checks and then
 with the generated fixture database. Default `Encrypt=False` is for ephemeral local
 tests, not production guidance.
 
+Master connectivity has a 30-second timeout. The fixture verifies that its generated
+`Raffinert_PR7_` database does not already exist before creating it. Disposal checks
+the generated name/catalog and deletes through a separate cleanup context, including
+partial initialization failures without masking their original error. Local validation
+found zero leftover fixture databases. Recorders normalize `DBNull` to null, assert
+real SqlClient parameters and keep values separate from SQL; values are never printed.
+
 EF7–9 are unsupported.
 This coverage does not certify Azure SQL, Linux SQL Server or all server collations/versions.
+
+## Validation evidence and implementation history
+
+This section condenses the former integration-validation, remediation, runtime-lifting,
+parameter-naming, LocalDB and EF10-only reports. Their detailed phase logs remain in
+[Git history](https://github.com/Raffinert/Expressions/tree/14eb9f14f73b99e4dde1fa6d10e760d1ecdd6dd5/docs).
+Historical snapshot behavior and EF7–9 results describe earlier implementations;
+they are not the current support contract.
+
+### Why preparation precedes cache lookup
+
+An interceptor-only prototype failed to resolve captured wrappers because EF had
+already extracted them into query parameters. An evaluation-filter experiment still
+parameterized the enclosing closure. Decorating the public context factory restores
+those execution values; decorating the provider's cache-key generator prepares the
+expanded tree before lookup. `QueryExecutionState` hands that exact tree to compilation
+on misses and supplies fresh values on hits. Scoped/ephemeron ownership, invalidation
+on each new execution and consumption after compilation prevent stale state across
+failures, contexts and pooled leases. The singleton interceptor stores no execution data.
+
+The first snapshot implementation produced 25 compilations and 25 SQL shapes for
+25 captured thresholds. Runtime-lifting acceptance tests reproduced captured string
+literals and missing DbParameters; a native-node prototype proved safe late binding
+before the production fix. Current tests assert one compilation and one executed shape
+for embedded, ordinary EF, outer-capture and direct async query forms over 25 values
+plus a repeat. This measures EF compilation/commands, not database plan-cache behavior.
+
+The EF10 migration removed `Major`, `ValuesProperty`, `ParameterType`,
+`ParameterConstructor`, `AddParameterMethod`, `NameProperty` and their reflected
+version probes. Native construction/name access and `QueryContext.Parameters.Add`
+replace them; generic `ParameterExpression.Name` recognition remains. Expression
+`MemberInfo` inspection is still required for capture discovery and naming.
+See the public [parameter node](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/QueryParameterExpression.cs),
+[extraction pipeline](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/Internal/ExpressionTreeFuncletizer.cs)
+and [directive normalizer](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/Internal/QueryableMethodNormalizingExpressionVisitor.cs).
+These sources explain behavior; no private EF API is called/copied.
+
+### Test-first findings
+
+The initial directive suite passed native controls on both providers; embedded
+queries passed 9 of 13 cases and failed four. The final suite has 19 cases per
+provider, all passing to the scope below, without skips or client filtering.
+
+| Scenario | Initial finding | Final SQLite / LocalDB evidence |
+| --- | --- | --- |
+| Automatic and captured Constant/Parameter, A → B → A | Already passed | Native results match; current bindings or requested constants |
+| Literal Constant / Parameter | Invalid cast during late normalization | Native results match after narrow native-node lifting |
+| Mixed modes, nested wrappers, outer-wrapper replacement | Passed after correcting a cached-inner-wrapper test assumption | Independent modes/current results; stable core structure retained |
+| Nullable modes, value → null → value | Already passed | Native results match; null may alter executed SQL |
+| Direct wrapper operators | Already passed | Before-extraction semantics retained |
+| Private string parameter / constant-only ToQueryString | Already passed | Bound value absent from SQL; constant-only rendering allowed |
+| Row-dependent operands (both modes) | Embedded invalid cast; native rejected | Sanitized rejection before SQL |
+| Nested directive operands (four combinations) | Native rejected | Native and adapter reject; nested wrappers remain supported |
+| Computed operand getter | Read before rejection | Unsupported operand rejected without reading getter |
+| Supported getters / failure diagnostics | Added regression | One read per occurrence/execution; failure detail sanitized |
+
+Captured automatic, Constant and Parameter A → B → A tests each observed two combined
+native/embedded compilations, one per query form, on both providers. Forced constants
+match native SQL with no DbParameters. Ordinary 25-value tests enforce one compilation.
+Executed parameter shape on SQL Server (SQLite uses quoted identifiers):
+
+```sql
+SELECT COUNT(*)
+FROM [Orders] AS [o]
+WHERE [o].[TotalCents] > @__raffinert_threshold_0
+```
+
+Recorders separately assert current synthetic bindings and normalized logical names.
+Nested `settings.MinPrice` tests observe three reads across A → B → A; repeated
+captures get distinct parameters. Nine generator cases cover metadata-only naming,
+ASCII/truncation/collisions, and four integration regressions cover actual bindings,
+privacy, nullable values and getter counts. Default diagnostics, sanitized exceptions
+and guarded ToQueryString contain no private captured values.
+
+Earlier remediation also reproduced interface/cast marker failures, missing
+DateOnly/TimeOnly normalization and hidden-collection diagnostics. Fixes retained the
+single core visitor, cycle detection and unrelated-method safety. Regression coverage
+includes all ten async terminals/overload resolution, null/default relationships,
+server composition, wrapper/context isolation, forwarding decorators in either order,
+interceptors, deferred execution, pooled contexts/factories and cancellation/failure
+recovery. Unsupported compiled captures fail before reading getters; stable closed
+compiled wrappers and scalar delegate controls execute successfully.
+
+See the [canonical tests](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests),
+[directive comparisons](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/ExplicitEfParameterizationTests.cs)
+and [LocalDB tests/fixture](../tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests).
+
+### Package and CI verification
+
+Local validation used SDK 10.0.401/runtime 10.0.12 on Windows, with LocalDB
+SQL Server 2025 CU3 engine 17.0.4025.3; CI confirmed the same engine/runtime.
+Full solution: **228 passed** (62 core, 5 QuerySyntax, 14 existing integration,
+147 adapter). Separate LocalDB: **42 passed** (23 existing + 19 directive cases,
+including 8 fixture safety cases). No failures/skips. Release build completed
+without warnings/errors; solution/separate-project formatting and diff checks passed.
+
+All three 1.2.0 nupkg/snupkg builds passed. ZIP/nuspec inspection confirmed:
+
+| Package | Library TFM | Dependency lower bounds |
+| --- | --- | --- |
+| Core | netstandard2.0 | None |
+| QuerySyntax | netstandard2.1 | Core 1.2.0 |
+| EF adapter | net10.0 | Core 1.2.0; EF Core and Relational 10.0.11 |
+
+README, XML docs, release/repository metadata and symbols are included. The isolated
+EF10 consumer has no ProjectReferences, maps Raffinert packages exclusively to the
+new local feed and restores into a fresh cache. Both Windows/Linux CI consumers
+passed privacy, readable names, 25-value cache reuse, A → B → A and directive checks.
+Linux verification also uploaded all three packages and symbol packages; Windows
+LocalDB uploaded TRX and passed its separate formatting check.
+
+```powershell
+foreach ($name in @('Raffinert.Expressions', 'Raffinert.Expressions.QuerySyntax', 'Raffinert.Expressions.EntityFrameworkCore')) {
+    dotnet pack "src/$name/$name.csproj" -c Release --output artifacts/pr7-packages
+    if ($LASTEXITCODE -ne 0) { throw 'Package build failed.' }
+}
+$cache = Join-Path $env:TEMP ('raffinert-ef10-' + [guid]::NewGuid().ToString('N'))
+dotnet restore tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj "-p:RestorePackagesPath=$cache"
+if ($LASTEXITCODE -ne 0) { throw 'Consumer restore failed.' }
+dotnet run --project tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj -c Release --no-restore "-p:RestorePackagesPath=$cache"
+```
+
+### Historical checkpoints
+
+| Stage | Recorded evidence at that stage |
+| --- | --- |
+| Initial core/QuerySyntax baseline, `8c8c9ad` | 64 solution tests; no adapter yet |
+| Review remediation, `70d612b` | 164 solution / 83 adapter per EF major; interface, scalar and service fixes; [CI](https://github.com/Raffinert/Expressions/actions/runs/38045212951) |
+| Runtime lifting, `8cfaf21` | 196 solution / 115 adapter per EF major; secure bindings/shared preparation; [CI](https://github.com/Raffinert/Expressions/actions/runs/38060364691) |
+| Readable naming, `40cd334` | 209 solution / 128 adapter per EF major; [CI](https://github.com/Raffinert/Expressions/actions/runs/38061591008) |
+| LocalDB baseline, `3711497` | 209 solution + 23 LocalDB; [CI](https://github.com/Raffinert/Expressions/actions/runs/38063914180) |
+| EF10-only source, `0916e8a` | 228 solution + 42 LocalDB; all five current jobs passed; [CI](https://github.com/Raffinert/Expressions/actions/runs/38065677880) |
+
+Earlier EF7/8/9/10 matrix results used one EF7-built assembly and are historical only.
+The current adapter supports EF10 and retains automatic runtime lifting. Migration
+checkpoints, changed/deleted files and commit subjects are available in the
+[migration comparison](https://github.com/Raffinert/Expressions/compare/3711497019fe6a24522060b23ba14f815c590a68...feature/efcore-integration).
+Current final HEAD/check conclusions are recorded on the PR. Version remains 1.2.0;
+this implementation did not merge the PR, publish packages or modify user planning files.
