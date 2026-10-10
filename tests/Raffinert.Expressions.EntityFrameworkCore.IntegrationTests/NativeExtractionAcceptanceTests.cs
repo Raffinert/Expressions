@@ -1,13 +1,16 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Xunit.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 #if SQLSERVER_TESTS
 using Fixture = Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.LocalDbFixture;
 using Row = Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.SqlOrderRow;
+using Context = Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.LocalDbOrdersContext;
 namespace Raffinert.Expressions.EntityFrameworkCore.SqlServerTests;
 #else
 using Fixture = Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.SqliteFixture;
 using Row = Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.OrderRow;
+using Context = Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.OrdersContext;
 namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 #endif
 
@@ -337,4 +340,51 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             Assert.Contains(command.Values.OfType<string>(), value => value.StartsWith(secret, StringComparison.Ordinal));
         }
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PooledContextAndFactoryLeasesKeepNativeBindingsAfterFailures(bool factory)
+    {
+        await using var f = await CreateAsync();
+        var services = new ServiceCollection();
+        void Configure(DbContextOptionsBuilder builder)
+        {
+#if SQLSERVER_TESTS
+            builder.UseSqlServer(f.Db.Database.GetConnectionString());
+#else
+            builder.UseSqlite(f.Db.Database.GetDbConnection());
+#endif
+            builder.UseRaffinertExpressions().AddInterceptors(f.Commands);
+        }
+        if (factory) services.AddPooledDbContextFactory<Context>(Configure, poolSize: 1);
+        else services.AddDbContextPool<Context>(Configure, poolSize: 1);
+        await using var provider = services.BuildServiceProvider();
+        Context? first = null;
+        for (var lease = 0; lease < 6; lease++)
+        {
+            using var scope = provider.CreateScope();
+            await using var db = factory
+                ? scope.ServiceProvider.GetRequiredService<IDbContextFactory<Context>>().CreateDbContext()
+                : scope.ServiceProvider.GetRequiredService<Context>();
+            if (first == null) first = db;
+            else Assert.Same(first, db);
+            var threshold = lease % 2 == 0 ? 1000 : 10000;
+            var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
+            var query = db.Orders.Where(x => condition.Invoke(x));
+            Assert.Equal(lease % 2 == 0 ? 3 : 1, await query.CountAsync());
+            Assert.Equal(threshold + 100, Assert.Single(f.Commands.Executed.Last().Values));
+            var invalid = Condition<Row>.Create(x => UnmappedRowMethod(x.Id));
+            var before = f.Commands.Executed.Count;
+            await Assert.ThrowsAsync<InvalidOperationException>(() => db.Orders.Where(x => invalid.Invoke(x)).ToArrayAsync());
+            Assert.Equal(before, f.Commands.Executed.Count);
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query.ToArrayAsync(cancelled.Token));
+            Assert.Equal(lease % 2 == 0 ? 3 : 1, await query.CountAsync());
+            Assert.Equal(threshold + 100, Assert.Single(f.Commands.Executed.Last().Values));
+        }
+    }
+
+    private static bool UnmappedRowMethod(int id) => id > 0;
 }

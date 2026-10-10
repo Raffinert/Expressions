@@ -22,7 +22,7 @@ files were preserved and excluded from commits. No merge, NuGet publication, tag
 Windows 10.0.26200, win-x64; SDK 10.0.401, runtime 10.0.12. global.json requests
 10.0.400 with latestPatch; the installed SDK satisfies that policy. Actual restored EF Core,
 Relational, SQLite and SQL Server packages are **10.0.11**. LocalDB is the private current-user
-MSSQLLocalDB instance. No remote/shared database was used.
+MSSQLLocalDB instance. Recorded CI engine: SQL Server 2025 RTM-CU3, 17.0.4025.3. No remote/shared database was used.
 
 Commands observed before experimentation:
 
@@ -109,7 +109,7 @@ can include values, not to pretend the old guarantee was preserved. Native gette
 expansion are forwarded unchanged; only wrapper-target resolution failures retain the core boundary's
 sanitized error. This consciously changes the previous diagnostic policy.
 
-The final shared native-acceptance suite has **34 cases on each provider**, all passing:
+The final shared native-acceptance suite has **36 cases on each provider**, all passing:
 
 - Computed Parameter/Constant A -> B -> A, decimal conversion, nullable computation, client method,
   literal directives and automatic capture; actual command text and DbParameter values match controls.
@@ -145,13 +145,13 @@ while actual collision/binding/getter/cache integration assertions remain.
 | S1 Source/order | PASS | Exact-tag call map; original scoped provider descriptor retained; no direct extractor calls |
 | F1 No-op | PASS after explicit EF9100 approval | 60d25bd; complete interface; 230 / 44 |
 | R1 Native + RED | PASS | 3b4d1e4; 24 cases per provider, 3 pass / 21 fail; native/direct controls run first |
-| E1 Early expansion | PASS | Final 34-case shared suite on both providers; core expansion only, no manual lifting |
+| E1 Early expansion | PASS | Final 36-case shared suite on both providers; core expansion only, no manual lifting |
 | C1 Cache/current values | PASS | 26-value one-compilation/one-shape cases; A -> B -> A, reassignment, pooling and recovery |
 | P1 Diagnostics | PASS under explicitly changed contract | Initial privacy failure recorded; native rendering behavior now approved and tested; prefix guard removed |
 | Q1 Compiled/precompiled | PASS for documented scope | Stable sync/async closed wrappers and scalar delegate args; runtime captures fail before getters; no-marker precompile forwarding and wrapper/delegate early rejection; no AOT claim |
 | D1 DI/public/providers | PASS | Ten compiler contract cases; type/factory scopes and single disposal; both compiler decorator orders; existing public-surface regressions |
 | M1 Comparison | PASS | 376 -> 168 architecture source lines; native ownership; no ordinary lifting or parallel cache pipeline |
-| V1 Final validation | LOCAL PASS; exact-head remote CI pending | 265 solution / 78 LocalDB; build/format/package/fresh Windows consumer verified; remote conclusions to be recorded after completion |
+| V1 Final validation | PASS on recorded migration CI HEAD; final report HEAD tracked in PR | First exact-head run 38074046570: all five jobs passed at d643ddc (265 / 78). Added pooled tests pass locally; final local 267 / 80; final exact-head verdict is recorded in the PR after this report commit |
 
 ## Architecture comparison and changed files
 
@@ -164,7 +164,7 @@ while actual collision/binding/getter/cache integration assertions remain.
 | Tested native cases | Scalar capture/literal directives; computed/collections/functions restricted | Computed/client method, collection modes and provider intrinsics match controls |
 | Diagnostics | Prefix guard blocks lifted values; native extraction errors were sanitized by late boundary | Explicitly approved native rendering/errors after expansion; no replacement privacy infrastructure |
 | Compiled scope | Closed wrappers/scalar delegate params; captures rejected | Same baseline scope via retained public compatibility interceptor; native compiler creation forwarded |
-| Provider/package evidence | 230 / 44 historical baseline | 265 / 78 current tests; fresh packed consumer and exact-head remote checks tracked separately |
+| Provider/package evidence | 230 / 44 historical baseline | 267 / 80 current tests; fresh packed consumer and exact-head remote checks tracked separately |
 | EF10 patch risk | Public contracts but custom extraction semantics | Much less custom code; new internal-interface maintenance risk requires patch revalidation |
 
 Production changes:
@@ -196,11 +196,11 @@ No production SQL Server or QuerySyntax adapter dependency. Symbols, README and 
 are included. The isolated consumer has no ProjectReferences and maps Raffinert packages to the neutral
 local feed. A GUID-named fresh cache's .nupkg.metadata identifies that feed; its adapter DLL hash matches
 the freshly built adapter. Windows consumer passed with EF 10.0.11.0/runtime 10.0.12.
-Linux consumer verification is pending the exact-head CI run; no earlier head's result is substituted.
+Linux and Windows consumers passed the recorded exact-head migration run below. Its head/counts are explicit; it is not substituted for the final report HEAD.
 
 Final commands: solution restore/build/test/format; separate LocalDB restore/test/format; all three
 Release packs; fresh-cache isolated restore/run; ZIP/nuspec/cache-metadata/hash inspection; git diff --check.
-Solution totals: 62 + 5 + 14 + 184 = **265**. LocalDB: 23 + 21 + 34 = **78**. No failures/skips.
+Solution totals: 62 + 5 + 14 + 186 = **267**. LocalDB: 23 + 21 + 36 = **80**. No failures/skips.
 
 ## Limitations and paths not executed
 
@@ -209,4 +209,27 @@ is tested using a recording compiler, separately from real sync/async compiled q
 Custom mapped HasDbFunction is not tested because there is no real mapping fixture. Other providers,
 SQL Server installations/collations and EF majors/patches are not certified. Native collection cardinality,
 null behavior and client evaluation are provider/EF responsibilities, not universal Raffinert guarantees.
-Exact-head remote Windows/Linux consumer and solution conclusions remain pending in this first report snapshot.
+The final report HEAD receives a subsequent exact-head run; its final SHA and all five job conclusions are recorded in the PR validation section.
+
+## Recorded migration CI and final-head audit
+
+[Run 38074046570](https://github.com/Raffinert/Expressions/actions/runs/38074046570)
+completed successfully for exact HEAD `d643ddc9c976e2821f725d6ac1052e5c1402672c`.
+Job logs were inspected, not just the overall badge:
+
+| Job | Conclusion | Observed evidence |
+| --- | --- | --- |
+| Verify (ubuntu-latest), 114277183822 | SUCCESS | 62 core + 5 QuerySyntax + 14 original integration + 184 adapter = 265; package/symbol artifacts packed |
+| Verify (windows-latest), 114277183878 | SUCCESS | Same 265 tests |
+| EF10 isolated package smoke (ubuntu-latest), 114277183762 | SUCCESS | EF 10.0.11.0 / runtime 10.0.12; expanded scalar/collection/function consumer |
+| EF10 isolated package smoke (windows-latest), 114277183818 | SUCCESS | EF 10.0.11.0 / runtime 10.0.12; fresh local package restore |
+| SQL Server LocalDB, 114277183915 | SUCCESS | 78 tests; SQL Server 2025 RTM-CU3 17.0.4025.3; formatting and TRX upload succeeded |
+
+Two additional shared pooled-context/factory cases then verified six leases on each provider,
+including translation failure, cancellation and current computed bindings after recovery. These
+raise final local counts to **267 solution / 80 LocalDB** without changing production code.
+The final report/test commit is checked by a new exact-head run before completion. To avoid a
+self-referential report SHA/CI commit loop, the final SHA and run/job conclusions are maintained
+in [draft PR #10's validation section](https://github.com/Raffinert/Expressions/pull/10) after the
+last report commit. No claim of that final run's success is made in this checked-in snapshot
+before it completes; the PR provides its observed final verdict.

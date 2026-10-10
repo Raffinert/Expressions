@@ -154,9 +154,9 @@ Interface forwarding is tested separately from ordinary/compiled query execution
 ## Tested versions
 
 Local validation: Windows, SDK 10.0.401 (global.json 10.0.400 with latestPatch), runtime
-10.0.12, EF Core/Relational/SQLite/SQL Server 10.0.11. Solution: **265 passed**
-(62 core, 5 QuerySyntax, 14 original integration, 184 adapter). LocalDB: **78 passed**
-(23 existing including 8 fixture-safety cases, 21 directive cases, 34 native-acceptance cases).
+10.0.12, EF Core/Relational/SQLite/SQL Server 10.0.11. Solution: **267 passed**
+(62 core, 5 QuerySyntax, 14 original integration, 186 adapter). LocalDB: **80 passed**
+(23 existing including 8 fixture-safety cases, 21 directive cases, 36 native-acceptance cases).
 No failures or skips. Release builds, restore, formatting and diff checks pass.
 Three 1.2.0 nupkg/snupkg artifacts retain their original TFMs and dependency boundaries.
 The isolated consumer restores newly packed local packages into a fresh cache, with
