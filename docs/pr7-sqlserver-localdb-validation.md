@@ -1,5 +1,11 @@
 # PR #7 SQL Server LocalDB validation
 
+> Historical checkpoint report. Current support is .NET 10 / EF Core 10.x only;
+> EF7/8/9 are no longer supported. Counts and CI below belong to earlier commits.
+> See [current EF10 validation](pr7-ef10-only-validation.md) for 228 solution tests,
+> 42 LocalDB tests and the final migration evidence.
+
+
 ## Baseline and prerequisites
 
 Starting PR HEAD: `07e3de1c3bf65d85f455585887b11aa8c672ae79`, matching the plan.

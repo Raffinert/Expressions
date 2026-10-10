@@ -1,5 +1,11 @@
 # PR #7 runtime parameter lifting validation
 
+> Historical checkpoint report. Current support is .NET 10 / EF Core 10.x only;
+> EF7/8/9 are no longer supported. Counts and CI below belong to earlier commits.
+> See [current EF10 validation](pr7-ef10-only-validation.md) for 228 solution tests,
+> 42 LocalDB tests and the final migration evidence.
+
+
 The phase records below describe the historical runtime-lifting implementation through
 `cf75e37`. Current parameter-naming validation (209 solution tests, 128 adapter tests
 per EF major) is recorded in [the naming report](pr7-parameter-naming-validation.md).

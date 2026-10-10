@@ -30,7 +30,8 @@ For EF Core async condition overloads and optional expansion in ordinary LINQ la
 dotnet add package Raffinert.Expressions.EntityFrameworkCore
 ```
 
-This adapter targets `net6.0`, depends on core and EF Core 7.0.20 or later, and does not depend on QuerySyntax.
+This adapter requires **.NET 10 and EF Core 10.x** (minimum 10.0.11), depends on core,
+and does not depend on QuerySyntax. EF Core 7, 8 and 9 are unsupported.
 All three packages expose their public API in the `Raffinert.Expressions` namespace.
 
 ## 30-second example
@@ -322,12 +323,15 @@ compilation share one prepared tree; 25 changing thresholds reuse one compilatio
 Hidden captured collections require direct operators.
 Native wrappers accessed through `IComposableExpression<,>` interfaces also expand.
 
-SQL Server provider **10.0.11** is also tested against real Windows LocalDB on net10.0
-in a separate Windows-only project and CI job. See [LocalDB validation](docs/pr7-sqlserver-localdb-validation.md)
-for the explicit command and coverage limits; Azure SQL and SQL Server EF 7–9 remain unverified.
-
-SQLite execution tests verify the same EF 7-compiled adapter on EF **7.0.20**, **8.0.31**, **9.0.20** and
-**10.0.11**. EF 7 / .NET 6 are retired compatibility baselines. Compiled EF queries support stable closed
+SQLite and SQL Server providers **10.0.11** are tested on .NET 10, with SQL Server
+executing against real Windows LocalDB in a separate project and CI job.
+See [EF10 validation](docs/pr7-ef10-only-validation.md) for evidence and coverage limits.
+Azure SQL and other SQL Server versions/collations are not certified.
+The adapter uses native EF10 parameter nodes and QueryContext.Parameters directly.
+Embedded `EF.Constant` / `EF.Parameter` support scalar captures and literals;
+see [directive scope](docs/efcore-integration.md#explicit-ef-directives) for restrictions.
+Explicit `EF.Constant` intentionally puts its value in SQL and is outside the capture privacy guarantee.
+Compiled EF queries support stable closed
 wrappers without runtime captures and scalar delegate parameters. Wrapper delegate parameters,
 runtime captures inside compiled wrappers and changing closed wrappers are unsupported.
 Captured scalar values stay out of executed SQL text, but remain in DbParameter.Value and can be exposed

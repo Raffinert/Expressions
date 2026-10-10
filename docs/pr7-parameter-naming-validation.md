@@ -1,5 +1,11 @@
 # PR #7 EF-style parameter naming validation
 
+> Historical checkpoint report. Current support is .NET 10 / EF Core 10.x only;
+> EF7/8/9 are no longer supported. Counts and CI below belong to earlier commits.
+> See [current EF10 validation](pr7-ef10-only-validation.md) for 228 solution tests,
+> 42 LocalDB tests and the final migration evidence.
+
+
 Initial HEAD: `cf75e37bf9a239e987198ba9398ca0a8a0a1fc85` on
 `feature/efcore-integration`. Existing untracked plans and `pr_summary.md` are preserved.
 The plan's scope is parameter naming only; no private EF APIs or public API changes.

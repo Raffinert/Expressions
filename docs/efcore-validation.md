@@ -1,24 +1,22 @@
 # EF Core integration validation
 
-The current behavior and release checks are recorded in
-[runtime parameter validation](pr7-parameter-lifting-validation.md). Constant-snapshot
-results below are historical evidence for the implementation that this change replaces.
-
-Current SQL Server coverage is separate from the cross-platform solution:
-Microsoft.EntityFrameworkCore.SqlServer 10.0.11, net10.0, Windows LocalDB.
-The new project passed 23 tests (15 real database cases plus 8 fixture safety cases),
-zero failed/skipped, on engine 17.0.4025.3 / runtime 10.0.12. Existing full solution:
-209 passed, zero failed/skipped. Both solution and separate-project formatting pass.
+Current support is **.NET 10 / EF Core 10.x only**, minimum 10.0.11.
+See [EF10-only validation](pr7-ef10-only-validation.md) for the current RED/GREEN
+matrix, runtime API simplification, package checks and exact-head CI evidence.
+The full solution passes 228 tests (147 adapter SQLite), and the separate real
+Windows LocalDB suite passes 42, all with zero failures/skips. Local engine:
+17.0.4025.3, provider 10.0.11, runtime 10.0.12. Build/format checks pass.
+LocalDB is intentionally outside the cross-platform solution; its strict CI job
+executes real SQL and fails if prerequisites are missing.
 
 ```powershell
 dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.csproj -c Release
 dotnet format tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.csproj --verify-no-changes
 ```
 
-The dedicated Windows CI job verifies LocalDB prerequisites and executes real SQL;
-the project is excluded from `.slnx` so Ubuntu solution runs remain unchanged.
-See [LocalDB validation](pr7-sqlserver-localdb-validation.md) for engine/SQL evidence,
-safe fixture ownership, CI results and the precise provider coverage limits.
+**Historical evidence below:** the earlier constant-snapshot implementation and
+EF7/8/9 compatibility results are retained as history. EF7–9 are no longer supported;
+those recorded counts/CI runs do not describe the current adapter.
 
 ## Baseline
 

@@ -145,3 +145,73 @@ The complete separate LocalDB 42-case pass is recorded immediately above.
 Existing regression classes cover runtime bindings/cache identity, getter counts,
 naming collisions/limits, pooling/services/interceptors, async terminals,
 compiled controls, cancellation/recovery and privacy; no redundant tests added.
+
+## Phase 9 — packages and current documentation
+
+Phase 8 checkpoint: `226c1febaeec55f05bfac7e6408f177625980595`.
+Current README/changelog/integration guide/index, package description and registration
+XML docs now require .NET10/EF10.x, minimum 10.0.11. EF7/8/9 are unsupported;
+historical reports retain their accurate old counts with prominent history notices.
+Azure SQL/other server versions and collations are not certified. Standalone,
+compiled-query, unsupported-capture, service/interceptor/pooling and logging limits
+remain documented. Runtime lifting, transparent registration and privacy guard remain.
+
+All three Release nupkg/snupkg packs passed. Inspected actual ZIP/nuspec contents:
+
+| Package 1.2.0 | Library TFM | Actual nuspec dependency IDs / lower bounds |
+| --- | --- | --- |
+| Core | netstandard2.0 | None |
+| QuerySyntax | netstandard2.1 | Raffinert.Expressions 1.2.0 |
+| EF adapter | net10.0 | Raffinert.Expressions 1.2.0; Microsoft.EntityFrameworkCore and Relational 10.0.11 |
+
+All contain README, XML docs/release metadata and have matching snupkg. Adapter
+contains no SQL Server or QuerySyntax dependency. Future EF11 is not claimed.
+A second GUID-named fresh temporary cache restored and ran the newly packed
+nupkg-only consumer successfully: EF10.0.11/runtime10.0.12 on Windows.
+Solution format verification and git diff --check passed after documentation/XML edits.
+No unrelated packages upgraded or planning documents changed.
+
+### Final directive matrix (both SQLite and real LocalDB)
+
+| Case | Before fix | Final native control / embedded |
+| --- | --- | --- |
+| Automatic capture, 25 values + repeat, A → B → A | GREEN | GREEN / GREEN; one compilation/shape per automatic query |
+| Captured EF.Constant and EF.Parameter | GREEN | GREEN / GREEN; A → B → A current values |
+| Literal EF.Constant and EF.Parameter | RED: invalid cast | GREEN / GREEN |
+| Mixed modes, nested wrappers, captured outer-wrapper replacement | GREEN after harness correction | GREEN / GREEN |
+| Nullable modes, value → null → value | GREEN | GREEN / GREEN |
+| Direct wrapper overloads | GREEN | GREEN / GREEN |
+| String parameter privacy, constant-only ToQueryString | GREEN | GREEN / GREEN |
+| Row-dependent operands (2 modes) | Embedded invalid cast | Native rejection / sanitized embedded rejection before SQL |
+| Nested directive operands (4 combinations) | Native already rejects | Native rejection / sanitized embedded rejection before SQL |
+| Computed operand with getter | Embedded read getter before rejection | Narrow unsupported scope: rejection without reading getter |
+| Supported getter count and failure diagnostic | Added regression | One read per occurrence/execution; sanitized failure |
+
+19 focused tests pass per provider. These assertions compare execution/results,
+real DbCommand bindings and logical names; unsupported cases are not advertised
+as native parity. Arbitrary computed/conversion/method/constructor directive operands
+remain outside the supported late-expansion contract. Native pre-extraction via
+direct wrapper operators remains available. No evaluator or client filtering added.
+
+Executed SQL Server shape from TRX (SQLite uses quoted identifiers):
+
+```sql
+SELECT [o].[Id]
+FROM [Orders] AS [o]
+WHERE [o].[TotalCents] > @__raffinert_threshold_0
+ORDER BY [o].[Id]
+```
+
+Automatic/captured parameter modes bind current synthetic values in DbParameter,
+not SQL. Literal EF.Parameter binds __raffinert_p_0; mixed query additionally binds
+__raffinert_maximum_0. EF.Constant uses the intentional numeric SQL constant,
+no DbParameters, and matches native SQL on every A → B → A execution. Each captured
+mode observed two combined native/embedded compilations (one each), on both providers.
+Automatic 25-value tests assert one compilation/one SQL shape. Diagnostic protection
+blocks actual lifted parameter rendering before values can be formatted; explicit
+constants are intentionally outside that guarantee. No bound values are logged.
+
+Final EfRuntimeParameters uses QueryContext.Parameters, dictionary Add,
+new QueryParameterExpression(name, type), QueryParameterExpression.Name and generic
+ParameterExpression.Name. All version adapter reflection fields listed in Phase 4
+are removed. Legitimate expression MemberInfo metadata is retained.

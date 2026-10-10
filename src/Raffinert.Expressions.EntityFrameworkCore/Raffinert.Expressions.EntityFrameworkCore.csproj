@@ -13,7 +13,7 @@
     <Title>Raffinert.Expressions.EntityFrameworkCore</Title>
     <Authors>Yevhen Cherkes</Authors>
     <Copyright>Copyright (c) 2026 Raffinert</Copyright>
-    <Description>EF Core async condition operators and opt-in expression expansion for Raffinert.Expressions.</Description>
+    <Description>EF Core 10 async condition operators and opt-in expression expansion with runtime parameter lifting for Raffinert.Expressions. Requires .NET 10.</Description>
     <PackageTags>LINQ;Expressions;EFCore;Condition;Projection;Async;Interceptor</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Raffinert/Raffinert.Expressions</PackageProjectUrl>

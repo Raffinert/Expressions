@@ -8,7 +8,9 @@ public static class RaffinertDbContextOptionsBuilderExtensions
 {
     /// <summary>Enables invocation expansion and cache-safe wrapper resolution for this context.</summary>
     /// <remarks>
-    /// Call after configuring the database provider. Repeated calls are harmless.
+    /// Requires .NET 10 and EF Core 10.x. Call after configuring the database provider.
+    /// Repeated calls are harmless. Explicit EF.Constant values may appear in SQL;
+    /// embedded EF directives support scalar captures and literals, rejecting computed operands.
     /// Captured scalars introduced by expansion are bound as execution parameters.
     /// Cache keys and compilation share one prepared expression. Hidden captured collections
     /// require direct operators; compiled wrappers with runtime captures are unsupported.

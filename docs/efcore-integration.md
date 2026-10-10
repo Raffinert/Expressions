@@ -13,15 +13,17 @@ Its public API uses the `Raffinert.Expressions` namespace.
 | Raffinert.Expressions.EntityFrameworkCore | EF async condition terminals and ordinary LINQ marker expansion | Async overloads need none; interception uses `UseRaffinertExpressions()` |
 
 The adapter references core and EF Core, with no dependency on QuerySyntax. Core stays
-on netstandard2.0; QuerySyntax stays on netstandard2.1. The EF adapter is one net6.0
-assembly built against EF Core 7.0.20. Install it alongside your chosen EF provider:
+on netstandard2.0; QuerySyntax stays on netstandard2.1. The EF adapter requires
+**net10.0 and EF Core 10.x**, built against 10.0.11. EF Core 7/8/9 and older
+consumer frameworks are unsupported. Install it alongside an EF10 provider:
 
 ```shell
 dotnet add package Raffinert.Expressions.EntityFrameworkCore
 dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.11
 ```
 
-Use the target framework required by your EF provider: EF 10 requires .NET 10, for example.
+Use .NET 10. The minimum EF Core/Relational dependency is 10.0.11; compatible EF10
+patches are allowed by NuGet lower-bound semantics, but future EF11 is not claimed/tested.
 The 1.2.0 adapter depends on core 1.2.0, which supplies the internal whole-query expansion seam.
 
 ## Async predicates without interception
@@ -120,7 +122,7 @@ await query.ToArrayAsync(); // same compiled shape, fresh parameter value
 
 Captured values do not become SQL literals or value-specific cache keys. Twenty-five
 changing thresholds plus a repeat now produce one compilation and one SQL shape,
-matching normal EF, outer captures and direct operators on the tested SQLite versions.
+matching normal EF, outer captures and direct operators on SQLite and LocalDB EF10.
 Null parameter optimization may change executed SQL (for example to IS NULL) without
 changing the normalized EF compiled-query key.
 
@@ -131,6 +133,9 @@ late captures receive deterministic, collision-free parameter names and values o
 execution's QueryContext. The provider's original key generator receives the normalized
 parameterized expression, never the capture values. On a miss, interception consumes
 that same prepared expression; on a hit, fresh values are already bound.
+
+The adapter constructs public EF10 `QueryParameterExpression` nodes and binds values
+through `QueryContext.Parameters` directly. No version probes or reflected EF APIs remain.
 
 Preparation belongs to the specific QueryContext through scoped weak/ephemeron ownership.
 Compilation consumes it; a new execution invalidates prior state, including pooled leases
@@ -159,7 +164,47 @@ Changing values preserves names and cache reuse for the same capture metadata;
 different source capture names may produce different compiled-query keys.
 `ToQueryString()` blocks all lifted names under the shared prefix before rendering.
 
-See [naming validation](pr7-parameter-naming-validation.md).
+See [current EF10 validation](pr7-ef10-only-validation.md) and
+[historical naming validation](pr7-parameter-naming-validation.md).
+
+### Explicit EF directives
+
+Ordinary queries registered with `UseRaffinertExpressions()` preserve native EF10
+`EF.Constant` and `EF.Parameter` modes inside late-expanded wrappers:
+
+```csharp
+var minimum = 1000;
+var maximum = 4;
+var condition = Condition<OrderRow>.Create(x =>
+    x.TotalCents > EF.Constant(minimum) && x.Id < EF.Parameter(maximum));
+var query = db.Orders.Where(x => condition.Invoke(x));
+await query.ToArrayAsync();
+minimum = 2000;
+maximum = 5;
+await query.ToArrayAsync(); // current constant and current bound parameter
+```
+
+Supported directive operands are scalar captured member chains, scalar literals
+and defaults. Literal `EF.Parameter(1000)` binds under `__raffinert_p_0`;
+captured operands keep readable names. Captured A → B → A, nullable value → null
+→ value, mixed modes, nested wrapper composition and wrapper reassignment are
+tested against native direct EF controls on SQLite and real SQL Server LocalDB.
+Already lifted operands are left to native EF normalization; literal/default
+operands receive a native parameter node/binding before normalization.
+
+`EF.Constant` intentionally renders its value in SQL and has no DbParameter.
+The automatic capture privacy guarantee and ToQueryString guard do not redact
+these requested constants; a constant-only query can render normally. Queries
+with actual lifted bound parameters still fail before ToQueryString renders values.
+
+Inside late-expanded directives, row-dependent, computed, conversion-wrapped,
+method/constructor and nested directive operands are rejected with a sanitized
+error before traversal/SQL. Unsupported computed operands do not read getters.
+Native EF also rejects nested directive operands; nested wrappers are supported.
+Direct `.Where(condition)` expands before native extraction and retains EF's
+broader client-evaluatable operand support. No generic evaluator is provided.
+Embedded literal directives need ordinary per-execution preparation and are
+unsupported in standalone interception or explicitly compiled wrappers.
 
 ### SQL diagnostics and migration from constant snapshots
 
@@ -185,7 +230,8 @@ expand before EF extraction and require no interception. Standalone
 AddInterceptors(RaffinertExpressionInterceptor.Instance) supports constant wrapper targets
 without runtime captures; extracted wrappers and runtime captures require the helper.
 
-See [runtime validation](pr7-parameter-lifting-validation.md) and
+See [current validation](pr7-ef10-only-validation.md),
+[historical runtime validation](pr7-parameter-lifting-validation.md) and
 [acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/RuntimeParameterLiftingTests.cs).
 
 ## Limits and compiled queries
@@ -229,7 +275,8 @@ See [runtime validation](pr7-parameter-lifting-validation.md) and
   Public service decorators that retain and forward the original scoped services are tested
   in both registration orders; this does not establish arbitrary extension compatibility.
   SQL Server provider 10.0.11 is also verified on Windows LocalDB with .NET 10;
-  other SQL Server EF versions, Azure SQL and other providers remain unverified.
+  EF7/8/9 are unsupported; Azure SQL, other SQL Server versions/collations and
+  other providers remain unverified.
   No private EF API is used.
 - AddDbContextPool and AddPooledDbContextFactory are verified on SQLite with poolSize 1
   across repeated leases and reused scoped services. Each new query invalidates prior
@@ -248,21 +295,19 @@ See [runtime validation](pr7-parameter-lifting-validation.md) and
 
 ## Tested versions
 
-| EF Core / SQLite version | Consumer framework | Shared SQLite execution tests |
+| EF Core / provider version | Consumer framework | Execution tests |
 | --- | --- | --- |
-| 7.0.20 | net6.0 | Passed |
-| 8.0.31 | net8.0 | Passed |
-| 9.0.20 | net8.0 | Passed |
-| 10.0.11 | net10.0 | Passed |
+| 10.0.11 / SQLite | net10.0 | 147 passed |
+| 10.0.11 / SQL Server LocalDB (Windows) | net10.0 | 42 passed |
 
-Each leg runs the same suite against the single adapter compiled with EF 7.0.20.
-These results establish runtime compatibility for the listed versions, beyond merely
-resolving a NuGet dependency. They do not promise compatibility with untested future
-versions or other providers. EF 7 / .NET 6 are retired compatibility baselines, rather
-than deployment recommendations.
+The solution passes 228 tests; the separate Windows-only suite passes 42, all with
+zero failures/skips. Counts include 19 explicit-directive cases per provider and
+8 LocalDB fixture safety cases. The single adapter is compiled against EF10.
+EF7/8/9 compatibility projects and CI lanes have been removed; historical results
+do not establish current support. Other providers/future major versions are not certified.
 
-See [validation details](efcore-validation.md) for commands, test counts, cache regression
-coverage and the implementation adjustment needed for EF's parameter-extraction ordering.
+See [EF10 validation details](pr7-ef10-only-validation.md) for commands, test counts,
+directive/cache regression coverage and final CI evidence.
 
 ### SQL Server LocalDB
 
@@ -271,6 +316,7 @@ A separate Windows-only project executes the real Microsoft SQL Server provider
 reuse, A → B → A bindings, nullable values, nested composition/getters, repeated
 captures, EF-name collisions, wrapper reassignment, diagnostic protection,
 compiled-query restrictions, context isolation and recovery after cancellation/failure.
+The 19 explicit-directive cases compare embedded wrappers with native EF controls.
 The production adapter has no SQL Server dependency.
 
 Run explicitly on Windows with LocalDB installed and the current user's instance running:
@@ -289,5 +335,6 @@ The supplied catalog is replaced with `master` for prerequisite checks and then
 with the generated fixture database. Default `Encrypt=False` is for ephemeral local
 tests, not production guidance.
 
-See [LocalDB evidence](pr7-sqlserver-localdb-validation.md). This coverage does not
-certify SQL Server EF 7–9, Azure SQL, Linux SQL Server or all server collations/versions.
+See [current EF10 evidence](pr7-ef10-only-validation.md) and
+[historical LocalDB evidence](pr7-sqlserver-localdb-validation.md). EF7–9 are unsupported.
+This coverage does not certify Azure SQL, Linux SQL Server or all server collations/versions.
