@@ -11,5 +11,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" PrivateAssets="all" />
     <PackageReference Include="coverlet.collector" Version="10.0.1" PrivateAssets="all" />
     <ProjectReference Include="..\..\src\Raffinert.Expressions.EntityFrameworkCore\Raffinert.Expressions.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\Raffinert.Expressions.QuerySyntax\Raffinert.Expressions.QuerySyntax.csproj" />
   </ItemGroup>
 </Project>

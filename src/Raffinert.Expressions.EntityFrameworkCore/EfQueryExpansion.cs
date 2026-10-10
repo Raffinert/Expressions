@@ -15,6 +15,16 @@ internal static class EfQueryExpansion
 
     private sealed class ScalarSnapshotVisitor : ExpressionVisitor
     {
+        protected override Expression VisitDefault(DefaultExpression node)
+        {
+            // EF normally folds these before compilation; late expansion introduces new defaults.
+            if (!node.Type.IsValueType || Nullable.GetUnderlyingType(node.Type) != null)
+                return Expression.Constant(null, node.Type);
+            return IsScalar(node.Type)
+                ? Expression.Constant(Activator.CreateInstance(node.Type), node.Type)
+                : base.VisitDefault(node);
+        }
+
         protected override Expression VisitMember(MemberExpression node)
         {
             var type = Nullable.GetUnderlyingType(node.Type) ?? node.Type;

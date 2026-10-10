@@ -31,12 +31,14 @@ internal sealed class QueryExecutionState
     {
         public override Expression? Visit(Expression? node)
         {
-            if (node != null && typeof(IExpressionExpansionSource).IsAssignableFrom(node.Type))
+            if (node != null && (typeof(IExpressionExpansionSource).IsAssignableFrom(node.Type) ||
+                typeof(Delegate).IsAssignableFrom(node.Type)))
             {
                 var name = node is ParameterExpression parameter ? parameter.Name
                     : QueryParameterType?.IsInstanceOfType(node) == true ? (string?)ParameterNameProperty!.GetValue(node)
                     : null;
-                if (name != null && values.TryGetValue(name, out var value))
+                if (name != null && values.TryGetValue(name, out var value) &&
+                    (value is IExpressionExpansionSource || value is Delegate { Target: IExpressionExpansionSource }))
                     return Expression.Constant(value, node.Type);
             }
             return base.Visit(node);
