@@ -122,3 +122,67 @@ The packaged consumer now checks carried delegate/native getter counts, ordinary
 ### Final CI and decision
 
 Local gates R0/R1/D1 and provider/architecture/release regression checks pass. Final SHA and all five job conclusions are recorded in [PR #10](https://github.com/Raffinert/Expressions/pull/10) after CI. This checked-in report does not claim success for a run that had not completed at commit time. Candidate Ready for Review requires that final run, not the historical checkpoint. Remaining limitations are listed above; no publish/tag/merge is performed.
+
+## 5. Follow-up: property-backed delegate fields (2026-10-10)
+
+**Conclusion: CONFIRMED AND FIXED.** This follow-up addresses only a delegate field whose receiver chain contains a property getter.
+
+### Commit and working-copy evidence
+
+- Starting PR/local HEAD: `1577a14678fb10752d87b001cbb1238460957468`, independently matched to PR #10's remote head before production edits.
+- Final implementation SHA: `0985e4b950a372a215aae1951d36751afb689a26`. No further production/test changes are made by the following report-only commit.
+- Final repository SHA (including this report) and exact-head CI run/job conclusions are maintained in [PR #10's final validation section](https://github.com/Raffinert/Expressions/pull/10) after the report commit, avoiding an impossible self-referential commit-hash update loop.
+- Existing branch `review/pr10-delegate-getter-hardening`; tracked working tree initially clean. All 14 untracked user plan/summary documents were preserved and excluded from commits. No new branch/worktree, merge, tag, package publication or force push.
+
+### Exact reproduction and RED before production edits
+
+The holder's Provider getter increments Reads and returns a new provider whose **Callback is a field**; that callback captures the holder's current Offset. The matched native and registered contexts execute the same expression:
+
+```csharp
+Expression<Func<Row, Func<int, int>>> projection = x => holder.Provider.Callback;
+```
+
+No preparation code reads Provider. Both contexts share the fixture's private provider/database and command recorder; native context has no UseRaffinertExpressions, and both use isolated EF service providers/cache controls. Core expansion merely carries the delegate value and must preserve the original expression without reading a getter.
+
+Before modifying production, both Core theory cases failed: successful expansion read Provider once (expected zero); the throwing case raised InvalidOperationException with ApplicationException inner. Stack: ExpressionExpander.VisitMember (baseline line 107) -> SafeValueEvaluator.TryEvaluateMember (receiver recursion at line 41, property reflection/failure at line 64). Both shared provider cases then failed independently on SQLite and real current-user LocalDB:
+
+| Case | Native EF | Registered Raffinert before fix |
+| --- | --- | --- |
+| Successful getter | 1 read | 2 reads; same returned behavior, SQL and physical bindings |
+| Throwing getter | 2 reads, InvalidOperationException with ApplicationException inner | 1 read, InvalidOperationException with no inner exception |
+
+These are observed counts, not assumed native requirements. RED logs: artifacts/pr10-field-core-red.log, pr10-field-sqlite-red.log, pr10-field-localdb-red.log. Core: 0 passed / 2 failed. Each provider: 0 passed / 2 failed. Tests stop on the first demonstrated mismatch; subsequent A -> B -> A/cache/diagnostic assertions run in GREEN.
+
+### Root cause and minimal patch
+
+FieldInfo classified only the final member. SafeValueEvaluator recursively traversed its receiver, so it invoked Provider before determining whether Callback's value actually targeted Raffinert. This added an ordinary getter read and diverted failures through the wrapper-resolution sanitizer before EF could apply its native behavior.
+
+ExpressionExpander now checks the **whole receiver chain structurally** before probing a carried delegate field. Constant/static-rooted field-only access, with ordinary conversion nodes, retains existing captured-field resolution. A property or constructor receiver prevents that eager probe. The check invokes no getter/constructor and is not a new evaluator.
+
+Actual invocation targets and delegate-typed method arguments retain the existing callback resolution site, extended to handle these property-backed fields. Each callback occurrence resolves its receiver once; generic VisitMember does not repeat that opaque-chain probe. Constants, captured-field callbacks, opaque-property callbacks, direct markers and exact concrete/interface method groups remain supported. SafeValueEvaluator, the EF adapter, parameter extraction/naming/binding/cache policy and warning policy are unchanged.
+
+### Files changed and GREEN evidence
+
+- ExpressionExpander.cs: whole-chain structural guard plus callback-position handling; 16 changed lines.
+- WholeQueryExpansionTests.cs: successful/throwing carried-field RED/GREEN, property-backed marker field in invocation/Enumerable callback positions (two occurrences, two reads), and constant-marker positive control. Existing NestedMethodGroupsAndCapturedDelegatesExpand and concrete/interface method-group tests remain unchanged and pass.
+- NativeExtractionAcceptanceTests.cs: two shared native-parity cases plus property-backed-field mode in the existing real server callback regression. No LocalDB fixture/safety changes.
+- This report: reproduction, root cause, results and separately tracked final-head evidence. No unrelated files changed.
+
+Both SQLite and LocalDB GREEN controls observe **1 vs 1** successful reads over Offset **10 -> 20 -> 10**. Failed getters observe **2 vs 2** reads and identical InvalidOperationException/ApplicationException-inner types; neither sends SQL and both recover. Three successful asynchronous executions per context use one compilation each and six total commands. SQL and actual DbParameter arrays match; this top-level client delegate projection has no physical delegate SQL binding. ToQueryString text and getter counts match native as well. The property-backed Raffinert callback expands into server EXISTS, binds current thresholds over A -> B -> A, observes reassignment and reads Provider once per execution.
+
+| Final local check | Result |
+| --- | --- |
+| Restore / Release build | PASS; 0 warnings, 0 errors |
+| Full solution | 287 passed / 0 failed / 0 skipped: 72 Core + 5 QuerySyntax + 14 original integration + 196 adapter |
+| Separate real Windows LocalDB | 90 passed / 0 failed / 0 skipped |
+| Focused WholeQueryExpansionTests | 27 passed |
+| New parity cases | 2 passed on SQLite; 2 passed on LocalDB |
+| Both format checks / git diff --check | PASS; existing generic formatter workspace-loading warning unchanged |
+
+Complete suites retain old delegate-getter hardening, captured fields, opaque properties, concrete/interface method groups, wrapper reassignment, native physical bindings and 25-values-plus-repeat cache checks, compiled/precompile scope, pooling/factory cancellation/recovery and LocalDB safety. Existing local EF1001/EF9100 scopes and TreatWarningsAsErrors are untouched.
+
+### Exact-head CI and remaining limitations
+
+The previous [run 38079033878](https://github.com/Raffinert/Expressions/actions/runs/38079033878) had all five successful jobs for **1577a14** (280/87), independently verified during the preceding review. It does **not** validate this follow-up. New final report HEAD CI is PENDING at commit time; its exact SHA/run, each of the five individual job conclusions, actual suite counts and Linux/Windows isolated packed-consumer evidence are recorded in PR #10 after completion.
+
+Opaque chains used as actual callbacks still require reading their runtime targets to classify a marker; there is no universal side-effect-free classification promise for those callback positions. Ordinary carried property-backed fields now leave that evaluation entirely to native EF. Captured pure fields/constants keep their established semantics. Approved native ToQueryString value rendering is unchanged. NativeAOT/actual precompiled-code generation, custom mapped HasDbFunction, other providers/EF patches remain uncertified. No architectural refactor or new extraction/naming/state infrastructure was introduced.
