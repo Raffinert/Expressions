@@ -103,6 +103,20 @@ Registration affects only those context options; installing the package has no g
 
 ## Expansion and caching
 
+### Release policy: constant-snapshot interception
+
+`UseRaffinertExpressions()` opts into **constant-snapshot mode** for captures introduced
+by wrapper expansion. This is a limited interceptor, not a promise of generic EF
+parameterization. Values are correct for each execution, but a different in-wrapper
+scalar value creates a different EF compiled-query cache key and usually different SQL.
+Hot paths can fragment both EF's query cache and the database's execution-plan cache.
+
+The regression diagnostic executes 25 threshold values plus a repeat: the in-wrapper
+case compiles 25 times and emits 25 SQL shapes with no threshold parameter. Normal EF,
+an outer scalar, and a direct async condition operator each compile once, bind the
+current parameter value, and reuse one SQL shape. See the remediation work log for
+observed SQL and version-specific results.
+
 EF extracts query parameters before invoking `IQueryExpressionInterceptor` and consults
 its query cache before compilation. A compilation callback alone cannot recover captured
 wrapper objects or prevent stale cache hits when their expressions change.
@@ -130,6 +144,14 @@ int threshold = 1000;
 var query = db.Orders.Where(x => active.Invoke(x) && x.TotalCents > threshold);
 ```
 
+Alternatively, expand before EF's parameter extraction using the direct operators:
+
+```csharp
+var expensive = Condition<OrderRow>.Create(x => x.TotalCents > threshold);
+var query = db.Orders.Where(expensive); // no embedded Invoke
+int count = await db.Orders.CountAsync(expensive); // no interception required
+```
+
 `AddInterceptors(RaffinertExpressionInterceptor.Instance)` is available for query trees
 whose wrapper targets are already constants. It does not install extracted-value/cache
 support. Use the helper for captured wrappers. Manually adding the same interceptor
@@ -142,6 +164,10 @@ alongside the helper duplicates callbacks; this is unnecessary.
 - Wrappers must keep a stable expression structure after first expansion, as required by
   core. Replacing a wrapper is supported in ordinary queries; mutating a custom wrapper's
   cached structure is unsupported.
+- Native `Condition` / `Projection` wrappers can be accessed through
+  `IComposableExpression<TSource, TResult>`, including casts and nested composition.
+  Embedded invocation markers on external interface implementations are unsupported:
+  use their public expanded-lambda contract through the direct operators instead.
 - Core's evaluator can read closure/static members and run property getters or direct
   constructors. Keep these deterministic and free of database queries or other side effects.
   Getters can run more than once in a single query, including cache-key generation.
