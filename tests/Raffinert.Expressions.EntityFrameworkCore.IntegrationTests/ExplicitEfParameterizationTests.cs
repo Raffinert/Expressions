@@ -399,6 +399,9 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     [InlineData("multiply-checked")]
     [InlineData("convert")]
     [InlineData("convert-checked")]
+    [InlineData("short-result")]
+    [InlineData("long-checked")]
+    [InlineData("static-field")]
     public async Task ComputedNumericOperationsMatchNative(string operation)
     {
         await using var fixture = await CreateAsync();
@@ -412,6 +415,9 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             "multiply" => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold * 2)),
             "multiply-checked" => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(checked(threshold * 2))),
             "convert" => Condition<Row>.Create(x => x.TotalCents > EF.Parameter((long)threshold + 100L)),
+            "short-result" => Condition<Row>.Create(x => x.TotalCents > EF.Parameter((short)(threshold + 100))),
+            "long-checked" => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(checked((long)threshold + 100L))),
+            "static-field" => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(StaticThreshold + 100)),
             _ => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(checked((short)threshold) + 100))
         };
         // The direct overload expands before EF extraction: this is the native control.
@@ -549,6 +555,50 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         var nativeValue = Assert.Single(fixture.Commands.Executed.Last().Values);
         Assert.Equal(expected, await fixture.Db.Orders.CountAsync(x => condition.Invoke(x)));
         Assert.Equal(nativeValue, Assert.Single(fixture.Commands.Executed.Last().Values));
+        var narrowing = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(unchecked((short)threshold)));
+        expected = await fixture.Db.Orders.Where(narrowing).CountAsync();
+        nativeValue = Assert.Single(fixture.Commands.Executed.Last().Values);
+        Assert.Equal(expected, await fixture.Db.Orders.CountAsync(x => narrowing.Invoke(x)));
+        Assert.Equal(nativeValue, Assert.Single(fixture.Commands.Executed.Last().Values));
+    }
+
+    [Fact]
+    public async Task ComputedNamesAvoidOuterEfCollision()
+    {
+        await using var fixture = await CreateAsync();
+        var threshold = 1000;
+        var __raffinert_computed_0 = 4;
+        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x) && x.Id < __raffinert_computed_0);
+        Assert.Equal(2, await query.CountAsync());
+        var command = fixture.Commands.Executed.Last();
+        Assert.Contains("__raffinert_computed_0", command.Names);
+        Assert.Contains("__raffinert_computed_1", command.Names);
+        Assert.Equal(command.Names.Length, command.Names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Contains(1100, command.Values);
+        Assert.Contains(4, command.Values);
+        threshold = 10000;
+        Assert.Equal(1, await query.CountAsync());
+        Assert.Contains(10100, fixture.Commands.Executed.Last().Values);
+        Assert.Equal(1, fixture.QueryCompilations);
+    }
+
+    [Fact]
+    public async Task ComputedPreparationRecoversAfterTranslationFailureAndCancellation()
+    {
+        await using var fixture = await CreateAsync();
+        var threshold = 1000;
+        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => query.Where(x => UnsupportedRow(x.Id)).ToArrayAsync());
+        Assert.Empty(fixture.Commands.Executed);
+        Assert.Equal(3, await query.CountAsync());
+        using var canceled = new CancellationTokenSource();
+        canceled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query.ToArrayAsync(canceled.Token));
+        threshold = 10000;
+        Assert.Equal(1, await query.CountAsync());
+        Assert.Equal(10100, Assert.Single(fixture.Commands.Executed.Last().Values));
     }
 
     [Theory]
@@ -585,6 +635,8 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     }
 
     private static int ArbitraryMethod() => throw new InvalidOperationException(Holder.Marker);
+    private static bool UnsupportedRow(int value) => throw new InvalidOperationException(Holder.Marker);
+    private static readonly int StaticThreshold = 1000;
     private sealed class Settings { public int MinPrice { get; set; } }
     private sealed class CustomNumber
     {

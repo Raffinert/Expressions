@@ -115,6 +115,47 @@ Check((await db.Rows.Where(x => explicitPrivate.Invoke(x)).ToArrayAsync()).Lengt
 Check(commands.Executed.Single().Values.Contains(marker), "private explicit parameter binding");
 Check(!commands.Executed.Single().Sql.Contains(marker, StringComparison.Ordinal), "private explicit parameter absent from SQL");
 
+foreach (var constant in new[] { false, true })
+{
+    commands.Executed.Clear();
+    var computed = constant ? Condition<SmokeRow>.Create(x => x.Value > EF.Constant(threshold * 2))
+        : Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(threshold + 100));
+    var computedQuery = db.Rows.Where(x => computed.Invoke(x));
+    var before = compilations;
+    foreach (var next in new[] { 1000, 30000, 1000 })
+    {
+        threshold = next;
+        Check(await computedQuery.CountAsync() == (next == 30000 ? 0 : 1), "computed A -> B -> A results");
+        var command = commands.Executed.Last();
+        if (constant)
+        {
+            Check(command.Values.Length == 0, "computed constant has no parameters");
+            Check(command.Sql.Contains((threshold * 2).ToString(), StringComparison.Ordinal), "computed constant current literal");
+        }
+        else
+        {
+            Check(Equals(command.Values.Single(), threshold + 100), "computed current binding");
+            Check(command.Names.Single() == "__raffinert_computed_0", "computed stable name");
+            Check(!command.Sql.Contains((threshold + 100).ToString(), StringComparison.Ordinal), "computed value absent from SQL");
+        }
+    }
+    if (constant) Check(computedQuery.ToQueryString().Contains("2000", StringComparison.Ordinal), "computed constant rendering");
+    else
+    {
+        Check(compilations - before == 1, "computed one compilation");
+        Check(commands.Executed.Select(x => x.Sql).Distinct().Count() == 1, "computed one SQL shape");
+        try
+        {
+            computedQuery.ToQueryString();
+            throw new InvalidOperationException("Computed parameter rendering must fail safely.");
+        }
+        catch (NotSupportedException error)
+        {
+            Check(error.InnerException == null, "computed sanitized diagnostic");
+        }
+    }
+}
+
 Console.WriteLine($"Package smoke passed: EF {typeof(DbContext).Assembly.GetName().Version}, runtime {Environment.Version}.");
 
 static void Check(bool success, string scenario)

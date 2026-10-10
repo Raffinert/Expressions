@@ -328,7 +328,8 @@ executing against real Windows LocalDB in a separate project and CI job.
 See [tested versions](docs/efcore-integration.md#tested-versions) for evidence and coverage limits.
 Azure SQL and other SQL Server versions/collations are not certified.
 The adapter uses native EF10 parameter nodes and QueryContext.Parameters directly.
-Embedded `EF.Constant` / `EF.Parameter` support scalar captures and literals in conditions and projections;
+Embedded `EF.Constant` / `EF.Parameter` support scalar captures, literals and restricted closed numeric
+computations such as `threshold + 100` in conditions and projections;
 see [directive scope](docs/efcore-integration.md#explicit-ef-directives) for restrictions.
 Explicit `EF.Constant` intentionally puts its value in SQL and is outside the capture privacy guarantee.
 Compiled EF queries support stable closed

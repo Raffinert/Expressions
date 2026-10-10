@@ -12,6 +12,7 @@
 - Prevented captured SQL literals, sanitized getter diagnostics and rejected ToQueryString rendering of lifted values. Verified pooled contexts/factories, deferred execution and interceptor composition. Explicit compiled wrappers with runtime captures fail safely; use scalar delegate parameters.
 - Replaced version-dependent reflection with native EF10 QueryParameterExpression and QueryContext.Parameters APIs, retaining automatic runtime lifting.
 - Preserved embedded EF.Constant / EF.Parameter semantics for scalar captures and literals in conditions and projections, with sanitized rejection of unsupported operands. Explicit constants intentionally appear in SQL.
+- Added restricted computed directive operands: short/int/long and nullable built-in addition, subtraction, multiplication and numeric conversions, including checked forms. Validation rejects unsupported syntax before getters; each approved occurrence is evaluated once per execution with sanitized failures and native EF mode handling.
 - Added capture/service-composition regressions and isolated EF10 NuGet consumers on Windows and Linux; removed obsolete compatibility projects and matrix.
 - Added EF10 SQLite and real Windows SQL Server LocalDB execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage.
 - Bumped QuerySyntax alongside core to align its package dependency; its API and behavior remain unchanged.

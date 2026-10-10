@@ -35,12 +35,20 @@ internal static class EfQueryExpansion
             if (!IsDirective(node.Method))
                 return base.VisitMethodCall(node);
 
-            // Reject computed/row-dependent operands before visiting their children,
-            // so unsupported directives cannot trigger capture getter evaluation.
+            // Validate computed operands before visiting or evaluating their children.
             var original = node.Arguments[0];
             if (original is not (ConstantExpression or DefaultExpression or QueryParameterExpression) &&
                 !(original is MemberExpression capture && IsCapture(capture)))
-                throw UnsupportedDirectiveOperand();
+            {
+                if (!ComputedDirectiveOperandEvaluator.Validate(original)) throw UnsupportedDirectiveOperand();
+                if (context == null)
+                    throw new NotSupportedException("Computed EF directive operands require ordinary query preparation.");
+                var computed = ComputedDirectiveOperandEvaluator.EvaluateApproved(original);
+                var computedName = _names.NextPath("computed");
+                var computedParameter = EfRuntimeParameters.Create(original.Type, computedName);
+                EfRuntimeParameters.Add(context, computedName, computed);
+                return node.Update(node.Object, [computedParameter]);
+            }
 
             // Leave mode selection to EF's native normalizer. It requires a native
             // parameter operand even for a literal introduced by late expansion.
@@ -58,7 +66,7 @@ internal static class EfQueryExpansion
         }
 
         private static NotSupportedException UnsupportedDirectiveOperand() => new(
-            "This EF directive operand is unsupported inside a Raffinert wrapper. Use a supported scalar capture or literal; row-dependent and computed operands are not evaluated.");
+            "This EF directive operand is unsupported inside a Raffinert wrapper. Use a supported scalar capture, literal or closed numeric computation; unsupported operands are not evaluated.");
         protected override Expression VisitDefault(DefaultExpression node)
         {
             // EF normally folds these before compilation; late expansion introduces new defaults.
