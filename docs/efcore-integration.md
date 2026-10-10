@@ -228,7 +228,9 @@ See [runtime validation](pr7-parameter-lifting-validation.md) and
   existing decorators are unsupported. Configure the normal EF provider and use the helper.
   Public service decorators that retain and forward the original scoped services are tested
   in both registration orders; this does not establish arbitrary extension compatibility.
-  Providers other than SQLite remain unverified. No private EF API is used.
+  SQL Server provider 10.0.11 is also verified on Windows LocalDB with .NET 10;
+  other SQL Server EF versions, Azure SQL and other providers remain unverified.
+  No private EF API is used.
 - AddDbContextPool and AddPooledDbContextFactory are verified on SQLite with poolSize 1
   across repeated leases and reused scoped services. Each new query invalidates prior
   preparation; correctness does not depend on weak-reference collection at pool return.
@@ -261,3 +263,31 @@ than deployment recommendations.
 
 See [validation details](efcore-validation.md) for commands, test counts, cache regression
 coverage and the implementation adjustment needed for EF's parameter-extraction ordering.
+
+### SQL Server LocalDB
+
+A separate Windows-only project executes the real Microsoft SQL Server provider
+10.0.11 on net10.0. It verifies bound captures and readable names, 25-value cache
+reuse, A → B → A bindings, nullable values, nested composition/getters, repeated
+captures, EF-name collisions, wrapper reassignment, diagnostic protection,
+compiled-query restrictions, context isolation and recovery after cancellation/failure.
+The production adapter has no SQL Server dependency.
+
+Run explicitly on Windows with LocalDB installed and the current user's instance running:
+
+```powershell
+dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.csproj -c Release
+```
+
+The project is intentionally outside `Raffinert.Expressions.slnx`; the dedicated
+Windows CI job fails if prerequisites are unavailable. Each fixture verifies
+`master`, creates a unique disposable database, and deletes only its owned database.
+An optional `RAFFINERT_LOCALDB_MASTER_CONNECTION` must point to a private
+`(localdb)\Instance` under the current Windows user using integrated authentication;
+remote/shared instances, attached files, credentials and failover servers are rejected.
+The supplied catalog is replaced with `master` for prerequisite checks and then
+with the generated fixture database. Default `Encrypt=False` is for ephemeral local
+tests, not production guidance.
+
+See [LocalDB evidence](pr7-sqlserver-localdb-validation.md). This coverage does not
+certify SQL Server EF 7–9, Azure SQL, Linux SQL Server or all server collations/versions.

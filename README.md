@@ -322,6 +322,10 @@ compilation share one prepared tree; 25 changing thresholds reuse one compilatio
 Hidden captured collections require direct operators.
 Native wrappers accessed through `IComposableExpression<,>` interfaces also expand.
 
+SQL Server provider **10.0.11** is also tested against real Windows LocalDB on net10.0
+in a separate Windows-only project and CI job. See [LocalDB validation](docs/pr7-sqlserver-localdb-validation.md)
+for the explicit command and coverage limits; Azure SQL and SQL Server EF 7–9 remain unverified.
+
 SQLite execution tests verify the same EF 7-compiled adapter on EF **7.0.20**, **8.0.31**, **9.0.20** and
 **10.0.11**. EF 7 / .NET 6 are retired compatibility baselines. Compiled EF queries support stable closed
 wrappers without runtime captures and scalar delegate parameters. Wrapper delegate parameters,
