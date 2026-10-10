@@ -55,3 +55,15 @@ Changed only the adapter project: net10.0, EF Core/Relational 10.0.11; version s
 Release build passed with zero warnings/errors. Old compatibility projects are
 not retargeted; removal follows after native APIs/directive checks. Core and
 QuerySyntax project files are unchanged. HEAD before this phase: `9238fb9`.
+
+## Phase 4 — direct EF10 public contracts
+
+Phase 3 checkpoint: `9bca3cb`. HEAD before this phase: `9bca3cb`.
+EfRuntimeParameters now uses QueryContext.Parameters, native QueryParameterExpression
+construction/name access and dictionary Add directly. Removed Major, ValuesProperty,
+ParameterType, ParameterConstructor, AddParameterMethod, NameProperty and all version
+switching/GetProperty/GetConstructor/Assembly.GetType reflection from this adapter.
+ParameterExpression name recognition remains for general expression parameters.
+Adapter Release build: zero warnings/errors. All 50 runtime/naming/cache/execution
+regressions passed, zero failed/skipped. Source search found no version-probing hits.
+QueryExecutionState, core expansion and naming are unchanged.
