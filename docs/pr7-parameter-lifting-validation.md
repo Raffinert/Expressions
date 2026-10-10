@@ -123,3 +123,13 @@ GREEN test: `dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.Compati
 SQL evidence: same privacy, 25-value cache, null, pooled, compiled restrictions,
 interceptor-order and getter assertions all pass. Known risk: other EF legs pending.
 Commit: EF 7 checkpoint in git log.
+
+## Phase F — EF 8 compatibility checkpoint
+
+HEAD before work: 0e02436. Files changed: this report. Hypothesis: EF 8's native
+ParameterExpression + AddParameter behaves identically on misses and hits.
+RED test: N/A; no version-specific defect. Implementation: no change.
+GREEN test: `dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef8/Ef8.csproj -c Release`:
+105 passed / 0 failed / 0 skipped on Windows, EF 8.0.31 / runtime 8.0.31.
+SQL evidence: all shared runtime/SQL/privacy/cache assertions pass.
+Known risk: EF 9 pending. Commit: EF 8 checkpoint in git log.
