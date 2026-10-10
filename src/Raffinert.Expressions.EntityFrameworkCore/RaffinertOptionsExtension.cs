@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Query;
@@ -15,6 +16,8 @@ internal sealed class RaffinertOptionsExtension : IDbContextOptionsExtension
         services.TryAddScoped<QueryExecutionState>();
         Decorate<IQueryContextFactory>(services, (provider, state) => new RecordingQueryContextFactory(provider, state));
         Decorate<ICompiledQueryCacheKeyGenerator>(services, (provider, state) => new ExpansionCacheKeyGenerator(provider, state));
+        if (services.Any(x => x.ServiceType == typeof(IRelationalQueryStringFactory)))
+            Decorate<IRelationalQueryStringFactory>(services, (provider, _) => new SafeQueryStringFactory(provider));
     }
 
     private static void Decorate<TService>(IServiceCollection services, Func<TService, QueryExecutionState, TService> decorate)
@@ -44,6 +47,20 @@ internal sealed class RaffinertOptionsExtension : IDbContextOptionsExtension
         public override void PopulateDebugInfo(IDictionary<string, string> debugInfo) => debugInfo["Raffinert:Expansion"] = "1";
     }
 
+    private sealed class SafeQueryStringFactory(IRelationalQueryStringFactory provider) : IRelationalQueryStringFactory, IDisposable
+    {
+        public string Create(DbCommand command)
+        {
+            if (command.Parameters.Cast<DbParameter>().Any(x => x.ParameterName.TrimStart('@', ':', '$').StartsWith(EfRuntimeParameters.Prefix, StringComparison.Ordinal)))
+                throw new NotSupportedException("ToQueryString can include runtime parameter values. Use executed command text to inspect a query with lifted Raffinert captures.");
+            return provider.Create(command);
+        }
+        public void Dispose()
+        {
+            if (provider is IDisposable disposable) disposable.Dispose();
+        }
+    }
+
     private sealed class RecordingQueryContextFactory(IQueryContextFactory provider, QueryExecutionState state) : IQueryContextFactory, IDisposable
     {
         public QueryContext Create()
@@ -62,7 +79,7 @@ internal sealed class RaffinertOptionsExtension : IDbContextOptionsExtension
     private sealed class ExpansionCacheKeyGenerator(ICompiledQueryCacheKeyGenerator provider, QueryExecutionState state) : ICompiledQueryCacheKeyGenerator, IDisposable
     {
         public object GenerateCacheKey(Expression query, bool async) =>
-            provider.GenerateCacheKey(EfQueryExpansion.Expand(state.ResolveWrappers(query)), async);
+            provider.GenerateCacheKey(state.Prepare(query), async);
 
         public void Dispose()
         {

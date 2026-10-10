@@ -100,7 +100,8 @@ internal static class ExpressionExpander
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
+            if (typeof(Delegate).IsAssignableFrom(node.Type) &&
+                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
             {
                 return expression;
             }

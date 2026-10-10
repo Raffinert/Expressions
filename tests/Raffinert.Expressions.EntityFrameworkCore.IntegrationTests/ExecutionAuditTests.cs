@@ -10,15 +10,15 @@ namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 public class ExecutionAuditTests(ITestOutputHelper output)
 {
     [Fact]
-    public async Task EmbeddedStringAppearsInSqlEvenWithSensitiveLoggingDisabled()
+    public async Task EmbeddedAndDirectStringsStayOutOfSqlWithSensitiveLoggingDisabled()
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableSensitiveDataLogging(false));
         var marker = "synthetic-private-value-pr7";
         var condition = Condition<OrderRow>.Create(x => x.Name == marker);
         Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         var embedded = Assert.Single(fixture.Commands.Executed);
-        Assert.Contains(marker, embedded.Sql);
-        Assert.DoesNotContain(marker, embedded.Values);
+        Assert.DoesNotContain(marker, embedded.Sql);
+        Assert.Contains(marker, embedded.Values);
         fixture.Commands.Clear();
         Assert.Empty(await fixture.Db.Orders.Where(condition).ToArrayAsync());
         var direct = Assert.Single(fixture.Commands.Executed);
@@ -29,7 +29,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StableGetterIsReadForKeyAndCompilationButOnlyKeyOnCacheHit(bool async)
+    public async Task StableGetterIsReadOnceForPreparationOnMissAndHit(bool async)
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var holder = new ScalarHolder { Value = 2 };
@@ -37,42 +37,41 @@ public class ExecutionAuditTests(ITestOutputHelper output)
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id);
         Task<int[]> Execute() => async ? query.ToArrayAsync() : Task.FromResult(query.ToArray());
         Assert.Equal(new[] { 2 }, await Execute());
-        Assert.Equal(new[] { 2, 2, 2, 2, 2 }, holder.Reads);
+        Assert.Equal(new[] { 2 }, holder.Reads);
         Assert.Equal(1, fixture.QueryCompilations);
         holder.Reads.Clear();
         Assert.Equal(new[] { 2 }, await Execute());
-        Assert.Equal(new[] { 2, 2 }, holder.Reads);
+        Assert.Equal(new[] { 2 }, holder.Reads);
         Assert.Equal(1, fixture.QueryCompilations);
         holder.Value = 4;
         Assert.Equal(new[] { 4 }, await Execute());
         holder.Value = 2;
         Assert.Equal(new[] { 2 }, await Execute());
-        Assert.Equal(2, fixture.QueryCompilations);
+        Assert.Equal(1, fixture.QueryCompilations);
         Assert.Equal(fixture.Commands.Executed[0].Sql, fixture.Commands.Executed[3].Sql);
-        Assert.All(fixture.Commands.Executed, command => Assert.Empty(command.Values));
-        output.WriteLine("Stable getter: five reads on first miss (including core body caching), two on hit; A -> B -> A results and literal SQL match.");
+        Assert.Equal(new object?[] { 2, 2, 4, 2 }, fixture.Commands.Executed.Select(x => Assert.Single(x.Values)).ToArray());
+        output.WriteLine("Stable getter: one read per execution, one compilation; A -> B -> A results and bindings match.");
     }
 
     [Fact]
-    public async Task ChangingGetterBetweenPassesIsOutsideTheStableCaptureContract()
+    public async Task ChangingGetterUsesOnePreparationAndFreshBindingsOnHits()
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var holder = new ScalarHolder { Value = 2 };
         var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
-        condition.GetExpandedExpression(); // Isolate the two EF expansion passes from core's initial body cache.
+        condition.GetExpandedExpression();
         holder.Reads.Clear();
-        holder.Sequence = new Queue<int>(new[] { 2, 2, 4, 4, 2, 2 });
+        holder.Sequence = new Queue<int>(new[] { 2, 4, 2 });
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id);
-        // Deliberately violates the documented stable, side-effect-free getter contract:
-        // cache key sees 2, compilation sees 4, then key 2 hits the SQL compiled for 4.
+        Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
+        Assert.Equal(new[] { 2 }, holder.Reads);
         Assert.Equal(new[] { 4 }, await query.ToArrayAsync());
-        Assert.Equal(new[] { 2, 2, 4, 4 }, holder.Reads);
-        Assert.Equal(new[] { 4 }, await query.ToArrayAsync());
-        Assert.Equal(new[] { 2, 2, 4, 4, 2, 2 }, holder.Reads);
+        Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
+        Assert.Equal(new[] { 2, 4, 2 }, holder.Reads);
         Assert.Equal(1, fixture.QueryCompilations);
         Assert.Equal(fixture.Commands.Executed[0].Sql, fixture.Commands.Executed[1].Sql);
-        Assert.Contains("= 4", fixture.Commands.Executed[0].Sql);
-        output.WriteLine("Unsupported changing getter: key 2 / SQL 4; repeat key 2 returns ID 4 without compilation.");
+        Assert.Equal(new object?[] { 2, 4, 2 }, fixture.Commands.Executed.Select(x => Assert.Single(x.Values)).ToArray());
+        output.WriteLine("Changing getter: key and compilation share one tree; fresh parameter binds on every hit.");
 
         // Both parameterized controls read once per execution and bind that value.
         foreach (var direct in new[] { false, true })
@@ -124,7 +123,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
         var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
-        Assert.IsType<InvalidOperationException>(error.InnerException);
+        Assert.Null(error.InnerException); // Do not expose a user's potentially sensitive getter exception.
         Assert.Empty(fixture.Commands.Executed);
         holder.Throw = false;
         holder.Value = 2;

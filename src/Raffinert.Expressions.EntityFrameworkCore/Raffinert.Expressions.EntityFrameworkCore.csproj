@@ -28,5 +28,6 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <ProjectReference Include="..\Raffinert.Expressions\Raffinert.Expressions.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.20" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="7.0.20" />
   </ItemGroup>
 </Project>

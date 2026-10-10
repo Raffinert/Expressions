@@ -74,3 +74,41 @@ are bound; changed values return changed rows. One compilation, three preparatio
 one interception; null selects the row with null CustomerId correctly.
 Known risks: general capture discovery, lifecycle, interceptor composition and diagnostic
 SQL rendering still need production implementation/tests. Commit: PoC checkpoint in git log.
+
+## Phase E — execution-bound preparation and secure bindings
+
+HEAD before work: 349e2ca. Files changed: EfRuntimeParameters.cs, EfQueryExpansion.cs,
+QueryExecutionState.cs, RaffinertOptionsExtension.cs, RaffinertExpressionInterceptor.cs,
+adapter csproj, core ExpressionExpander.cs, runtime/capture/cache/audit/interceptor tests.
+Hypothesis: the provider key and compilation can share one normalized expression while
+each execution binds current scalars without any captured SQL literals.
+RED test: Phase C privacy/cache failures; the first full migration run passed 81 adapter
+tests and failed 15 obsolete literal/snapshot/getter-count assertions. Correct result
+assertions remained green. One new cache-isolation test initially lacked ORDER BY;
+fixed its nondeterministic row-order expectation.
+Implementation: public version-aware native EF nodes and writes; scoped weak context
+plus ConditionalWeakTable keyed by the specific QueryContext. Compilation consumes
+the matching prepared expression; a cache hit binds values before lookup. New Create
+invalidates old preparation; miss removes it after consumption. The table is ephemeron
+owned, not a persistent strong reference to execution or user captures. No-marker
+queries do not store a preparation. Names are deterministic traversal ordinals, skipping
+existing EF parameter names. Provider key generator/lifetimes/disposal remain in control.
+Core now evaluates only delegate-typed members for method-group expansion, avoiding
+discarded scalar getter reads. No public core API or QuerySyntax changes.
+Captured getters and constructors have sanitized adapter errors without user inner
+exceptions. Collections/unsupported types and compiled/standalone runtime captures
+fail before SQL, never falling back to literals. Explicit developer constants and
+server member chains remain unchanged. A public IRelationalQueryStringFactory decorator
+rejects lifted debug rendering before it can format bound values; this requires adding
+EF Relational 7.0.20 (core remains EF-independent, no QuerySyntax dependency).
+GREEN test: full Release solution 186 passed / 0 failed / 0 skipped; adapter 105.
+Compatibility checked: EF 10.0.11 / Windows at this checkpoint.
+SQL evidence: string/int/Guid/decimal/date/time/enum captures are runtime parameters;
+fixed thresholds yield one compilation/SQL shape for 25+repeat. Null parameters may
+be optimized to IS NULL with no DbParameter by SQLite; normalized cache shape is stable.
+Controlled getter now reads once per execution on miss and hit, binds 2 → 4 → 2,
+and compiles once. Pool/factory poolSize=1 reuse the scoped factory across six leases
+without stale values. Added Take filters survive both interceptor orders.
+Known risks: destructive pre-Raffinert interceptor rewrites must fail rather than
+discard changes; standalone/compiled late captures are intentionally rejected.
+Commit: production checkpoint in git log.

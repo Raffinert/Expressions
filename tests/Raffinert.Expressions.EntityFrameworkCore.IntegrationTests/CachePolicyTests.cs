@@ -6,7 +6,7 @@ namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 public class CachePolicyTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData("snapshot", 25)]
+    [InlineData("lifted", 1)]
     [InlineData("normal", 1)]
     [InlineData("outer", 1)]
     [InlineData("direct", 1)]
@@ -19,7 +19,7 @@ public class CachePolicyTests(ITestOutputHelper output)
         var active = Condition<OrderRow>.Create(x => x.Active);
         var query = mode switch
         {
-            "snapshot" => fixture.Db.Orders.Where(x => snapshot.Invoke(x)),
+            "lifted" => fixture.Db.Orders.Where(x => snapshot.Invoke(x)),
             "outer" => fixture.Db.Orders.Where(x => active.Invoke(x) && x.TotalCents > threshold),
             _ => fixture.Db.Orders.Where(x => x.TotalCents > threshold)
         };
@@ -32,13 +32,12 @@ public class CachePolicyTests(ITestOutputHelper output)
         }
         Assert.Equal(expectedCompilations, fixture.QueryCompilations);
         Assert.Equal(25, fixture.Commands.Executed.Count);
-        Assert.Equal(mode == "snapshot" ? 25 : 1, fixture.Commands.Executed.Select(x => x.Sql).Distinct().Count());
+        Assert.Single(fixture.Commands.Executed.Select(x => x.Sql).Distinct());
         for (var i = 0; i < 25; i++)
         {
             var command = fixture.Commands.Executed[i];
             Assert.Contains("WHERE", command.Sql);
-            if (mode == "snapshot") Assert.Empty(command.Values);
-            else Assert.Equal(100 + i, Assert.Single(command.Values));
+            Assert.Equal(100 + i, Assert.Single(command.Values));
         }
         // Repeating the last value must reuse the compiled shape in both policies.
         Assert.Equal(mode == "outer" ? 2 : 4, mode == "direct"

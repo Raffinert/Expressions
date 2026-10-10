@@ -1,30 +1,61 @@
 using System.Linq.Expressions;
-using System.Reflection;
+using System.Runtime.CompilerServices;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace Raffinert.Expressions;
 
 internal sealed class QueryExecutionState
 {
-    // These PUBLIC properties were renamed in EF 10. Resolve them at runtime so the
-    // EF 7-compiled adapter remains usable with the tested EF 8/9/10 assemblies.
-    private static readonly PropertyInfo ParametersProperty =
-        typeof(QueryContext).GetProperty("Parameters") ?? typeof(QueryContext).GetProperty("ParameterValues")
-        ?? throw new NotSupportedException("This EF Core version does not expose query parameter values.");
-    private static readonly Type? QueryParameterType = typeof(QueryContext).Assembly.GetType("Microsoft.EntityFrameworkCore.Query.QueryParameterExpression");
-    private static readonly PropertyInfo? ParameterNameProperty = QueryParameterType?.GetProperty("Name");
-
     // The context scope is never shared across DbContexts, and this does not prolong
     // the lifetime of an execution's parameters or any user-captured DbContext.
     private WeakReference<QueryContext>? _context;
+    private ConditionalWeakTable<QueryContext, Preparation> _preparations = new();
 
-    public void SetContext(QueryContext context) => _context = new WeakReference<QueryContext>(context);
-
-    public Expression ResolveWrappers(Expression query)
+    public void SetContext(QueryContext context)
     {
-        if (_context == null || !_context.TryGetTarget(out var context)) return query;
-        var values = (IReadOnlyDictionary<string, object?>)ParametersProperty.GetValue(context)!;
-        return new WrapperParameterVisitor(values).Visit(query)!;
+        _context = new(context);
+        _preparations = new(); // Invalidates hit, failure/cancellation and pooled-lease state.
+    }
+
+    public Expression Prepare(Expression query)
+    {
+        if (_context == null || !_context.TryGetTarget(out var context)) return EfQueryExpansion.Expand(query);
+        var resolved = new WrapperParameterVisitor(EfRuntimeParameters.Values(context)).Visit(query)!;
+        var prepared = EfQueryExpansion.Expand(resolved, context);
+        if (!_context.TryGetTarget(out var active) || !ReferenceEquals(context, active))
+            throw new InvalidOperationException("Reentrant Raffinert query preparation is unsupported.");
+        if (!ReferenceEquals(query, prepared)) _preparations.Add(context, new(new(query), prepared));
+        return prepared;
+    }
+
+    public Expression ForCompilation(Expression query, DbContext? owner)
+    {
+        if (_context != null && _context.TryGetTarget(out var context) && _preparations.TryGetValue(context, out var preparation))
+        {
+            if (!ReferenceEquals(context.Context, owner) || !preparation.Original.TryGetTarget(out var original))
+                throw new InvalidOperationException("Raffinert query preparation does not match this execution.");
+            var replacement = new PreparedExpressionVisitor(original, preparation.Expression);
+            var result = replacement.Visit(query)!;
+            _preparations.Remove(context);
+            if (!replacement.Found)
+                throw new InvalidOperationException("Another query interceptor replaced the prepared Raffinert tree. Register Raffinert before interceptors that rewrite existing nodes.");
+            return result;
+        }
+        // Explicit compiled queries bypass ordinary cache-key preparation.
+        return EfQueryExpansion.Expand(query);
+    }
+
+    private sealed record Preparation(WeakReference<Expression> Original, Expression Expression);
+    private sealed class PreparedExpressionVisitor(Expression original, Expression prepared) : ExpressionVisitor
+    {
+        public bool Found { get; private set; }
+        public override Expression? Visit(Expression? node)
+        {
+            if (!ReferenceEquals(node, original)) return base.Visit(node);
+            Found = true;
+            return prepared;
+        }
     }
 
     private sealed class WrapperParameterVisitor(IReadOnlyDictionary<string, object?> values) : ExpressionVisitor
@@ -35,9 +66,7 @@ internal sealed class QueryExecutionState
                                  (node.Type.IsGenericType && node.Type.GetGenericTypeDefinition() == typeof(IComposableExpression<,>)) ||
                                  typeof(Delegate).IsAssignableFrom(node.Type)))
             {
-                var name = node is ParameterExpression parameter ? parameter.Name
-                    : QueryParameterType?.IsInstanceOfType(node) == true ? (string?)ParameterNameProperty!.GetValue(node)
-                    : null;
+                var name = EfRuntimeParameters.Name(node);
                 if (name != null && values.TryGetValue(name, out var value) &&
                     node.Type.IsInstanceOfType(value) &&
                     (value is IExpressionExpansionSource || value is Delegate { Target: IExpressionExpansionSource }))

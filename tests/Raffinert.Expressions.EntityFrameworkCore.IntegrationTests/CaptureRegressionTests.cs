@@ -41,7 +41,7 @@ public class CaptureRegressionTests(ITestOutputHelper output)
     [InlineData("DateOnly")]
     [InlineData("TimeOnly")]
     [InlineData("enum")]
-    public async Task CapturedScalarKindsSnapshotCurrentValuesOnTheServer(string kind)
+    public async Task CapturedScalarKindsBindCurrentValuesOnTheServer(string kind)
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var name = "Desk";
@@ -75,14 +75,15 @@ public class CaptureRegressionTests(ITestOutputHelper output)
         Assert.All(fixture.Commands.Executed, command =>
         {
             Assert.Contains("WHERE", command.Sql);
-            Assert.Empty(command.Values);
-            output.WriteLine($"{kind}: {command.Sql}; parameters []");
+            Assert.NotNull(Assert.Single(command.Values));
+            output.WriteLine($"{kind}: {command.Sql}; one bound value");
         });
-        Assert.NotEqual(fixture.Commands.Executed[0].Sql, fixture.Commands.Executed[1].Sql);
+        Assert.Equal(fixture.Commands.Executed[0].Sql, fixture.Commands.Executed[1].Sql);
+        Assert.NotEqual(fixture.Commands.Executed[0].Values[0], fixture.Commands.Executed[1].Values[0]);
     }
 
     [Fact]
-    public async Task NullableScalarSnapshotChangesBetweenValueAndNull()
+    public async Task NullableScalarBindingChangesBetweenValueAndNull()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         int? customer = 1;
@@ -93,7 +94,8 @@ public class CaptureRegressionTests(ITestOutputHelper output)
         Assert.Equal(new[] { 3 }, await query.ToArrayAsync());
         Assert.Equal(2, fixture.Commands.Executed.Count);
         Assert.Contains("IS NULL", fixture.Commands.Executed[1].Sql);
-        Assert.All(fixture.Commands.Executed, command => Assert.Empty(command.Values));
+        Assert.Equal(1, Assert.Single(fixture.Commands.Executed[0].Values));
+        Assert.Empty(fixture.Commands.Executed[1].Values); // SQLite simplifies a null parameter to IS NULL.
         output.WriteLine(fixture.Commands.Executed[0].Sql);
         output.WriteLine(fixture.Commands.Executed[1].Sql);
     }

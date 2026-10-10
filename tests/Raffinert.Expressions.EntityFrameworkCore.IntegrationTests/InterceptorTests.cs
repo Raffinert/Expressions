@@ -85,7 +85,8 @@ public class InterceptorTests
         Assert.Equal(new[] { 2 }, await query.Select(x => x.Id).ToArrayAsync());
         threshold = 1000;
         Assert.Equal(new[] { 2, 3, 4 }, await query.Select(x => x.Id).ToArrayAsync());
-        Assert.Contains("10000", fixture.Commands.Executed[1].Sql);
+        Assert.DoesNotContain("10000", fixture.Commands.Executed[1].Sql);
+        Assert.Contains(10000, fixture.Commands.Executed[1].Values);
     }
 
     [Fact]

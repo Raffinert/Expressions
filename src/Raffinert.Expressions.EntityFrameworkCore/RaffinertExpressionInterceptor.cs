@@ -16,6 +16,6 @@ public sealed class RaffinertExpressionInterceptor : IQueryExpressionInterceptor
     {
         var services = (eventData.Context as IInfrastructure<IServiceProvider>)?.Instance;
         var state = services?.GetService(typeof(QueryExecutionState)) as QueryExecutionState;
-        return EfQueryExpansion.Expand(state?.ResolveWrappers(queryExpression) ?? queryExpression);
+        return state?.ForCompilation(queryExpression, eventData.Context) ?? EfQueryExpansion.Expand(queryExpression);
     }
 }
