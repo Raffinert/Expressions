@@ -28,6 +28,34 @@ public class WholeQueryExpansionTests
     }
 
     [Fact]
+    public void HiddenInvokeOnANativeWrapperIsNotAMarker()
+    {
+        var condition = new HiddenInvoke();
+        var query = Rows.Where(x => condition.Invoke(x));
+        Assert.Same(query.Expression, Expand(query.Expression));
+        Assert.Equal(new[] { 1 }, query.Select(x => x.Id));
+    }
+
+    [Fact]
+    public void ExternalInterfaceImplementationHasADescriptiveRestriction()
+    {
+        IComposableExpression<Row, bool> condition = new ExternalCondition();
+        var query = Rows.Where(x => condition.Invoke(x));
+        var error = Assert.Throws<NotSupportedException>(() => Expand(query.Expression));
+        Assert.Contains("derived from ComposableExpression", error.Message);
+    }
+
+    [Fact]
+    public void InterfaceTypedCycleStillFailsDescriptively()
+    {
+        var condition = new LinkedCondition();
+        IComposableExpression<Row, bool> reference = condition;
+        condition.Next = Condition<Row>.Create(x => reference.Invoke(x));
+        var query = Rows.Where(x => reference.Invoke(x));
+        Assert.Contains("cycle", Assert.Throws<InvalidOperationException>(() => Expand(query.Expression)).Message);
+    }
+
+    [Fact]
     public void NullRootIsRejected()
     {
         var exception = Assert.Throws<ArgumentNullException>(() => Expand(null!));
@@ -165,6 +193,18 @@ public class WholeQueryExpansionTests
     private sealed class Unrelated
     {
         public bool Invoke(Row row) => row.Value > 0;
+    }
+
+    private sealed class HiddenInvoke : Condition<Row>
+    {
+        public override Expression<Func<Row, bool>> GetExpression() => x => x.Value > 10;
+        public new bool Invoke(Row row) => row.Value < 10;
+    }
+
+    private sealed class ExternalCondition : IComposableExpression<Row, bool>
+    {
+        public bool Invoke(Row value) => value.Value > 10;
+        public LambdaExpression GetExpandedLambdaExpression() => (Expression<Func<Row, bool>>)(x => x.Value > 10);
     }
 
     private sealed class Factory
