@@ -43,6 +43,7 @@ jobs:
         run: |
           dotnet pack src/Raffinert.Expressions/Raffinert.Expressions.csproj --configuration Release --no-restore --output artifacts/package
           dotnet pack src/Raffinert.Expressions.QuerySyntax/Raffinert.Expressions.QuerySyntax.csproj --configuration Release --no-restore --output artifacts/package
+          dotnet pack src/Raffinert.Expressions.EntityFrameworkCore/Raffinert.Expressions.EntityFrameworkCore.csproj --configuration Release --no-restore --output artifacts/package
 
       - name: Upload package
         if: runner.os == 'Linux'
@@ -53,3 +54,46 @@ jobs:
             artifacts/package/*.nupkg
             artifacts/package/*.snupkg
           if-no-files-found: error
+
+  efcore-compatibility:
+    name: EF Core ${{ matrix.ef }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+        ef: ['7.0.20', '8.0.31', '9.0.20', '10.0.11']
+        include:
+          - ef: '7.0.20'
+            runtime-sdk: '6.0.x'
+            project: tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef7/Ef7.csproj
+          - ef: '8.0.31'
+            runtime-sdk: '8.0.x'
+            project: tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef8/Ef8.csproj
+          - ef: '9.0.20'
+            runtime-sdk: '8.0.x'
+            project: tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef9/Ef9.csproj
+          - ef: '10.0.11'
+            runtime-sdk: '10.0.x'
+            project: tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.csproj
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install compatibility runtime and repository SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: ${{ matrix.runtime-sdk }}
+
+      - name: Test EF compatibility
+        run: dotnet test ${{ matrix.project }} --configuration Release --logger "trx;LogFileName=efcore-${{ matrix.ef }}.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: efcore-${{ matrix.ef }}-${{ matrix.os }}
+          path: '**/TestResults/*.trx'
+          if-no-files-found: warn
