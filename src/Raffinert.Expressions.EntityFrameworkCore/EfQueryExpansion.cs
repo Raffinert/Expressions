@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Linq.Expressions;
 using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 
 namespace Raffinert.Expressions;
@@ -22,7 +23,42 @@ internal static class EfQueryExpansion
 
     private sealed class RuntimeCaptureVisitor(QueryContext? context) : ExpressionVisitor
     {
+        private static readonly MethodInfo ConstantDirective = ((MethodCallExpression)((Expression<Func<int, int>>)(value => EF.Constant(value))).Body).Method.GetGenericMethodDefinition();
+        private static readonly MethodInfo ParameterDirective = ((MethodCallExpression)((Expression<Func<int, int>>)(value => EF.Parameter(value))).Body).Method.GetGenericMethodDefinition();
         private readonly RaffinertParameterNameGenerator _names = new(context == null ? [] : EfRuntimeParameters.Values(context).Keys);
+
+        private static bool IsDirective(MethodInfo method) => method.IsGenericMethod &&
+            (method.GetGenericMethodDefinition() == ConstantDirective || method.GetGenericMethodDefinition() == ParameterDirective);
+
+        protected override Expression VisitMethodCall(MethodCallExpression node)
+        {
+            if (!IsDirective(node.Method))
+                return base.VisitMethodCall(node);
+
+            // Reject computed/row-dependent operands before visiting their children,
+            // so unsupported directives cannot trigger capture getter evaluation.
+            var original = node.Arguments[0];
+            if (original is not (ConstantExpression or DefaultExpression or QueryParameterExpression) &&
+                !(original is MemberExpression capture && IsCapture(capture)))
+                throw UnsupportedDirectiveOperand();
+
+            // Leave mode selection to EF's native normalizer. It requires a native
+            // parameter operand even for a literal introduced by late expansion.
+            var operand = Visit(node.Arguments[0]);
+            if (operand is QueryParameterExpression)
+                return node.Update(node.Object, [operand]);
+            if (operand is not ConstantExpression literal || !IsScalar(Nullable.GetUnderlyingType(literal.Type) ?? literal.Type))
+                throw UnsupportedDirectiveOperand();
+            if (context == null)
+                throw new NotSupportedException("EF directive literals inside standalone interception or explicitly compiled wrappers require ordinary query preparation.");
+            var name = _names.NextPath("p");
+            var parameter = EfRuntimeParameters.Create(literal.Type, name);
+            EfRuntimeParameters.Add(context, name, literal.Value);
+            return node.Update(node.Object, [parameter]);
+        }
+
+        private static NotSupportedException UnsupportedDirectiveOperand() => new(
+            "This EF directive operand is unsupported inside a Raffinert wrapper. Use a supported scalar capture or literal; row-dependent and computed operands are not evaluated.");
         protected override Expression VisitDefault(DefaultExpression node)
         {
             // EF normally folds these before compilation; late expansion introduces new defaults.

@@ -201,4 +201,73 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         Assert.Null(error.InnerException);
         Assert.Empty(fixture.Commands.Executed);
     }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task NestedDirectiveOperandsAreRejectedLikeNativeEf(bool outerConstant, bool innerConstant)
+    {
+        await using var fixture = await CreateAsync();
+        var threshold = 1000;
+        var condition = (outerConstant, innerConstant) switch
+        {
+            (true, true) => Condition<Row>.Create(x => x.TotalCents > EF.Constant(EF.Constant(threshold))),
+            (true, false) => Condition<Row>.Create(x => x.TotalCents > EF.Constant(EF.Parameter(threshold))),
+            (false, true) => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(EF.Constant(threshold))),
+            _ => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(EF.Parameter(threshold)))
+        };
+        var control = (outerConstant, innerConstant) switch
+        {
+            (true, true) => fixture.Db.Orders.Where(x => x.TotalCents > EF.Constant(EF.Constant(threshold))),
+            (true, false) => fixture.Db.Orders.Where(x => x.TotalCents > EF.Constant(EF.Parameter(threshold))),
+            (false, true) => fixture.Db.Orders.Where(x => x.TotalCents > EF.Parameter(EF.Constant(threshold))),
+            _ => fixture.Db.Orders.Where(x => x.TotalCents > EF.Parameter(EF.Parameter(threshold)))
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => control.ToArrayAsync());
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
+        Assert.Contains("operand", error.Message);
+        Assert.Null(error.InnerException);
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    [Fact]
+    public async Task ComputedOperandIsRejectedWithoutReadingGetters()
+    {
+        await using var fixture = await CreateAsync();
+        var holder = new Holder();
+        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(holder.Value + 1));
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
+        Assert.Contains("operand", error.Message);
+        Assert.Equal(0, holder.Reads);
+        Assert.Null(error.InnerException);
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    [Fact]
+    public async Task DirectiveGetterReadsOnceAndFailuresStaySanitized()
+    {
+        await using var fixture = await CreateAsync();
+        var holder = new Holder();
+        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(holder.Value));
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
+        Assert.Equal(3, await query.CountAsync());
+        Assert.Equal(3, await query.CountAsync());
+        Assert.Equal(2, holder.Reads);
+        holder.Throw = true;
+        fixture.Commands.Executed.Clear();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
+        Assert.DoesNotContain(Holder.Marker, error.ToString());
+        Assert.Null(error.InnerException);
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    private sealed class Holder
+    {
+        public const string Marker = "synthetic-ef10-getter@example.invalid";
+        public int Reads { get; private set; }
+        public bool Throw { get; set; }
+        public int Value { get { Reads++; if (Throw) throw new InvalidOperationException(Marker); return 1000; } }
+    }
 }

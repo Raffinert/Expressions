@@ -67,3 +67,39 @@ ParameterExpression name recognition remains for general expression parameters.
 Adapter Release build: zero warnings/errors. All 50 runtime/naming/cache/execution
 regressions passed, zero failed/skipped. Source search found no version-probing hits.
 QueryExecutionState, core expansion and naming are unchanged.
+
+## Phase 5 — proven directive fixes and declared scope
+
+Phase 4 checkpoint: `df01c8e`. HEAD before this phase: `df01c8e`.
+Read EF 10.0.11 [funcletizer](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/Internal/ExpressionTreeFuncletizer.cs),
+[normalizer](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/Internal/QueryableMethodNormalizingExpressionVisitor.cs),
+and [public parameter node](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/QueryParameterExpression.cs).
+No internal API is invoked/copied. A narrow VisitMethodCall recognizes exact generic
+EF marker identities obtained from expression metadata, preserves marker calls and
+lets native normalization select Constant/Parameter mode. Existing lifted captures
+need no mode rewrite. Scalar literal/default operands receive a native parameter
+and QueryContext binding first, using fallback name __raffinert_p_0.
+
+First focused fix: all original 13 cases passed on each provider. Added six cases:
+four nested directive combinations, computed operand rejection without getter reads,
+and directive getter count/sanitized failure. Native EF rejects nested directive
+operands before SQL; tests now assert that native rejection and the adapter's
+sanitized rejection, rather than inventing outer-mode semantics. Nested *wrapper*
+composition remains supported and green. The computed operand test reproduced one
+unwanted getter read before rejection; preflight validation now rejects unsupported
+operand shapes before traversal. Final focused result: **19 passed on SQLite and
+19 on real LocalDB**, zero failed/skipped; formatting passes.
+
+The entire Phase 2 matrix is GREEN to its declared scope: supported cases match
+native controls; row-dependent/nested directive operands fail before SQL. Captured
+member chains, scalar literals/defaults are supported. Computed expressions,
+conversion-wrapped operands and arbitrary method/constructor operands inside markers
+are conservatively rejected; use direct EF operators for native pre-extraction support.
+No generic evaluator, client filtering, literal fallback or alternate cache was added.
+
+Observed A → B → A compilation totals: two combined native/embedded compilations
+for automatic, EF.Parameter and EF.Constant on each provider (one per query form).
+Parameter/automatic SQL uses __raffinert_threshold_0 and current values; forced
+constant SQL has no DbParameters and matches native SQL for every execution.
+Constant-only ToQueryString renders intentional constants. Any actual lifted bound
+parameter remains protected. Test output contains shapes/metadata, never bound values.
