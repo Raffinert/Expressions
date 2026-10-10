@@ -133,3 +133,13 @@ GREEN test: `dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.Compati
 105 passed / 0 failed / 0 skipped on Windows, EF 8.0.31 / runtime 8.0.31.
 SQL evidence: all shared runtime/SQL/privacy/cache assertions pass.
 Known risk: EF 9 pending. Commit: EF 8 checkpoint in git log.
+
+## Phase F — EF 9 compatibility checkpoint
+
+HEAD before work: 7a63abb. Files changed: this report. Hypothesis: EF 9 still uses
+native ParameterExpression + AddParameter, without an EF 10 type dependency.
+RED test: N/A; no version-specific defect. Implementation: no change.
+GREEN test: `dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef9/Ef9.csproj -c Release`:
+105 passed / 0 failed / 0 skipped on Windows, EF 9.0.20 / runtime 8.0.31.
+SQL evidence: all shared privacy/cache/null/getter/pooling assertions pass.
+Known risk: Linux/final-head CI not yet run. Commit: EF 9 checkpoint in git log.
