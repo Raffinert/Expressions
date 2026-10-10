@@ -28,10 +28,24 @@ public sealed class SqliteFixture : IAsyncDisposable
             var ada = new CustomerRow { Id = 1, Name = "Ada", Active = true };
             var bob = new CustomerRow { Id = 2, Name = "Bob", Active = false };
             fixture.Db.Orders.AddRange(
-                new OrderRow { Id = 1, TotalCents = 200, Active = true, Name = "Pencil", Customer = ada,
-                    Lines = { new LineRow { AmountCents = 100 } } },
-                new OrderRow { Id = 2, TotalCents = 20000, Active = true, Name = "Desk", Customer = ada,
-                    Lines = { new LineRow { AmountCents = 200 }, new LineRow { AmountCents = 300 } } },
+                new OrderRow
+                {
+                    Id = 1,
+                    TotalCents = 200,
+                    Active = true,
+                    Name = "Pencil",
+                    Customer = ada,
+                    Lines = { new LineRow { AmountCents = 100 } }
+                },
+                new OrderRow
+                {
+                    Id = 2,
+                    TotalCents = 20000,
+                    Active = true,
+                    Name = "Desk",
+                    Customer = ada,
+                    Lines = { new LineRow { AmountCents = 200 }, new LineRow { AmountCents = 300 } }
+                },
                 new OrderRow { Id = 3, TotalCents = 1500, Active = false, Name = "Uncategorized" },
                 new OrderRow { Id = 4, TotalCents = 9000, Active = false, Name = "Hidden", Customer = bob });
             await fixture.Db.SaveChangesAsync();
