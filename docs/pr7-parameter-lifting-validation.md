@@ -175,3 +175,15 @@ covered. No forced GC, concurrent operations or untested synchronization primiti
 Known risks: side-effecting/reentrant getters remain unsupported; distinct repeated
 scalar occurrences are intentionally not deduplicated. No general AOT/provider claim.
 Commit: regression checkpoint in git log.
+
+### Phase G follow-up — unsupported captures before getter evaluation
+
+HEAD before work: 2a17619. Files changed: EfQueryExpansion.cs and runtime tests.
+Hypothesis: unsupported compiled runtime captures should be rejected without executing
+a potentially side-effecting getter. RED: code inspection identified evaluation before
+rejection; no new SQL failure claimed. Implementation: check type/mode before evaluation.
+GREEN: focused runtime suite 23 passed / 0 failed / 0 skipped on EF 10.0.11 / Windows,
+including a throwing captured getter with zero reads in explicit compilation.
+SQL evidence: zero commands on unsupported compiled getter. Full matrix rerun follows.
+Known risks: arbitrary EF extraction outside adapter preparation retains EF behavior.
+Commit: fail-fast hardening checkpoint in git log.

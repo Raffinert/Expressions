@@ -294,6 +294,18 @@ public class RuntimeParameterLiftingTests
         Assert.Empty(fixture.Commands.Executed);
     }
 
+    [Fact]
+    public async Task UnsupportedCompiledCaptureGettersAreRejectedWithoutReadingThem()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var holder = new ThrowingHolder("synthetic-unread@example.invalid");
+        var condition = Condition<OrderRow>.Create(x => x.Name == holder.Value);
+        var compiled = EF.CompileQuery((OrdersContext db) => db.Orders.Count(x => condition.Invoke(x)));
+        Assert.Throws<NotSupportedException>(() => compiled(fixture.Db));
+        Assert.Equal(0, holder.Reads);
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
     private sealed class RebuildWhereInterceptor : IQueryExpressionInterceptor
     {
         public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData) =>
@@ -352,7 +364,15 @@ public class RuntimeParameterLiftingTests
 
     private sealed class ThrowingHolder(string marker)
     {
-        public string Value => throw new InvalidOperationException(marker);
+        public int Reads { get; private set; }
+        public string Value
+        {
+            get
+            {
+                Reads++;
+                throw new InvalidOperationException(marker);
+            }
+        }
     }
 
     private sealed class TakeOneInterceptor : IQueryExpressionInterceptor
