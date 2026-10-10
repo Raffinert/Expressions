@@ -9,6 +9,63 @@ permissions:
   contents: read
 
 jobs:
+  sqlserver-localdb:
+    name: SQL Server LocalDB (EF Core 10)
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Verify and start current-user LocalDB
+        shell: pwsh
+        run: |
+          $localDbTool = (Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue).Source
+          if (-not $localDbTool) {
+            $localDbTool = Get-ChildItem "$env:ProgramFiles\Microsoft SQL Server\*\Tools\Binn\SqlLocalDB.exe" -File -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $localDbTool) {
+            throw 'SQL Server LocalDB is required. Install the official LocalDB/Visual Studio SQL.LocalDB.Runtime component; see https://learn.microsoft.com/sql/database-engine/configure-windows/sql-server-express-localdb. Tests will not be skipped.'
+          }
+          & $localDbTool versions
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect installed LocalDB versions.' }
+          $instances = & $localDbTool info
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect current-user LocalDB instances.' }
+          if ($instances -notcontains 'MSSQLLocalDB') {
+            & $localDbTool create MSSQLLocalDB
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot create current-user MSSQLLocalDB instance.' }
+          }
+          $instanceInfo = & $localDbTool info MSSQLLocalDB
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect MSSQLLocalDB.' }
+          if (($instanceInfo -join "`n") -notmatch 'State:\s+Running') {
+            & $localDbTool start MSSQLLocalDB
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot start MSSQLLocalDB.' }
+          }
+          & $localDbTool info MSSQLLocalDB
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect running MSSQLLocalDB.' }
+
+      - name: Restore SQL Server tests
+        run: dotnet restore tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.csproj
+
+      - name: Execute SQL Server tests
+        run: dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.csproj -c Release --no-restore --logger "trx;LogFileName=sqlserver-localdb.trx" --logger "console;verbosity=detailed"
+
+      - name: Check SQL Server test formatting
+        run: dotnet format tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.csproj --no-restore --verify-no-changes
+
+      - name: Upload SQL Server test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sqlserver-localdb-windows
+          path: 'tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/TestResults/*.trx'
+          if-no-files-found: warn
+
   verify:
     name: Verify (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
