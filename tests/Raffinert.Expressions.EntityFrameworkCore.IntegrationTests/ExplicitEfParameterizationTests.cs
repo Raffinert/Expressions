@@ -634,6 +634,292 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         Assert.Equal(3, await fixture.Db.Orders.CountAsync(x => valid.Invoke(x)));
     }
 
+    [Theory]
+    [InlineData("constant", "array")]
+    [InlineData("parameter", "array")]
+    [InlineData("multiple", "array")]
+    [InlineData("constant", "list")]
+    [InlineData("parameter", "list")]
+    [InlineData("multiple", "list")]
+    [InlineData("constant", "nullable")]
+    [InlineData("parameter", "nullable")]
+    [InlineData("multiple", "nullable")]
+    [InlineData("constant", "string")]
+    [InlineData("parameter", "string")]
+    [InlineData("multiple", "string")]
+    public async Task NativeCollectionControlsEstablishSupportedShapes(string mode, string shape)
+    {
+        await using var fixture = await CreateAsync();
+        var state = new CollectionState();
+        var condition = CollectionCondition(state, mode, shape);
+        foreach (var step in CollectionSteps)
+        {
+            state.Set(step);
+            Assert.Equal(state.Expected(shape), await fixture.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+            var command = fixture.Commands.Executed.Last();
+            AssertCollectionMode(mode, command.Sql, command.Values, step?.Length ?? 0);
+        }
+        output.WriteLine($"Native collection controls passed: {mode}/{shape}; values omitted.");
+    }
+
+    [Theory]
+    [InlineData("constant", "array")]
+    [InlineData("parameter", "array")]
+    [InlineData("multiple", "array")]
+    [InlineData("constant", "list")]
+    [InlineData("parameter", "list")]
+    [InlineData("multiple", "list")]
+    [InlineData("constant", "nullable")]
+    [InlineData("parameter", "nullable")]
+    [InlineData("multiple", "nullable")]
+    [InlineData("constant", "string")]
+    [InlineData("parameter", "string")]
+    [InlineData("multiple", "string")]
+    public async Task CollectionModesMatchNativeAcrossReplacementMutationAndSizes(string mode, string shape)
+    {
+        await using var fixture = await CreateAsync();
+        var state = new CollectionState();
+        var condition = CollectionCondition(state, mode, shape);
+        var controls = new List<(int[] Rows, string Sql, object?[] Values)>();
+        foreach (var step in CollectionSteps)
+        {
+            state.Set(step);
+            var rows = await fixture.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+            Assert.Equal(state.Expected(shape), rows);
+            var command = fixture.Commands.Executed.Last();
+            AssertCollectionMode(mode, command.Sql, command.Values, step?.Length ?? 0);
+            controls.Add((rows, command.Sql, command.Values));
+        }
+        fixture.Commands.Executed.Clear();
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        var before = fixture.QueryCompilations;
+        var index = 0;
+        foreach (var step in CollectionSteps)
+        {
+            state.Set(step);
+            var control = controls[index++];
+            Assert.Equal(control.Rows, await query.ToArrayAsync());
+            var command = fixture.Commands.Executed.Last();
+            Assert.Equal(control.Values, command.Values);
+            Assert.Equal(NormalizeCollectionSql(control.Sql), NormalizeCollectionSql(command.Sql));
+            AssertCollectionMode(mode, command.Sql, command.Values, step?.Length ?? 0);
+            if (mode != "constant" && command.Names.Length > 0)
+                Assert.All(command.Names, name => Assert.StartsWith("__raffinert_", name));
+        }
+        var embeddedCompilations = fixture.QueryCompilations - before;
+        Assert.Equal(1, embeddedCompilations);
+        output.WriteLine($"Embedded collection {mode}/{shape}: compilations {embeddedCompilations}; SQL shapes {fixture.Commands.Executed.Select(x => x.Sql).Distinct().Count()}; values omitted.");
+    }
+
+    [Theory]
+    [InlineData("constant")]
+    [InlineData("parameter")]
+    [InlineData("multiple")]
+    public async Task CollectionDirectivePrivacyAndToQueryString(string mode)
+    {
+        await using var fixture = await CreateAsync();
+        var state = new CollectionState { Strings = [Holder.Marker, "Desk"] };
+        var condition = CollectionCondition(state, mode, "string");
+        var expected = await fixture.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+        var nativeCommand = fixture.Commands.Executed.Last();
+        Assert.Equal(new[] { 2 }, expected);
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        Assert.Equal(expected, await query.ToArrayAsync());
+        var command = fixture.Commands.Executed.Last();
+        Assert.Equal(nativeCommand.Values, command.Values);
+        if (mode == "constant")
+        {
+            Assert.Contains(Holder.Marker, command.Sql);
+            Assert.Contains(Holder.Marker, query.ToQueryString());
+        }
+        else
+        {
+            Assert.DoesNotContain(Holder.Marker, command.Sql);
+            Assert.Contains(command.Values, value => value is string text && text.Contains(Holder.Marker, StringComparison.Ordinal));
+            var error = Assert.Throws<NotSupportedException>(() => query.ToQueryString());
+            Assert.DoesNotContain(Holder.Marker, error.ToString());
+            Assert.Null(error.InnerException);
+        }
+        output.WriteLine($"Collection {mode}: physical parameter count {command.Names.Length}; diagnostic guard checked; values omitted.");
+    }
+
+    [Theory]
+    [InlineData("constant")]
+    [InlineData("parameter")]
+    [InlineData("multiple")]
+    public async Task CollectionGetterReadsOncePerOccurrenceAndFailureRecovers(string mode)
+    {
+        await using var fixture = await CreateAsync();
+        var holder = new CollectionHolder();
+        var condition = mode switch
+        {
+            "constant" => Condition<Row>.Create(x => Enumerable.Contains(EF.Constant(holder.Ids), x.Id)),
+            "parameter" => Condition<Row>.Create(x => Enumerable.Contains(EF.Parameter(holder.Ids), x.Id)),
+            _ => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(holder.Ids), x.Id))
+        };
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
+        for (var i = 1; i <= 3; i++)
+        {
+            holder.Values = i == 2 ? [2, 4] : [1, 3];
+            Assert.Equal(holder.Values, await query.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+            Assert.Equal(i, holder.Reads);
+        }
+        holder.Throw = true;
+        fixture.Commands.Executed.Clear();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
+        Assert.DoesNotContain(Holder.Marker, error.ToString());
+        Assert.Null(error.InnerException);
+        Assert.Empty(fixture.Commands.Executed);
+        holder.Throw = false;
+        Assert.Equal(2, await query.CountAsync());
+        Assert.Equal(5, holder.Reads);
+    }
+
+    [Theory]
+    [InlineData("method")]
+    [InlineData("new-array")]
+    [InlineData("append")]
+    [InlineData("nested")]
+    [InlineData("row")]
+    [InlineData("queryable")]
+    [InlineData("interface")]
+    public async Task UnsupportedCollectionOperandNeverExecutesUserCode(string shape)
+    {
+        await using var fixture = await CreateAsync();
+        var holder = new CollectionHolder();
+        var condition = shape switch
+        {
+            "method" => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(GetIds(holder.Ids)), x.Id)),
+            "new-array" => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(new[] { holder.Value }), x.Id)),
+            "append" => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(holder.Ids.Append(4).ToArray()), x.Id)),
+            "nested" => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(EF.Parameter(holder.Ids)), x.Id)),
+            "row" => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(new[] { holder.Value, x.Id }), x.Id)),
+            "queryable" => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(holder.Query), x.Id)),
+            _ => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(holder.Sequence), x.Id))
+        };
+        var error = await Assert.ThrowsAsync<NotSupportedException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
+        Assert.Equal(0, holder.Reads);
+        Assert.DoesNotContain(Holder.Marker, error.ToString());
+        Assert.Null(error.InnerException);
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    [Fact]
+    public async Task NativeNestedAndRowCollectionDirectivesFailBeforeSql()
+    {
+        await using var fixture = await CreateAsync();
+        int[] ids = [1, 3];
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => Enumerable.Contains(EF.MultipleParameters(EF.Parameter(ids)), x.Id)).ToArrayAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => Enumerable.Contains(EF.MultipleParameters(new[] { x.Id }), x.Id)).ToArrayAsync());
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    [Fact]
+    public async Task RepeatedAndMixedCollectionParametersProjectionAndReassignment()
+    {
+        await using var fixture = await CreateAsync();
+        int[] ids = [1, 3];
+        List<int> other = [1, 2, 3];
+        var threshold = 100;
+        var __raffinert_ids_0 = 4;
+        var condition = Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(ids), x.Id)
+            && Enumerable.Contains(EF.Parameter(other), x.Id) && x.TotalCents > threshold);
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x) && x.Id < __raffinert_ids_0).OrderBy(x => x.Id).Select(x => x.Id);
+        foreach (var values in new[] { new[] { 1, 3 }, new[] { 2, 4 }, new[] { 1, 3 } })
+        {
+            ids = values;
+            var expected = await fixture.Db.Orders.Where(condition).Where(x => x.Id < __raffinert_ids_0).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+            Assert.Equal(expected, await query.ToArrayAsync());
+            var command = fixture.Commands.Executed.Last();
+            Assert.Equal(command.Names.Length, command.Names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.Contains("__raffinert_other_0", command.Names);
+            Assert.Contains("__raffinert_threshold_0", command.Names);
+            var projection = Projection<Row>.Create(x => new { x.Id, Match = Enumerable.Contains(EF.MultipleParameters(ids), x.Id) });
+            var nativeProjection = await fixture.Db.Orders.Select(projection).OrderBy(x => x.Id).ToArrayAsync();
+            Assert.Equal(nativeProjection, await fixture.Db.Orders.Select(x => projection.Invoke(x)).OrderBy(x => x.Id).ToArrayAsync());
+        }
+        condition = Condition<Row>.Create(x => !Enumerable.Contains(EF.MultipleParameters(ids), x.Id));
+        Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
+    }
+
+    private static readonly int[]?[] CollectionSteps = [[1, 3], [2, 4], [], [2], [1, 1, 3], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], null, [1, 3]];
+
+    private static Condition<Row> CollectionCondition(CollectionState state, string mode, string shape) => (mode, shape) switch
+    {
+        ("constant", "array") => Condition<Row>.Create(x => Enumerable.Contains(EF.Constant(state.Array), x.Id)),
+        ("parameter", "array") => Condition<Row>.Create(x => Enumerable.Contains(EF.Parameter(state.Array), x.Id)),
+        ("multiple", "array") => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(state.Array), x.Id)),
+        ("constant", "list") => Condition<Row>.Create(x => Enumerable.Contains(EF.Constant(state.List), x.Id)),
+        ("parameter", "list") => Condition<Row>.Create(x => Enumerable.Contains(EF.Parameter(state.List), x.Id)),
+        ("multiple", "list") => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(state.List), x.Id)),
+        ("constant", "nullable") => Condition<Row>.Create(x => Enumerable.Contains(EF.Constant(state.Nullable), x.CustomerId)),
+        ("parameter", "nullable") => Condition<Row>.Create(x => Enumerable.Contains(EF.Parameter(state.Nullable), x.CustomerId)),
+        ("multiple", "nullable") => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(state.Nullable), x.CustomerId)),
+        ("constant", "string") => Condition<Row>.Create(x => Enumerable.Contains(EF.Constant(state.Strings), EF.Functions.Collate(x.Name, CollectionStringCollation))),
+        ("parameter", "string") => Condition<Row>.Create(x => Enumerable.Contains(EF.Parameter(state.Strings), EF.Functions.Collate(x.Name, CollectionStringCollation))),
+        _ => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(state.Strings), EF.Functions.Collate(x.Name, CollectionStringCollation)))
+    };
+
+    private static string NormalizeCollectionSql(string sql) => System.Text.RegularExpressions.Regex.Replace(sql, @"@[A-Za-z0-9_]+", "@parameter");
+
+#if SQLSERVER_TESTS
+    private const string CollectionStringCollation = "Latin1_General_BIN2";
+#else
+    private const string CollectionStringCollation = "BINARY";
+#endif
+
+    private static void AssertCollectionMode(string mode, string sql, object?[] values, int size)
+    {
+        if (mode == "constant") Assert.Empty(values);
+        else if (size > 0)
+        {
+            if (mode == "parameter") Assert.Single(values);
+            else
+            {
+                // Native null/duplicate optimizations and provider padding own the count.
+                Assert.DoesNotContain("json", sql, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
+
+    private sealed class CollectionState
+    {
+        public int[] Array = [1, 3];
+        public List<int> List = [1, 3];
+        public int?[] Nullable = [1, null];
+        public string[] Strings = ["Pencil", "Uncategorized"];
+        private static readonly string[] Names = ["Pencil", "Desk", "Uncategorized", "Hidden"];
+        public void Set(int[]? values)
+        {
+            Array = values!;
+            // Mutate this exact List instance; only captured null requires replacing it.
+            if (values == null) List = null!;
+            else { List ??= []; List.Clear(); List.AddRange(values); }
+            Nullable = values?.Select(x => x == 3 ? (int?)null : x).ToArray()!;
+            Strings = values?.Select(x => x is >= 1 and <= 4 ? Names[x - 1] : "missing").ToArray()!;
+        }
+        public int[] Expected(string shape) => Enumerable.Range(1, 4).Where(id => shape switch
+        {
+            "array" => Array?.Contains(id) == true,
+            "list" => List?.Contains(id) == true,
+            "nullable" => Nullable?.Contains(id == 3 ? null : id == 4 ? 2 : 1) == true,
+            _ => Strings?.Contains(Names[id - 1]) == true
+        }).ToArray();
+    }
+
+    private sealed class CollectionHolder
+    {
+        public int Reads { get; private set; }
+        public bool Throw { get; set; }
+        public int[] Values = [1, 3];
+        public int[] Ids { get { Reads++; if (Throw) throw new InvalidOperationException(Holder.Marker); return Values; } }
+        public int Value { get { Reads++; throw new InvalidOperationException(Holder.Marker); } }
+        public IQueryable<int> Query { get { Reads++; throw new InvalidOperationException(Holder.Marker); } }
+        public IEnumerable<int> Sequence { get { Reads++; throw new InvalidOperationException(Holder.Marker); } }
+    }
+
+    private static int[] GetIds(int[] values) => throw new InvalidOperationException(Holder.Marker);
+
     private static int ArbitraryMethod() => throw new InvalidOperationException(Holder.Marker);
     private static bool UnsupportedRow(int value) => throw new InvalidOperationException(Holder.Marker);
     private static readonly int StaticThreshold = 1000;
