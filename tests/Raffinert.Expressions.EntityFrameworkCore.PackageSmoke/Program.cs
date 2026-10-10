@@ -140,6 +140,28 @@ var pattern = "D%";
 var like = Condition<SmokeRow>.Create(x => EF.Functions.Like(x.Name, pattern));
 Check(await db.Rows.CountAsync(x => like.Invoke(x)) == await db.Rows.CountAsync(x => EF.Functions.Like(x.Name, pattern)), "native Like function");
 
+var ordinary = new SmokeCallbackHolder();
+var carried = db.Rows.OrderBy(x => x.Id).Select(x => ordinary.Callback);
+foreach (var offset in new[] { 10, 20, 10 })
+{
+    ordinary.Offset = offset;
+    ordinary.Reads = 0;
+    Check((await carried.ToArrayAsync()).All(callback => callback(1) == offset + 1), "carried delegate current result");
+    Check(ordinary.Reads == 1, "carried delegate native getter count");
+    ordinary.Reads = 0;
+    var methodGroups = await db.Rows.Select(x => (Func<int, int>)ordinary.Target.Invoke).ToArrayAsync();
+    Check(methodGroups.All(callback => callback(1) == offset + 1), "ordinary method group current result");
+    Check(ordinary.Reads == 1, "ordinary method group native getter count");
+}
+var positive = Condition<SmokeRow>.Create(x => x.Value > threshold);
+Func<SmokeRow, bool> delegated = positive.Invoke;
+foreach (var next in new[] { 1000, 30000, 1000 })
+{
+    threshold = next;
+    Check(await db.Rows.CountAsync(row => db.Rows.Where(x => x.Id == row.Id).Any(positive.Invoke)) == (next == 30000 ? 0 : 1), "marker method group server expansion");
+    Check(await db.Rows.CountAsync(row => db.Rows.Where(x => x.Id == row.Id).Any(delegated)) == (next == 30000 ? 0 : 1), "captured delegate server expansion");
+}
+
 Console.WriteLine($"Package smoke passed: EF {typeof(DbContext).Assembly.GetName().Version}, runtime {Environment.Version}.");
 
 static void Check(bool success, string scenario)
@@ -176,4 +198,17 @@ public sealed class ExternalCondition : IComposableExpression<SmokeRow, bool>
 {
     public bool Invoke(SmokeRow value) => value.Value > 1000;
     public LambdaExpression GetExpandedLambdaExpression() => (Expression<Func<SmokeRow, bool>>)(x => x.Value > 1000);
+}
+
+public sealed class SmokeCallbackHolder
+{
+    public int Reads;
+    public int Offset;
+    public Func<int, int> Callback { get { Reads++; var offset = Offset; return value => value + offset; } }
+    public SmokeCallbackTarget Target { get { Reads++; return new SmokeCallbackTarget(Offset); } }
+}
+
+public sealed class SmokeCallbackTarget(int offset)
+{
+    public int Invoke(int value) => value + offset;
 }

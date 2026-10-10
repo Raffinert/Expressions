@@ -75,6 +75,15 @@ targets. Unrelated methods named Invoke remain ordinary methods. Cycles and unre
 wrapper parameters fail. Captured wrapper reassignment is observed in ordinary queries;
 the core's established cache of a wrapper's nested composition still fixes that structure.
 
+Delegate-valued properties merely projected or carried through are left to the provider;
+ordinary method-group receiver getters are also left untouched. A property used as a
+delegate invocation target or delegate-typed method argument must still be read to
+identify its runtime target. Such opaque callback operands can have expansion-time
+getter effects; there is no universal side-effect-free classification guarantee.
+Raffinert marker method groups, captured delegate fields and property callbacks retain
+expansion. See the [delegate getter review](experiments/pr10-delegate-getter-review.md)
+for native controls and the precise tested boundary.
+
 Native EF controls determine supported client expressions and getter evaluation.
 There is no Raffinert scalar/computation/collection whitelist in ordinary queries.
 Approved user code can execute during native extraction. A successful captured getter
@@ -154,9 +163,9 @@ Interface forwarding is tested separately from ordinary/compiled query execution
 ## Tested versions
 
 Local validation: Windows, SDK 10.0.401 (global.json 10.0.400 with latestPatch), runtime
-10.0.12, EF Core/Relational/SQLite/SQL Server 10.0.11. Solution: **267 passed**
-(62 core, 5 QuerySyntax, 14 original integration, 186 adapter). LocalDB: **80 passed**
-(23 existing including 8 fixture-safety cases, 21 directive cases, 36 native-acceptance cases).
+10.0.12, EF Core/Relational/SQLite/SQL Server 10.0.11. Solution: **280 passed**
+(68 core, 5 QuerySyntax, 14 original integration, 193 adapter). LocalDB: **87 passed**
+(23 existing including 8 fixture-safety cases, 21 directive cases, 43 native-acceptance cases).
 No failures or skips. Release builds, restore, formatting and diff checks pass.
 Three 1.2.0 nupkg/snupkg artifacts retain their original TFMs and dependency boundaries.
 The isolated consumer restores newly packed local packages into a fresh cache, with

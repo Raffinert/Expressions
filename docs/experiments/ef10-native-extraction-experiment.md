@@ -5,6 +5,10 @@
 **Decision: MIGRATE**, under the owner's additional native-parameterization and native-diagnostics decision.
 The former diagnostic privacy policy is deliberately superseded, not silently relaxed.
 
+Subsequent PR #10 release hardening is recorded in the canonical
+[delegate getter review](pr10-delegate-getter-review.md). The counts below describe the
+migration checkpoint; that review and the PR validation section record the newer results.
+
 - Baseline: `feature/efcore-integration`, `c247403120a12c553f0028d56f4f8bb2f31382db`.
 - Experiment: `experiment/ef10-query-compiler-native-extraction`, created in the same workspace with `git switch -c`.
 - No-op checkpoint: `60d25bd` (230 solution / 44 LocalDB passed).

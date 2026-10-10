@@ -387,4 +387,143 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
     }
 
     private static bool UnmappedRowMethod(int id) => id > 0;
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task OrdinaryDelegateGetterMatchesNative(bool fail, bool methodGroup)
+    {
+        await using var f = await CreateAsync();
+        var nativeBuilder = new DbContextOptionsBuilder<Context>();
+        var nativeCompilations = 0;
+#if SQLSERVER_TESTS
+        nativeBuilder.UseSqlServer(f.Db.Database.GetConnectionString());
+#else
+        nativeBuilder.UseSqlite(f.Db.Database.GetDbConnection());
+#endif
+        nativeBuilder.EnableServiceProviderCaching(false).AddInterceptors(f.Commands);
+        nativeBuilder.LogTo(_ => nativeCompilations++, new[] { Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.QueryCompilationStarting });
+        await using var native = new Context(nativeBuilder.Options);
+        var holder = new OrdinaryCallbackHolder();
+        Expression<Func<Row, Func<int, int>>> carried = methodGroup
+            ? x => holder.Target.Invoke
+            : x => holder.Callback;
+        foreach (var offset in new[] { 10, 20, 10 })
+        {
+            holder.Offset = offset;
+            holder.Reads = 0;
+            var nativeQuery = native.Orders.OrderBy(x => x.Id).Select(carried);
+            var registeredQuery = f.Db.Orders.OrderBy(x => x.Id).Select(carried);
+            Assert.Equal(0, holder.Reads);
+            if (fail)
+            {
+                holder.Fail = true;
+                var commandsBefore = f.Commands.Executed.Count;
+                var nativeFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => nativeQuery.ToArrayAsync());
+                var failedReads = holder.Reads;
+                holder.Reads = 0;
+                var registeredFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => registeredQuery.ToArrayAsync());
+                Assert.Equal(failedReads, holder.Reads);
+                Assert.Equal(nativeFailure.InnerException?.GetType(), registeredFailure.InnerException?.GetType());
+                Assert.Equal(commandsBefore, f.Commands.Executed.Count);
+                holder.Fail = false;
+                holder.Reads = 0;
+            }
+            Assert.All(await nativeQuery.ToArrayAsync(), callback => Assert.Equal(1 + offset, callback(1)));
+            var nativeReads = holder.Reads;
+            var command = f.Commands.Executed.Last();
+            holder.Reads = 0;
+            Assert.All(await registeredQuery.ToArrayAsync(), callback => Assert.Equal(1 + offset, callback(1)));
+            output.WriteLine($"Carried delegate methodGroup={methodGroup}, offset={offset}: native reads={nativeReads}, registered reads={holder.Reads}.");
+            Assert.Equal(command.Sql, f.Commands.Executed.Last().Sql);
+            Assert.Equal(command.Values, f.Commands.Executed.Last().Values);
+            Assert.Equal(nativeReads, holder.Reads);
+        }
+        Assert.Equal(1, nativeCompilations);
+        Assert.Equal(1, f.QueryCompilations);
+        Assert.Equal(6, f.Commands.Executed.Count);
+        holder.Reads = 0;
+        var nativeSql = native.Orders.Select(carried).ToQueryString();
+        var diagnosticReads = holder.Reads;
+        holder.Reads = 0;
+        Assert.Equal(nativeSql, f.Db.Orders.Select(carried).ToQueryString());
+        Assert.Equal(diagnosticReads, holder.Reads);
+        var expectedIds = await native.Orders.Where(x => x.TotalCents > 1000).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+        var neutralCommand = f.Commands.Executed.Last();
+        Assert.Equal(expectedIds, await f.Db.Orders.Where(x => x.TotalCents > 1000).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+        Assert.Equal(neutralCommand.Sql, f.Commands.Executed.Last().Sql);
+        Assert.Equal(neutralCommand.Values, f.Commands.Executed.Last().Values);
+    }
+
+    private sealed class OrdinaryCallbackHolder
+    {
+        public int Reads;
+        public int Offset;
+        public bool Fail;
+        public OrdinaryCallbackTarget Target
+        {
+            get
+            {
+                Reads++;
+                if (Fail) throw new ApplicationException("synthetic delegate getter failure");
+                return new OrdinaryCallbackTarget(Offset);
+            }
+        }
+        public Func<int, int> Callback
+        {
+            get
+            {
+                Reads++;
+                if (Fail) throw new ApplicationException("synthetic delegate getter failure");
+                var offset = Offset;
+                return value => value + offset;
+            }
+        }
+    }
+
+    private sealed class OrdinaryCallbackTarget(int offset)
+    {
+        public int Invoke(int value) => value + offset;
+    }
+
+    [Theory]
+    [InlineData("method-group")]
+    [InlineData("captured-field")]
+    [InlineData("opaque-property")]
+    public async Task MarkerDelegateCallbacksKeepServerExpansionAndCurrentValues(string mode)
+    {
+        await using var f = await CreateAsync();
+        var threshold = 1000;
+        var condition = Condition<Row>.Create(x => x.TotalCents > threshold);
+        Func<Row, bool> callback = condition.Invoke;
+        var holder = new MarkerCallbackHolder(callback);
+        var query = mode switch
+        {
+            "method-group" => f.Db.Orders.Where(row => f.Db.Orders.Where(x => x.Id == row.Id).Any(condition.Invoke)),
+            "captured-field" => f.Db.Orders.Where(row => f.Db.Orders.Where(x => x.Id == row.Id).Any(callback)),
+            _ => f.Db.Orders.Where(row => f.Db.Orders.Where(x => x.Id == row.Id).Any(holder.Callback))
+        };
+        foreach (var value in new[] { 1000, 10000, 1000 })
+        {
+            threshold = value;
+            holder.Reads = 0;
+            Assert.Equal(value == 1000 ? new[] { 2, 3, 4 } : new[] { 2 }, await query.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+            Assert.Equal(value, Assert.Single(f.Commands.Executed.Last().Values));
+            Assert.Contains("EXISTS", f.Commands.Executed.Last().Sql);
+            if (mode == "opaque-property") Assert.Equal(1, holder.Reads);
+        }
+        condition = Condition<Row>.Create(x => x.Id == 1);
+        callback = condition.Invoke;
+        holder.Value = callback;
+        Assert.Equal(new[] { 1 }, await query.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+    }
+
+    private sealed class MarkerCallbackHolder(Func<Row, bool> value)
+    {
+        public Func<Row, bool> Value = value;
+        public int Reads;
+        public Func<Row, bool> Callback { get { Reads++; return Value; } }
+    }
 }

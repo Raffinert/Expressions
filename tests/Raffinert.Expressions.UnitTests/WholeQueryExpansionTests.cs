@@ -12,6 +12,84 @@ public class WholeQueryExpansionTests
 
     private static Expression Expand(Expression root) => ExpressionExpander.Expand(root);
 
+    [Fact]
+    public void NonRaffinertDelegateMemberIsNotEagerlyReadByExpansion()
+    {
+        var holder = new OrdinaryDelegateHolder();
+        Expression<Func<int, Func<int, int>>> expression = value => holder.Callback;
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    [Fact]
+    public void ThrowingNonRaffinertDelegateMemberIsNotEagerlyReadByExpansion()
+    {
+        var holder = new OrdinaryDelegateHolder { Fail = true };
+        Expression<Func<int, Func<int, int>>> expression = value => holder.Callback;
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    private sealed class OrdinaryDelegateHolder
+    {
+        public int Reads;
+        public bool Fail;
+        public Func<int, int> Callback
+        {
+            get
+            {
+                Reads++;
+                if (Fail) throw new ApplicationException("synthetic delegate getter failure");
+                return static value => value + 1;
+            }
+        }
+    }
+
+    [Fact]
+    public void OrdinaryMethodGroupReceiverIsNotEagerlyReadByExpansion()
+    {
+        var holder = new MethodGroupHolder();
+        Expression<Func<Row, bool>> expression = row => row.Children.Any(holder.Target.Invoke);
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    private sealed class MethodGroupHolder
+    {
+        public int Reads;
+        public Unrelated Target { get { Reads++; return new Unrelated(); } }
+    }
+
+    [Fact]
+    public void OpaqueDelegatePropertyStillExpandsInCallbackPositions()
+    {
+        var positive = Condition<Row>.Create(row => row.Value > 10);
+        var holder = new MarkerDelegateHolder(positive.Invoke);
+        var query = Rows.Where(row => holder.Callback(row))
+            .Select(row => row.Children.Any(holder.Callback));
+        Assert.Equal(new[] { false }, query.Provider.CreateQuery<bool>(Expand(query.Expression)));
+        Assert.Equal(2, holder.Reads);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MarkerMethodGroupReadsWrapperTargetOnce(bool interfaceTyped)
+    {
+        var holder = new Holder();
+        var query = interfaceTyped
+            ? Rows.Select(row => row.Children.Any(((IComposableExpression<Row, bool>)holder.Condition).Invoke))
+            : Rows.Select(row => row.Children.Any(holder.Condition.Invoke));
+        Assert.Equal(new[] { false, false }, query.Provider.CreateQuery<bool>(Expand(query.Expression)));
+        Assert.Equal(1, holder.Reads);
+    }
+
+    private sealed class MarkerDelegateHolder(Func<Row, bool> callback)
+    {
+        public int Reads;
+        public Func<Row, bool> Callback { get { Reads++; return callback; } }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

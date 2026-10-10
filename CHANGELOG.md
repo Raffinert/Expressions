@@ -7,6 +7,7 @@
 - Added opt-in `UseRaffinertExpressions()` with expansion before native EF10 parameter extraction, using a narrowly scoped internal `IQueryCompiler` decorator. Retained the public standalone `RaffinertExpressionInterceptor` and closed compiled-wrapper behavior.
 - Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
 - Fixed embedded native wrapper invocation through `IComposableExpression<,>` interfaces/casts; unrelated methods named Invoke remain untouched.
+- Avoided eager getter reads for carried delegate properties and ordinary method-group receivers; preserved Raffinert callback expansion, native results and cache-hit values.
 - EF now owns evaluation, extraction, naming, binding, cache keys and translation. Removed custom runtime lifting, parameter naming, execution state and cache/context decorators after regression validation.
 - Embedded scalar/collection directives, computed operands and native provider functions match EF controls on SQLite and LocalDB; captures remain fresh on cache hits and wrapper reassignment.
 - Adopted native ToQueryString behavior: rendering may include parameter values even with sensitive-data logging disabled. Removed the Raffinert privacy guard; native EF client-evaluation errors may retain user details.
