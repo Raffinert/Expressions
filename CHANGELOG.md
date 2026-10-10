@@ -6,6 +6,9 @@
 - Added async composable-condition overloads for Any, All, Count, LongCount, First, FirstOrDefault, Single, SingleOrDefault, Last and LastOrDefault. They expand before calling EF and need no interceptor.
 - Added opt-in `UseRaffinertExpressions()` and `RaffinertExpressionInterceptor` for ordinary LINQ invocation markers, with public EF service integration for extracted wrapper values and expanded cache keys.
 - Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
+- Fixed embedded native wrapper invocation through `IComposableExpression<,>` interfaces/casts; unrelated methods named Invoke remain untouched.
+- Documented interception as constant-snapshot mode, with measured cache costs and parameterized alternatives. Added DateOnly/TimeOnly snapshots and descriptive rejection of hidden captured collections.
+- Added capture/service-composition regressions and isolated NuGet consumers on each tested EF major.
 - Added SQLite execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage, plus EF 7/8/9/10 compatibility projects and CI matrix.
 - Bumped QuerySyntax alongside core to align its package dependency; its API and behavior remain unchanged.
 

@@ -56,15 +56,18 @@ during expansion and must return stable values throughout a query execution.
 
 ## Local compatibility matrix
 
+Updated after PR #7 remediation. The original implementation ran 60 adapter tests per
+version; the remediation suite runs 83, including compilation diagnostics and service composition.
+
 All matrix projects link the same complete adapter integration test source. Production
 always compiles against EF 7.0.20 on net6.0; only the consumer provider changes.
 
 | EF Core / SQLite | Test target | Runtime | Passed | Failed / skipped |
 | --- | --- | --- | --- | --- |
-| 7.0.20 | net6.0 | 6.0.36 | 60 | 0 / 0 |
-| 8.0.31 | net8.0 | 8.0.31 | 60 | 0 / 0 |
-| 9.0.20 | net8.0 | 8.0.31 | 60 | 0 / 0 |
-| 10.0.11 | net10.0 | 10.0.12 | 60 | 0 / 0 |
+| 7.0.20 | net6.0 | 6.0.36 | 83 | 0 / 0 |
+| 8.0.31 | net8.0 | 8.0.31 | 83 | 0 / 0 |
+| 9.0.20 | net8.0 | 8.0.31 | 83 | 0 / 0 |
+| 10.0.11 | net10.0 | 10.0.12 | 83 | 0 / 0 |
 
 Commands:
 
@@ -78,12 +81,16 @@ dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/Raf
 The EF 7 leg required installing the retired .NET 6.0.36 runtime into a temporary
 local dotnet directory; it executed on .NET 6, without rolling forward to .NET 8/10.
 The final Release adapter DLL SHA256 was identical across production and all four test outputs:
-`247EC509EA5FB88A011034F43BD9E572673AFD41C281504CBC122C013D8146DC`.
+`F110120F7A424916CBBFB412FEA5B875C29A192D8A93123282B40AB19933EB03`
+(local remediation source validation; commit metadata can change the binary hash).
 
 CI now defines the same four explicit version legs on Windows and Ubuntu 22.04,
-uploading TRX results per version/OS. Remote CI has not been run in this session.
+uploading TRX results per version/OS and executing an isolated NuGet package consumer.
+The original PR head `9658e5c83203105fe6b28d49047f5f3ee9214551` passed all ten jobs in
+[run 38043704241](https://github.com/Raffinert/Expressions/actions/runs/38043704241).
+Final-head CI must also pass; consult the current [PR checks](https://github.com/Raffinert/Expressions/pull/7/checks).
 
-## Checkpoints
+## Original implementation checkpoints
 
 - Project boundary: `dotnet build src/Raffinert.Expressions.EntityFrameworkCore/Raffinert.Expressions.EntityFrameworkCore.csproj` passed with zero warnings/errors.
 - Whole-root expansion: `dotnet test Raffinert.Expressions.slnx --no-restore` passed 76 tests (57 core, 5 QuerySyntax, 14 existing integration).
@@ -105,19 +112,37 @@ uploading TRX results per version/OS. Remote CI has not been run in this session
 - Stable closed wrappers work in EF compiled sync/async queries with scalar delegate parameters. Wrapper delegate parameters fail before SQL; reassigned closed wrappers remain fixed at compilation, matching the documented restriction.
 - Only SQLite has been tested. Configure the provider before registration; manually supplied internal service providers and replacement of the decorated services are outside this integration's tested configuration.
 
-## Final checks
+## Remediation final local checks
 
 - `dotnet restore Raffinert.Expressions.slnx`: passed.
 - `dotnet build Raffinert.Expressions.slnx --configuration Release --no-restore`: passed, zero warnings/errors.
-- `dotnet test Raffinert.Expressions.slnx --configuration Release --no-build`: 136 passed (57 core, 5 QuerySyntax, 14 existing SQLite, 60 new adapter), zero failed/skipped.
-- `dotnet test Raffinert.Expressions.slnx --configuration Release --no-restore`: same 136 passed after the final source edits.
-- Final EF 7/8/9 Release compatibility runs: 60 passed per version; 180 additional passing executions.
+- `dotnet test Raffinert.Expressions.slnx --configuration Release --no-restore`: 164 passed (62 core, 5 QuerySyntax, 14 existing SQLite, 83 adapter), zero failed/skipped.
+- EF 7/8/9/10 Release compatibility runs: 83 passed per version, zero failed/skipped.
 - `dotnet format Raffinert.Expressions.slnx --no-restore --verify-no-changes`: passed. The first run found whitespace in new files and preexisting indentation in `examples/LinqKitComparison/PureDotNetExamples.cs`; those formatting-only differences were fixed. `git diff -w` for the existing example was empty.
 - `git diff --check`: passed.
 - Release `dotnet pack` passed for all three 1.2.0 packages, including symbol packages. The adapter nuspec depends on core 1.2.0 and EF Core 7.0.20; it has no QuerySyntax dependency.
 - The complete SQLite documentation example compiles and runs using only the documented namespace imports. Late-inlined `DateTime.UtcNow` retains SQLite server translation in every matrix leg.
-- CI is configured for the four explicit EF versions on Windows and Ubuntu 22.04. Its remote runs await a push/PR; the results above are local Windows execution results.
+- Isolated `PackageSmoke` applications consumed local `.nupkg` files (no ProjectReference) on EF 7/8/9/10 and passed. A dedicated source mapping and per-version package cache ensure Raffinert packages come from the local feed.
+- CI is configured for the four explicit EF versions on Windows and Ubuntu 22.04. The original PR run passed all ten jobs; final-head status is tracked separately in PR checks.
+
+## Remediation findings
+
+- Interface/cast invocation recognition and restoration of EF-extracted interface wrapper
+  parameters were verified red then green. The single core visitor retains cycle detection
+  and leaves unrelated or hidden Invoke methods untouched.
+- Policy B is explicit: interception uses SQL constant snapshots. Twenty-five different
+  in-wrapper threshold values cause 25 compilation events and SQL shapes; repetition reuses
+  compilation. Normal EF, outer scalar captures and direct async operators compile once
+  and bind current values. All four versions assert these counts and actual parameters.
+- DateOnly/TimeOnly snapshots now translate. Hidden arrays/lists fail descriptively before
+  SQL; direct operators observe array reassignment and list mutation. String, Guid, decimal,
+  DateTimeOffset, enum, nullable and holder-property captures have exact-result SQL tests.
+- Interleaved contexts with shared options stay isolated. Forwarding public service
+  decorators work in both registration orders; service lifetimes remain scoped. A failed
+  query does not contaminate the next successful execution. Arbitrary instance registrations
+  and manually supplied internal providers are outside the supported configuration.
 
 The mandatory local acceptance scenarios are passing with no skipped tests. The
 verified compiled-query restrictions, scalar snapshot cache tradeoff, SQLite-only
-provider coverage and unexecuted remote CI are documented limitations.
+provider coverage and DI restrictions are documented limitations. See the
+[remediation work log](pr7-remediation-work-log.md) for red tests, SQL observations and gates.

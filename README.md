@@ -313,8 +313,11 @@ var rows = await db.Orders
 Create `db` using those options. Registration is local to the configured contexts and uses public EF APIs.
 The adapter preserves extracted wrapper values and generates the provider's cache key from the expanded
 query, so changing a captured wrapper or a scalar inside it cannot reuse an obsolete predicate.
-Newly inlined scalar closure values become SQL constants; keep frequently changing values in the outer
-LINQ lambda or use direct wrapper overloads to retain EF parameterization.
+This opt-in interceptor uses constant-snapshot mode: newly inlined scalar closure values become SQL
+constants. Changing them creates new EF cache keys and SQL shapes, potentially fragmenting both query
+and database plan caches. Keep frequently changing values in the outer LINQ lambda or use direct
+wrapper overloads to retain EF parameterization. Hidden captured collections require direct operators.
+Native wrappers accessed through `IComposableExpression<,>` interfaces also expand.
 
 SQLite execution tests verify the same EF 7-compiled adapter on EF **7.0.20**, **8.0.31**, **9.0.20** and
 **10.0.11**. EF 7 / .NET 6 are retired compatibility baselines. Compiled EF queries support stable closed

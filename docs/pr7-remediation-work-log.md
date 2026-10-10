@@ -48,4 +48,33 @@ SELECT COUNT(*) FROM "Orders" AS "o" WHERE "o"."TotalCents" > @threshold;
 - Service descriptor assertions verify IQueryContextFactory and ICompiledQueryCacheKeyGenerator are scoped; QueryExecutionState is scoped when installed. Default provider type descriptors and forwarding factory descriptors are exercised. Arbitrary instance descriptors, manually supplied internal providers, and extensions that discard decorated services are unsupported.
 - Invariants: the singleton interceptor stores no execution state; the scoped QueryExecutionState has only a weak reference to the execution QueryContext. Shared-options contexts resolve distinct decorated services. Operations on one DbContext remain sequential under EF's normal concurrency rules.
 
-Further phase results are recorded below as they execute.
+## Phases 5 and 6: release validation
+
+- Full solution: 164 passed (62 core, 5 QuerySyntax, 14 existing integration, 83 adapter), no failures/skips. Release restore/build passed with zero build warnings/errors.
+- EF matrix: 83 passed on each of 7.0.20/net6.0/runtime6.0.36, 8.0.31/net8.0/runtime8.0.31, 9.0.20/net8.0/runtime8.0.31, 10.0.11/net10.0/runtime10.0.12. Compilation-count assertions run in every leg.
+- Same EF 7-built adapter DLL in all four outputs: SHA256 `F110120F7A424916CBBFB412FEA5B875C29A192D8A93123282B40AB19933EB03` at local source validation (commit metadata changes can alter this).
+- All four isolated package consumers passed using locally packed 1.2.0 `.nupkg` files, no ProjectReferences, private package caches and local-source mapping. They verify interface expansion/reassignment, direct scalar captures, external interface direct operators, lambda/no-predicate/condition AnyAsync overloads and typed-null rejection.
+- Packaging: core has no dependencies; adapter depends only on core 1.2.0 and EF Core 7.0.20; QuerySyntax depends only on core 1.2.0. QuerySyntax source/API is unchanged. All three packages and symbol packages built.
+- Formatting verification covers the solution and the separate package consumer. `git diff --check` passed.
+- CI now runs package consumers as well as the existing full compatibility suite on both operating systems. Original-head CI was successful; the completion report records the final SHA and its new CI result.
+
+## Changed files
+
+- `.github/workflows/ci.yml`, `CHANGELOG.md`, `README.md`
+- `docs/efcore-integration.md`, `docs/efcore-validation.md`, `docs/pr7-remediation-work-log.md`
+- `src/Raffinert.Expressions/Core/ExpressionExpander.cs`
+- `src/Raffinert.Expressions.EntityFrameworkCore/EfQueryExpansion.cs`, `QueryExecutionState.cs`, `RaffinertDbContextOptionsBuilderExtensions.cs`
+- `tests/Raffinert.Expressions.UnitTests/WholeQueryExpansionTests.cs`
+- `tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/AsyncConditionTests.cs`, `CachePolicyTests.cs`, `CaptureRegressionTests.cs`, `InterceptorTests.cs`, `ServiceCompositionTests.cs`, `SqliteFixture.cs`
+- `tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj`, `Program.cs`, `NuGet.Config`
+
+## Remaining limitations and recommendation
+
+Constant-snapshot interception can fragment EF and database plan caches; use outer scalar
+parameters or direct operators for hot paths. Hidden captured collections and embedded
+external implementations require direct operators. Compiled wrappers must remain fixed;
+wrapper-valued compiled delegate parameters remain unsupported. Only SQLite is verified;
+manual internal service providers and service replacements that discard decorators are unsupported.
+
+Recommendation: **merge with documented limitations**, conditional on all final-head CI jobs
+passing. No merge, GitHub comments or package publication is performed by this remediation.
