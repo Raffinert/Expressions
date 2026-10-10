@@ -1,11 +1,17 @@
+using System.Data.Common;
 using System.Linq.Expressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Raffinert.Expressions;
 
 await using var connection = new SqliteConnection("Data Source=:memory:");
 await connection.OpenAsync();
-var options = new DbContextOptionsBuilder<SmokeContext>().UseSqlite(connection).UseRaffinertExpressions().Options;
+var commands = new SmokeCommands();
+var compilations = 0;
+var options = new DbContextOptionsBuilder<SmokeContext>().UseSqlite(connection).UseRaffinertExpressions()
+    .AddInterceptors(commands).EnableSensitiveDataLogging(false).EnableServiceProviderCaching(false)
+    .LogTo(_ => compilations++, new[] { CoreEventId.QueryCompilationStarting }).Options;
 await using var db = new SmokeContext(options);
 await db.Database.EnsureCreatedAsync();
 db.Rows.AddRange(new SmokeRow { Id = 1, Value = 200 }, new SmokeRow { Id = 2, Value = 20000 });
@@ -34,6 +40,38 @@ threshold = 100;
 Check(await db.Rows.CountAsync(captured) == 2, "changed direct capture");
 Check(await db.Rows.AnyAsync(new ExternalCondition()), "external interface direct operator");
 
+commands.Executed.Clear();
+compilations = 0;
+var lifted = db.Rows.Where(x => captured.Invoke(x));
+for (var i = 0; i < 25; i++)
+{
+    threshold = 100 + i;
+    Check(await lifted.CountAsync() == 2, "fresh lifted capture");
+    Check(commands.Executed.Last().Values.Single() is int value && value == threshold, "current runtime binding");
+}
+threshold = 100;
+Check(await lifted.CountAsync() == 2, "lifted cache hit");
+Check(compilations == 1, "one lifted compilation");
+Check(commands.Executed.Select(x => x.Sql).Distinct().Count() == 1, "one lifted SQL shape");
+
+commands.Executed.Clear();
+var marker = "synthetic-smoke-private@example.invalid";
+var privateCondition = Condition<SmokeRow>.Create(x => x.Name == marker);
+var privateQuery = db.Rows.Where(x => privateCondition.Invoke(x));
+Check((await privateQuery.ToArrayAsync()).Length == 0, "private query result");
+var privateCommand = commands.Executed.Single();
+Check(!privateCommand.Sql.Contains(marker, StringComparison.Ordinal), "private capture absent from SQL");
+Check(privateCommand.Values.Contains(marker), "private capture bound as DbParameter");
+try
+{
+    privateQuery.ToQueryString();
+    throw new InvalidOperationException("Lifted ToQueryString must fail safely.");
+}
+catch (NotSupportedException error)
+{
+    Check(!error.ToString().Contains(marker, StringComparison.Ordinal), "sanitized rendering diagnostic");
+}
+
 Console.WriteLine($"Package smoke passed: EF {typeof(DbContext).Assembly.GetName().Version}, runtime {Environment.Version}.");
 
 static void Check(bool success, string scenario)
@@ -50,6 +88,19 @@ public sealed class SmokeRow
 {
     public int Id { get; set; }
     public int Value { get; set; }
+    public string Name { get; set; } = "";
+}
+
+public sealed class SmokeCommands : DbCommandInterceptor
+{
+    public List<(string Sql, object?[] Values)> Executed { get; } = [];
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+        Executed.Add((command.CommandText, command.Parameters.Cast<DbParameter>().Select(x => x.Value).ToArray()));
+        return ValueTask.FromResult(result);
+    }
 }
 
 public sealed class ExternalCondition : IComposableExpression<SmokeRow, bool>

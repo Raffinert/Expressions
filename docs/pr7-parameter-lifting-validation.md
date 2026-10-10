@@ -187,3 +187,44 @@ including a throwing captured getter with zero reads in explicit compilation.
 SQL evidence: zero commands on unsupported compiled getter. Full matrix rerun follows.
 Known risks: arbitrary EF extraction outside adapter preparation retains EF behavior.
 Commit: fail-fast hardening checkpoint in git log.
+
+## Phase H — documentation, migration and release validation
+
+HEAD before work: 9d0c75d (runtime implementation), with release documentation edits.
+Files changed: README.md, CHANGELOG.md, docs/efcore-integration.md,
+docs/efcore-validation.md, docs/pr7-remediation-work-log.md, adapter registration XML
+remarks, PackageSmoke/Program.cs and this report. Unrelated planning files preserved.
+Hypothesis: the shipped package preserves secure binding/cache semantics and clearly
+states migration/diagnostic restrictions on every advertised EF runtime.
+RED test: N/A (release checks); earlier literal/getter assertions were explicitly
+inverted only after the secure acceptance tests passed. No contradictory green legacy test.
+Implementation: replace constant-snapshot release claims; document DbParameter.Value,
+sensitive/custom logging, explicit constants, compiled/standalone restrictions,
+ToQueryString safe failure, supported pooling and interceptor order. Historical logs
+are identified as historical. Isolated package consumer now checks privacy, native
+bindings, 25+repeat values, one compilation/shape and sanitized ToQueryString rejection.
+GREEN test: restore and Release build passed, zero warnings/errors. Full solution:
+196 passed / 0 failed / 0 skipped (62 core + 5 QuerySyntax + 14 existing + 115 adapter).
+Final shared suite: 115 passed per EF major, zero failed/skipped. Formatting verification
+and git diff --check passed. All three 1.2.0 NuGet + symbol packages built; local feed
+artifacts/pr7-packages and release copies artifacts/package contain the current builds.
+Compatibility checked: Windows EF 7.0.20 / runtime 6.0.36; EF 8.0.31 and 9.0.20 /
+runtime 8.0.31; EF 10.0.11 / runtime 10.0.12, SDK 10.0.401. Packed consumers use
+fresh task-specific temporary caches, source-mapped local nupkg files and no ProjectReferences.
+SQL evidence: each packed consumer asserts synthetic secret absent from command text,
+present in DbParameter.Value; changed captures reuse one compilation/SQL shape.
+Nuspec inspection: core has no runtime EF dependency; QuerySyntax depends only on core;
+adapter depends on core 1.2.0, EF Core 7.0.20 and EF Relational 7.0.20, not QuerySyntax.
+Known risks / stop condition: only SQLite is verified. Hidden collections/external
+embedded implementations require direct operators. Unsupported types and runtime
+captures in explicitly compiled/standalone wrappers fail before SQL; compiled scalar
+delegate parameters remain supported. AOT and arbitrary provider/extensions unverified.
+Values are still accessible to sensitive logging/bind profiling/custom telemetry.
+Side effects/reentrant getters and same-context concurrency remain unsupported.
+Remote verification: final-head Windows/Linux checks and NuGet consumers are available
+on [PR #7 checks](https://github.com/Raffinert/Expressions/pull/7/checks); their final
+completed run and exact source SHA will be reported after the release commit is pushed.
+No merge or package publication is part of this work. Commit: release checkpoint in git log.
+
+Local decision: GO for the tested SQLite/EF runtime contract with the documented
+restrictions. Final-head remote CI must be green before treating cross-OS checks as verified.

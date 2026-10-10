@@ -313,16 +313,17 @@ var rows = await db.Orders
 Create `db` using those options. Registration is local to the configured contexts and uses public EF APIs.
 The adapter preserves extracted wrapper values and generates the provider's cache key from the expanded
 query, so changing a captured wrapper or a scalar inside it cannot reuse an obsolete predicate.
-This opt-in interceptor uses constant-snapshot mode: newly inlined scalar closure values become SQL
-constants. Changing them creates new EF cache keys and SQL shapes, potentially fragmenting both query
-and database plan caches. Keep frequently changing values in the outer LINQ lambda or use direct
-wrapper overloads to retain EF parameterization. Hidden captured collections require direct operators.
+Newly inlined scalar captures are bound as native EF execution parameters. Cache-key generation and
+compilation share one prepared tree; 25 changing thresholds reuse one compilation and SQL shape.
+Hidden captured collections require direct operators.
 Native wrappers accessed through `IComposableExpression<,>` interfaces also expand.
 
 SQLite execution tests verify the same EF 7-compiled adapter on EF **7.0.20**, **8.0.31**, **9.0.20** and
 **10.0.11**. EF 7 / .NET 6 are retired compatibility baselines. Compiled EF queries support stable closed
-wrappers and scalar delegate parameters; wrapper delegate parameters and changing closed wrappers are unsupported.
-Embedded captured values can appear as SQL literals in logs and telemetry even with sensitive logging disabled; use direct `Where(condition)` or async condition overloads for sensitive captures.
+wrappers without runtime captures and scalar delegate parameters. Wrapper delegate parameters,
+runtime captures inside compiled wrappers and changing closed wrappers are unsupported.
+Captured scalar values stay out of executed SQL text, but remain in DbParameter.Value and can be exposed
+by sensitive parameter logging or custom telemetry. ToQueryString fails safely for lifted captures.
 
 See [EF Core integration](docs/efcore-integration.md) for examples, caching details and limitations.
 

@@ -103,87 +103,66 @@ Registration affects only those context options; installing the package has no g
 
 ## Expansion and caching
 
-### Release policy: constant-snapshot interception
+### Runtime parameter lifting
 
-**Captured values in embedded wrappers can appear directly in SQL text**, including
-EF command logs, database query monitoring/Query Store, APM traces and other SQL-text
-telemetry, even with sensitive parameter-value logging disabled. Do not embed secrets
-or sensitive user data in these captures. Prefer `Where(condition)` or the async
-condition overloads, which expand before EF parameter extraction; verify parameterized
-SQL and command-log behavior with your own provider and telemetry configuration.
-This exposure is in addition to cache fragmentation. EF still translates and escapes
-the literals; this is not a SQL injection claim.
-
-The [executed-command characterization test](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/ExecutionAuditTests.cs)
-compares command text and parameter values separately with sensitive logging disabled:
+`UseRaffinertExpressions()` expands native embedded wrappers automatically and binds
+supported scalar captures as native EF execution parameters. No extra caller-side
+expansion method is needed:
 
 ```csharp
-var marker = "synthetic-private-value-pr7"; // synthetic test data only
-var condition = Condition<OrderRow>.Create(x => x.Name == marker);
-await db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync(); // marker in SQL literal
-await db.Orders.Where(condition).ToArrayAsync(); // marker bound as parameter on tested SQLite
+var email = "synthetic-private-value@example.invalid";
+var condition = Condition<OrderRow>.Create(x => x.Name == email);
+var query = db.Orders.Where(x => condition.Invoke(x));
+await query.ToArrayAsync(); // WHERE Name = @parameter; email in DbParameter.Value
+email = "another-synthetic-value@example.invalid";
+await query.ToArrayAsync(); // same compiled shape, fresh parameter value
 ```
 
-`UseRaffinertExpressions()` opts into **constant-snapshot mode** for captures introduced
-by wrapper expansion. This is a limited interceptor, not a promise of generic EF
-parameterization. With captures stable throughout execution, values are correct for each execution, but a different in-wrapper
-scalar value creates a different EF compiled-query cache key and usually different SQL.
-Hot paths can fragment both EF's query cache and the database's execution-plan cache.
+Captured values do not become SQL literals or value-specific cache keys. Twenty-five
+changing thresholds plus a repeat now produce one compilation and one SQL shape,
+matching normal EF, outer captures and direct operators on the tested SQLite versions.
+Null parameter optimization may change executed SQL (for example to IS NULL) without
+changing the normalized EF compiled-query key.
 
-The regression diagnostic executes 25 threshold values plus a repeat: the in-wrapper
-case compiles 25 times and emits 25 SQL shapes with no threshold parameter. Normal EF,
-an outer scalar, and a direct async condition operator each compile once, bind the
-current parameter value, and reuse one SQL shape. See the remediation work log for
-observed SQL and version-specific results.
+EF extracts its original parameters before querying its cache. The helper decorates
+public IQueryContextFactory and ICompiledQueryCacheKeyGenerator services, resolves
+extracted wrappers and calls the existing core inliner once per execution. Supported
+late captures receive deterministic, collision-free parameter names and values on that
+execution's QueryContext. The provider's original key generator receives the normalized
+parameterized expression, never the capture values. On a miss, interception consumes
+that same prepared expression; on a hit, fresh values are already bound.
 
-EF extracts query parameters before invoking `IQueryExpressionInterceptor` and consults
-its query cache before compilation. A compilation callback alone cannot recover captured
-wrapper objects or prevent stale cache hits when their expressions change.
+Preparation belongs to the specific QueryContext through scoped weak/ephemeron ownership.
+Compilation consumes it; a new execution invalidates prior state, including pooled leases
+and recovery after errors/cancellation. There is no global capture cache or persistent
+strong reference to user contexts. The core visitor remains the only Invoke expander.
 
-The helper registers the stateless `RaffinertExpressionInterceptor` and decorates the
-provider's public `IQueryContextFactory` and `ICompiledQueryCacheKeyGenerator` services.
-The factory exposes extracted wrapper values within that context's execution scope;
-the key generator applies the same expansion as the interceptor before delegating to
-the provider's existing cache-key logic. The adapter retains no expanded-root cache or
-global query state. Execution tracking uses a scoped weak reference.
+### SQL diagnostics and migration from constant snapshots
 
-Cache-key generation and compilation expand independently; they do not share a single
-immutable per-execution snapshot. Captured getters and scalars must remain stable for
-the entire execution, including both passes. A controlled changing-getter test reproduces
-a key for value 2 associated with SQL for value 4, then a cache hit returning ID 4 for
-key 2. This violates the supported stable-capture contract and is intentionally excluded.
-Side-effecting getters, including reentrant database calls, are unsupported. Stable
-getter tests verify matching SQL/results on misses, hits and A → B → A changes between
-executions, for both sync and async queries. No stronger snapshot guarantee is provided.
+This replaces the earlier constant-snapshot implementation; there is no implicit legacy
+fallback. Unsupported runtime captures fail before SQL. Explicit developer-authored
+constants may still be SQL literals; the guarantee concerns runtime captures, not every
+constant in an expression.
 
-The shared core visitor still performs all invocation expansion, nested composition,
-parameter substitution, cycle detection and cached wrapper-body reuse. EF normalization
-then folds late null/default nodes and snapshots supported scalar closure members into
-constants, because EF's parameter extraction has already finished. Scalar snapshots
-participate in the query key. Reassigning a wrapper or changing a scalar inside it
-therefore yields current results on normal query execution.
+Values still exist in DbParameter.Value. Sensitive parameter logging, bind profiling or
+custom telemetry can expose them; this feature does not redact those systems. With
+sensitive logging disabled, the executed-command and default diagnostic tests keep the
+synthetic captured strings out of SQL and diagnostic messages.
 
-For frequently changing thresholds, keep the scalar outside the wrapper so EF can
-parameterize it normally, or pass the wrapper directly to a core/async operator:
+EF's ToQueryString formats parameter values as debug declarations/comments independently
+of sensitive logging. A public IRelationalQueryStringFactory decorator therefore rejects
+rendering queries with lifted parameters before the provider formats their values.
+Inspect DbCommand.CommandText for the executed SQL shape instead. Ordinary/direct queries
+retain EF's own diagnostic behavior. The adapter now references EF Relational to install
+this public diagnostic guard; core remains EF-independent and QuerySyntax independent.
 
-```csharp
-var active = Condition<OrderRow>.Create(x => x.Active);
-int threshold = 1000;
-var query = db.Orders.Where(x => active.Invoke(x) && x.TotalCents > threshold);
-```
+Direct Where(condition), async condition overloads and AsRaffinertQuery() continue to
+expand before EF extraction and require no interception. Standalone
+AddInterceptors(RaffinertExpressionInterceptor.Instance) supports constant wrapper targets
+without runtime captures; extracted wrappers and runtime captures require the helper.
 
-Alternatively, expand before EF's parameter extraction using the direct operators:
-
-```csharp
-var expensive = Condition<OrderRow>.Create(x => x.TotalCents > threshold);
-var query = db.Orders.Where(expensive); // no embedded Invoke
-int count = await db.Orders.CountAsync(expensive); // no interception required
-```
-
-`AddInterceptors(RaffinertExpressionInterceptor.Instance)` is available for query trees
-whose wrapper targets are already constants. It does not install extracted-value/cache
-support. Use the helper for captured wrappers. Manually adding the same interceptor
-alongside the helper duplicates callbacks; this is unnecessary.
+See [runtime validation](pr7-parameter-lifting-validation.md) and
+[acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/RuntimeParameterLiftingTests.cs).
 
 ## Limits and compiled queries
 
@@ -198,23 +177,26 @@ alongside the helper duplicates callbacks; this is unnecessary.
   use their public expanded-lambda contract through the direct operators instead.
 - Core's evaluator can read closure/static members and run property getters or direct
   constructors. Keep these deterministic and free of database queries or other side effects.
-  Getters can run more than once in a single query, including cache-key generation.
-- Supported inlined closure snapshots include primitive/enum values, strings, decimals,
+  Each scalar member occurrence is read during preparation; repeated occurrences are not
+  deduplicated, so no universal once-per-getter contract is promised.
+- Supported inlined runtime captures include primitive/enum values, strings, decimals,
   Guid, DateTime, DateTimeOffset, DateOnly, TimeOnly and TimeSpan, including nullable forms.
   Hidden captured arrays/lists are rejected before SQL with guidance to use direct
   wrapper operators. Direct operators allow EF to extract collections and observe their
   current contents. Use `Enumerable.Contains(ids, x.Id)` explicitly for array captures
   when C# overload resolution would otherwise choose a span-based `Contains` method.
-  Arbitrary method-based evaluation remains outside the snapshot contract.
-- Scalar values and getters must remain stable during one query execution, including
-  cache-key generation and compilation. Standard EF `DbContext`
-  concurrency restrictions still apply.
+  Arbitrary method-based evaluation remains outside the runtime capture contract.
+- Keep captures stable during preparation and getters free of side effects/reentrant DB
+  calls. Compilation reuses preparation and does not reread captures. Standard EF
+  DbContext concurrency restrictions still apply.
 - `InvokeOrDefault` returns the result type's default for a null reference/nullable input:
   null for reference results, zero for numeric results and false for bool. It adds no null
   guard for nonnullable value inputs. Optional relationships need an explicit EF mapping.
-- EF compiled sync/async queries are verified with stable closed wrappers and scalar delegate
-  parameters. Closed wrappers are fixed at compilation; changing them or captured values
-  inside them afterward is unsupported. Pass changing values as scalar delegate parameters.
+- EF compiled sync/async queries are verified with stable closed wrappers without runtime
+  scalar captures and with scalar delegate parameters outside the wrapper. Runtime captures
+  inside compiled wrappers now fail before SQL; explicit compilation bypasses per-execution
+  preparation. Closed wrappers are fixed at compilation. Use scalar delegate parameters
+  or ordinary LINQ for changing values. This intentionally replaces legacy frozen literals.
 - A wrapper supplied as an `EF.CompileQuery` / `EF.CompileAsyncQuery` delegate parameter
   cannot be expanded at compilation and fails before SQL execution. Use normal LINQ or a
   stable closed wrapper instead. EF precompiled/AOT queries have not been verified.
@@ -223,8 +205,12 @@ alongside the helper duplicates callbacks; this is unnecessary.
   Public service decorators that retain and forward the original scoped services are tested
   in both registration orders; this does not establish arbitrary extension compatibility.
   Providers other than SQLite remain unverified. No private EF API is used.
-- `AddDbContextPool` and pooled context leases are unverified and outside the currently
-  tested support contract. Do not assume a weak reference resets state on pool return.
+- AddDbContextPool and AddPooledDbContextFactory are verified on SQLite with poolSize 1
+  across repeated leases and reused scoped services. Each new query invalidates prior
+  preparation; correctness does not depend on weak-reference collection at pool return.
+- Other query interceptors may append operations before Raffinert or rewrite the prepared
+  tree after it. Both tested registration orders retain added filters. Destructive rewrites
+  before Raffinert that remove the original subtree fail safely; register Raffinert first.
 - In helper mode, the factory records the newly created QueryContext before expansion.
   An absent recorded context leaves the query unchanged; extracted captured markers then
   fail with the existing resolution diagnostic. Discarding this decorator is unsupported.

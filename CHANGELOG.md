@@ -7,8 +7,8 @@
 - Added opt-in `UseRaffinertExpressions()` and `RaffinertExpressionInterceptor` for ordinary LINQ invocation markers, with public EF service integration for extracted wrapper values and expanded cache keys.
 - Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
 - Fixed embedded native wrapper invocation through `IComposableExpression<,>` interfaces/casts; unrelated methods named Invoke remain untouched.
-- Documented interception as constant-snapshot mode, with measured cache costs and parameterized alternatives. Added DateOnly/TimeOnly snapshots and descriptive rejection of hidden captured collections.
-- Documented SQL-literal exposure even with sensitive parameter logging disabled, the whole-execution stable-getter requirement and unverified pooling support; added execution-state characterization tests.
+- Lifted embedded scalar captures into native EF execution parameters, including DateOnly/TimeOnly and nullable values; cache keys and compilation share one prepared expression and changing thresholds reuse one cache shape.
+- Prevented captured SQL literals, sanitized getter diagnostics and rejected ToQueryString rendering of lifted values. Verified pooled contexts/factories, deferred execution and interceptor composition. Explicit compiled wrappers with runtime captures fail safely; use scalar delegate parameters.
 - Added capture/service-composition regressions and isolated NuGet consumers on each tested EF major.
 - Added SQLite execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage, plus EF 7/8/9/10 compatibility projects and CI matrix.
 - Bumped QuerySyntax alongside core to align its package dependency; its API and behavior remain unchanged.

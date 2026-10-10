@@ -1,5 +1,8 @@
 # PR #7 remediation work log
 
+The cache/literal policy in this historical remediation was subsequently replaced by
+[runtime parameter lifting](pr7-parameter-lifting-validation.md).
+
 ## Baseline and decisions
 
 - Initial PR head and reviewed SHA: `9658e5c83203105fe6b28d49047f5f3ee9214551` (identical).

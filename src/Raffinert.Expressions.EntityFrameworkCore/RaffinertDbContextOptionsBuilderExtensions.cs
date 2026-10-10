@@ -9,9 +9,10 @@ public static class RaffinertDbContextOptionsBuilderExtensions
     /// <summary>Enables invocation expansion and cache-safe wrapper resolution for this context.</summary>
     /// <remarks>
     /// Call after configuring the database provider. Repeated calls are harmless.
-    /// Captured scalars introduced by expansion become SQL constant snapshots; changing them
-    /// creates different cache keys. Use direct condition operators or outer scalar captures
-    /// for EF-managed parameterization. Hidden captured collections require direct operators.
+    /// Captured scalars introduced by expansion are bound as execution parameters.
+    /// Cache keys and compilation share one prepared expression. Hidden captured collections
+    /// require direct operators; compiled wrappers with runtime captures are unsupported.
+    /// ToQueryString rejects lifted parameters because EF diagnostic rendering includes values.
     /// </remarks>
     /// <param name="optionsBuilder">The context options to configure.</param>
     /// <returns>The same options builder.</returns>
