@@ -12,7 +12,7 @@ public class InterceptorTests
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id);
         var rows = await query.ToListAsync();
 
-        Assert.Equal(new[] { 2, 3, 4 }, rows.Select(x => x.Id));
+        Assert.Equal([2, 3, 4], rows.Select(x => x.Id));
         Assert.Contains("WHERE", query.ToQueryString());
         Assert.Contains("WHERE", Assert.Single(fixture.Commands.Executed).Sql);
     }

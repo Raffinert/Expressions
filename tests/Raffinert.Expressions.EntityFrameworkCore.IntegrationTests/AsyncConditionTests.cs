@@ -4,11 +4,11 @@ namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 
 public class AsyncConditionTests
 {
-    public static TheoryData<string> Operators => new()
-    {
+    public static TheoryData<string> Operators =>
+    [
         "Any", "All", "Count", "LongCount", "First", "FirstOrDefault",
         "Single", "SingleOrDefault", "Last", "LastOrDefault"
-    };
+    ];
 
     [Fact]
     public async Task BooleanAndCountOperatorsExecutePredicatesWithoutInterceptor()

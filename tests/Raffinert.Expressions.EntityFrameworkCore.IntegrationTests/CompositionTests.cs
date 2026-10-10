@@ -28,8 +28,8 @@ public class CompositionTests
         });
         var rows = await query.ToListAsync();
 
-        Assert.Equal(new[] { "cheap", "Desk", "Uncategorized", "Hidden" }, rows.Select(x => x.Name));
-        Assert.Equal(new[] { false, true, true, true }, rows.Select(x => x.Valid));
+        Assert.Equal(["cheap", "Desk", "Uncategorized", "Hidden"], rows.Select(x => x.Name));
+        Assert.Equal([false, true, true, true], rows.Select(x => x.Valid));
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.Contains("CASE", command.Sql);
         Assert.Contains("TotalCents", query.ToQueryString());
@@ -91,9 +91,9 @@ public class CompositionTests
             Active = active.InvokeOrDefault(x.Customer)
         });
         var rows = await query.ToArrayAsync();
-        Assert.Equal(new string?[] { "Ada", "Ada", null, "Bob" }, rows.Select(x => x.Name));
-        Assert.Equal(new[] { 3, 3, 0, 3 }, rows.Select(x => x.Length));
-        Assert.Equal(new[] { true, true, false, false }, rows.Select(x => x.Active));
+        Assert.Equal(["Ada", "Ada", null, "Bob"], rows.Select(x => x.Name));
+        Assert.Equal([3, 3, 0, 3], rows.Select(x => x.Length));
+        Assert.Equal([true, true, false, false], rows.Select(x => x.Active));
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.Contains("LEFT JOIN", command.Sql);
         Assert.Contains("CASE", command.Sql);
@@ -111,8 +111,8 @@ public class CompositionTests
             Total = number.InvokeOrDefault(x.TotalCents)
         });
         var rows = await query.ToArrayAsync();
-        Assert.Equal(new[] { 2, 2, 0, 3 }, rows.Select(x => x.CustomerNumber));
-        Assert.Equal(new[] { 201, 20001, 1501, 9001 }, rows.Select(x => x.Total));
+        Assert.Equal([2, 2, 0, 3], rows.Select(x => x.CustomerNumber));
+        Assert.Equal([201, 20001, 1501, 9001], rows.Select(x => x.Total));
         Assert.Contains("CASE", Assert.Single(fixture.Commands.Executed).Sql);
     }
 

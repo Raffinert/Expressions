@@ -117,7 +117,7 @@ public sealed class CommandRecorder : DbCommandInterceptor
     public override InterceptionResult<DbDataReader> ReaderExecuting(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
     {
-        Record(command, default);
+        Record(command, CancellationToken.None);
         return result;
     }
 
@@ -126,6 +126,6 @@ public sealed class CommandRecorder : DbCommandInterceptor
         CancellationToken cancellationToken = default)
     {
         Record(command, cancellationToken);
-        return new(result);
+        return ValueTask.FromResult(result);
     }
 }
