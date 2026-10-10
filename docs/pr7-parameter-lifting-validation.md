@@ -43,3 +43,34 @@ All ordinary paths create context → extract → key/cache → compile on miss 
 Explicit compiled delegates skip ordinary key preparation.
 SQL evidence: not yet established for late parameters. Stop condition: failure to
 translate or bind native parameters on miss or hit. Commit: included with baseline report.
+
+## Phase C — acceptance RED
+
+HEAD before work: c3b690c. Files changed: RuntimeParameterLiftingTests.cs.
+Hypothesis: embedded captures must bind as native execution parameters and reuse shapes.
+RED test: `dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests
+-c Release --filter FullyQualifiedName~RuntimeParameterLiftingTests`.
+Secure string assertion failed (sentinel found in SQL); cache assertion failed because
+DbCommand.Parameters was empty. Prototype initially had two exact-type test setup
+failures; corrected to assignable expression-node assertions.
+Implementation: none. GREEN test: pending production implementation.
+Compatibility checked: EF 10.0.11 / Windows. SQL evidence: embedded WHERE contains
+synthetic string literal; captured integer has zero DbParameters. Known risk: current
+mode must be replaced, not kept as fallback. Commit: acceptance tests included with PoC.
+
+## Phase D — isolated native-parameter PoC
+
+HEAD before work: c3b690c. Files changed: same test file and this report.
+Hypothesis: late QueryParameterExpression + public QueryContext.Parameters bindings
+work on real relational compilation and cache hits.
+RED test: test setup corrected as above; no native-parameter translation failure.
+Implementation: test-only public EF service decorators, core expansion through the
+existing Condition.GetExpandedExpression, one deliberately narrow Where reconstruction.
+This is not wired into the production adapter and is not an Invoke expansion engine.
+GREEN test: `dotnet test ... -c Release --filter FullyQualifiedName~NativeLateParameterPrototype`:
+2 passed / 0 failed / 0 skipped on EF 10.0.11 / Windows.
+SQL evidence: WHERE column = @__raffinert_prototype_0; strings and nullable integers
+are bound; changed values return changed rows. One compilation, three preparations,
+one interception; null selects the row with null CustomerId correctly.
+Known risks: general capture discovery, lifecycle, interceptor composition and diagnostic
+SQL rendering still need production implementation/tests. Commit: PoC checkpoint in git log.
