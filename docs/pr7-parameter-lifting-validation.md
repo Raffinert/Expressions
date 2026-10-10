@@ -112,3 +112,14 @@ without stale values. Added Take filters survive both interceptor orders.
 Known risks: destructive pre-Raffinert interceptor rewrites must fail rather than
 discard changes; standalone/compiled late captures are intentionally rejected.
 Commit: production checkpoint in git log.
+
+## Phase F — EF 7 compatibility checkpoint
+
+HEAD before work: 73efe48. Files changed: this report. Hypothesis: EF 7 native
+ParameterExpression + AddParameter supports the same preparation and secure SQL.
+RED test: N/A; no version-specific defect reproduced. Implementation: no change.
+GREEN test: `dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef7/Ef7.csproj -c Release`:
+105 passed / 0 failed / 0 skipped on Windows, EF 7.0.20 / runtime 6.0.36.
+SQL evidence: same privacy, 25-value cache, null, pooled, compiled restrictions,
+interceptor-order and getter assertions all pass. Known risk: other EF legs pending.
+Commit: EF 7 checkpoint in git log.
