@@ -199,13 +199,44 @@ The automatic capture privacy guarantee and ToQueryString guard do not redact
 these requested constants; a constant-only query can render normally. Queries
 with actual lifted bound parameters still fail before ToQueryString renders values.
 
-Inside late-expanded directives, row-dependent, computed, conversion-wrapped,
-method/constructor and nested directive operands are rejected with a sanitized
-error before traversal/SQL. Unsupported computed operands do not read getters.
+Closed numeric computations are also supported inside these directives:
+
+```csharp
+var threshold = 1000;
+var settings = new Settings { MinPrice = 500 };
+var parameter = Condition<OrderRow>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
+var constant = Condition<OrderRow>.Create(x => x.TotalCents > EF.Constant(settings.MinPrice * 2));
+var converted = Condition<OrderRow>.Create(x => x.TotalCents > EF.Parameter((long)threshold + 100L));
+```
+
+The computed grammar is deliberately narrow: `short`, `int`, `long` and their nullable
+forms; numeric literals/defaults; captured field and non-indexed property chains rooted
+in a closure constant or static field; built-in `+`, `-`, `*` and numeric casts, including
+checked forms. Every arithmetic/conversion node must have no operator method and have
+approved numeric operand/result types. Receiver conversions are not allowed in computed
+member chains. Validation is read-free, bounded to 256 visited nodes and depth 64, and
+finishes successfully before any approved getter is read. Interpretation then evaluates
+the original operand once per occurrence per execution, including cache hits. Getters
+may execute user code: interpretation is not a sandbox. Keep getters deterministic,
+without database queries, mutations or other side effects.
+
+Each computed result retains its exact expression type and gets one native parameter
+under a stable `__raffinert_computed_0`-style name, avoiding existing EF names. Child
+captures are not separately lifted. Basic capture names remain unchanged. Parameter
+A → B → A tests bind current results with one compilation and one SQL shape; forced
+constants render current literals without DbParameters and match native EF cache behavior.
+Nullable values may change the executed SQL through EF's null optimization.
+
+Row-dependent expressions, methods, constructors, indexers, invocation, arrays, mutation,
+conditionals (including unselected branches), nested directives and custom operators or
+conversions are rejected before getters/SQL. Decimal arithmetic, other numeric types,
+division, modulo, unary negation and `TypeAs` remain unsupported in computed operands.
+Existing direct scalar decimal/non-numeric captures retain their previous support.
+Evaluation failures are sanitized without an inner exception; later queries can recover.
 Native EF also rejects nested directive operands; nested wrappers are supported.
 Direct `.Where(condition)` expands before native extraction and retains EF's
 broader client-evaluatable operand support. No generic evaluator is provided.
-Embedded literal directives need ordinary per-execution preparation and are
+Embedded literal/computed directives need ordinary per-execution preparation and are
 unsupported in standalone interception or explicitly compiled wrappers.
 
 ### SQL diagnostics and migration from constant snapshots
@@ -297,12 +328,15 @@ See [acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.Integr
 
 | EF Core / provider version | Consumer framework | Execution tests |
 | --- | --- | --- |
-| 10.0.11 / SQLite | net10.0 | 149 passed |
-| 10.0.11 / SQL Server LocalDB (Windows) | net10.0 | 44 passed |
+| 10.0.11 / SQLite | net10.0 | 184 passed |
+| 10.0.11 / SQL Server LocalDB (Windows) | net10.0 | 75 passed |
 
-The release-hardening solution run passed 230 tests; the separate Windows-only suite passed 44, all with
-zero failures/skips. Counts include 21 explicit-directive cases per provider and
-8 LocalDB fixture safety cases. The single adapter is compiled against EF10.
+The computed-directive solution run passed 265 tests; the separate Windows-only suite passed 75, all with
+zero failures/skips. Counts include 52 explicit-directive cases per provider,
+four adapter validator checks and eight LocalDB fixture safety cases.
+The single adapter is compiled against EF10. See the
+[computed directive report](experiments/ef10-computed-directives.md) for RED/GREEN evidence,
+the original evaluator/source-reuse decision and intentionally deferred numeric types.
 EF7/8/9 compatibility projects and CI lanes have been removed; historical results
 do not establish current support. Other providers/future major versions are not certified.
 
@@ -413,7 +447,7 @@ providers; no production expansion change was necessary.
 | Private string parameter / constant-only ToQueryString | Already passed | Bound value absent from SQL; constant-only rendering allowed |
 | Row-dependent operands (both modes) | Embedded invalid cast; native rejected | Sanitized rejection before SQL |
 | Nested directive operands (four combinations) | Native rejected | Native and adapter reject; nested wrappers remain supported |
-| Computed operand getter | Read before rejection | Unsupported operand rejected without reading getter |
+| Computed operand getter | Read before rejection in the initial prototype | Approved numeric grammar now reads once per occurrence/execution; unsupported syntax rejects without getter reads |
 | Supported getters / failure diagnostics | Added regression | One read per occurrence/execution; failure detail sanitized |
 | Parameter/Constant in embedded projections, A → B → A | Passed immediately in hardening tests | Projected rows match native controls; current mode and diagnostics retained |
 
