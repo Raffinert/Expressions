@@ -332,6 +332,8 @@ Embedded `EF.Constant` / `EF.Parameter` support scalar captures, literals and re
 computations such as `threshold + 100` in conditions and projections;
 see [directive scope](docs/efcore-integration.md#explicit-ef-directives) for restrictions.
 Explicit `EF.Constant` intentionally puts its value in SQL and is outside the capture privacy guarantee.
+Explicit collection directives also support captured `int[]`, `List<int>`, `int?[]` and `string[]`:
+`EF.Constant`, `EF.Parameter` and `EF.MultipleParameters` retain distinct provider-owned modes.
 Compiled EF queries support stable closed
 wrappers without runtime captures and scalar delegate parameters. Wrapper delegate parameters,
 runtime captures inside compiled wrappers and changing closed wrappers are unsupported.

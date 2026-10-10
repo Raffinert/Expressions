@@ -1,12 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit.Abstractions;
 #if SQLSERVER_TESTS
 using Fixture = Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.LocalDbFixture;
 using Row = Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.SqlOrderRow;
+using Context = Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.LocalDbOrdersContext;
 namespace Raffinert.Expressions.EntityFrameworkCore.SqlServerTests;
 #else
 using Fixture = Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.SqliteFixture;
 using Row = Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.OrderRow;
+using Context = Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.OrdersContext;
 namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 #endif
 
@@ -691,7 +694,11 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             controls.Add((rows, command.Sql, command.Values));
         }
         fixture.Commands.Executed.Clear();
-        var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        var stringCondition = CollectionStringCondition(state, mode);
+        // Keep provider-specific Collate in ordinary LINQ, before EF extraction.
+        var query = (shape == "string"
+            ? fixture.Db.Orders.Where(x => stringCondition.Invoke(EF.Functions.Collate(x.Name, CollectionStringCollation)))
+            : fixture.Db.Orders.Where(x => condition.Invoke(x))).OrderBy(x => x.Id).Select(x => x.Id);
         var before = fixture.QueryCompilations;
         var index = 0;
         foreach (var step in CollectionSteps)
@@ -723,7 +730,9 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         var expected = await fixture.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
         var nativeCommand = fixture.Commands.Executed.Last();
         Assert.Equal(new[] { 2 }, expected);
-        var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        var stringCondition = CollectionStringCondition(state, mode);
+        var query = fixture.Db.Orders.Where(x => stringCondition.Invoke(EF.Functions.Collate(x.Name, CollectionStringCollation)))
+            .OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(expected, await query.ToArrayAsync());
         var command = fixture.Commands.Executed.Last();
         Assert.Equal(nativeCommand.Values, command.Values);
@@ -834,12 +843,73 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             Assert.Equal(command.Names.Length, command.Names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
             Assert.Contains("__raffinert_other_0", command.Names);
             Assert.Contains("__raffinert_threshold_0", command.Names);
+            Assert.Contains(command.Names, name => name.StartsWith("__raffinert_ids_1", StringComparison.Ordinal));
             var projection = Projection<Row>.Create(x => new { x.Id, Match = Enumerable.Contains(EF.MultipleParameters(ids), x.Id) });
             var nativeProjection = await fixture.Db.Orders.Select(projection).OrderBy(x => x.Id).ToArrayAsync();
             Assert.Equal(nativeProjection, await fixture.Db.Orders.Select(x => projection.Invoke(x)).OrderBy(x => x.Id).ToArrayAsync());
         }
         condition = Condition<Row>.Create(x => !Enumerable.Contains(EF.MultipleParameters(ids), x.Id));
         Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task RepeatedCollectionGetterOccurrencesReadOnceEachOnCacheHits()
+    {
+        await using var fixture = await CreateAsync();
+        var holder = new CollectionHolder();
+        var condition = Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(holder.Ids), x.Id)
+            && Enumerable.Contains(EF.Parameter(holder.Ids), x.Id));
+        var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        for (var i = 1; i <= 3; i++)
+        {
+            holder.Values = i == 2 ? [2, 4] : [1, 3];
+            Assert.Equal(holder.Values, await query.ToArrayAsync());
+            Assert.Equal(i * 2, holder.Reads);
+            var names = fixture.Commands.Executed.Last().Names;
+            Assert.Contains(names, name => name.StartsWith("__raffinert_holder_Ids_0", StringComparison.Ordinal));
+            Assert.Contains("__raffinert_holder_Ids_1", names);
+        }
+        Assert.Equal(1, fixture.QueryCompilations);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollectionBindingsStayFreshAcrossPooledContextsAndFactories(bool factory)
+    {
+        await using var fixture = await CreateAsync();
+        var services = new ServiceCollection();
+        void Configure(DbContextOptionsBuilder builder)
+        {
+#if SQLSERVER_TESTS
+            builder.UseSqlServer(fixture.Db.Database.GetConnectionString());
+#else
+            builder.UseSqlite(fixture.Db.Database.GetDbConnection());
+#endif
+            builder.UseRaffinertExpressions().EnableSensitiveDataLogging(false);
+        }
+        if (factory) services.AddPooledDbContextFactory<Context>(Configure, poolSize: 1);
+        else services.AddDbContextPool<Context>(Configure, poolSize: 1);
+        await using var provider = services.BuildServiceProvider();
+        var ids = new[] { 1, 3 };
+        var condition = Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(ids), x.Id));
+        Context? previous = null;
+        for (var i = 0; i < 6; i++)
+        {
+            using var scope = provider.CreateScope();
+            await using var db = factory ? scope.ServiceProvider.GetRequiredService<IDbContextFactory<Context>>().CreateDbContext()
+                : scope.ServiceProvider.GetRequiredService<Context>();
+            if (previous != null) Assert.Same(previous, db);
+            previous = db;
+            ids = i % 2 == 0 ? [1, 3] : [2, 4];
+            var query = db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+            Assert.Equal(ids, await query.ToArrayAsync());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => query.Where(x => UnsupportedRow(x)).ToArrayAsync());
+            using var canceled = new CancellationTokenSource();
+            canceled.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => query.ToArrayAsync(canceled.Token));
+            Assert.Equal(ids, await query.ToArrayAsync());
+        }
     }
 
     private static readonly int[]?[] CollectionSteps = [[1, 3], [2, 4], [], [2], [1, 1, 3], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], null, [1, 3]];
@@ -860,7 +930,19 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         _ => Condition<Row>.Create(x => Enumerable.Contains(EF.MultipleParameters(state.Strings), EF.Functions.Collate(x.Name, CollectionStringCollation)))
     };
 
-    private static string NormalizeCollectionSql(string sql) => System.Text.RegularExpressions.Regex.Replace(sql, @"@[A-Za-z0-9_]+", "@parameter");
+    private static Condition<string> CollectionStringCondition(CollectionState state, string mode) => mode switch
+    {
+        "constant" => Condition<string>.Create(name => Enumerable.Contains(EF.Constant(state.Strings), name)),
+        "parameter" => Condition<string>.Create(name => Enumerable.Contains(EF.Parameter(state.Strings), name)),
+        _ => Condition<string>.Create(name => Enumerable.Contains(EF.MultipleParameters(state.Strings), name))
+    };
+
+    private static string NormalizeCollectionSql(string sql)
+    {
+        var normalized = System.Text.RegularExpressions.Regex.Replace(sql, @"@[A-Za-z0-9_]+", "@parameter");
+        // EF derives collection-table aliases from parameter metadata, not collection values.
+        return System.Text.RegularExpressions.Regex.Replace(normalized, @"""[sr]""|\[[sr]\]", "collectionAlias");
+    }
 
 #if SQLSERVER_TESTS
     private const string CollectionStringCollation = "Latin1_General_BIN2";
