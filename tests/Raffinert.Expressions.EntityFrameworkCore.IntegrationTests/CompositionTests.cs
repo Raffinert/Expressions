@@ -234,6 +234,17 @@ public class CompositionTests
         Assert.Contains(10000, fixture.Commands.Executed[1].Values);
     }
 
+    [Fact]
+    public async Task InlinedProviderDateTimeFunctionRetainsServerTranslation()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var timestamp = Projection<OrderRow>.Create(x => DateTime.UtcNow);
+        var rows = await fixture.Db.Orders.Select(x => timestamp.Invoke(x)).ToArrayAsync();
+        Assert.Equal(4, rows.Length);
+        Assert.All(rows, x => Assert.True(x.Year >= 2000));
+        Assert.Contains("'now'", Assert.Single(fixture.Commands.Executed).Sql);
+    }
+
     private static Condition<OrderRow> GetCondition(OrderRow row) => Condition<OrderRow>.Create(x => x.Id == row.Id);
 
     private sealed class ResultRow

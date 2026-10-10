@@ -24,7 +24,14 @@ extensions. To opt into the C# query-syntax facade and its provider-independent 
 dotnet add package Raffinert.Expressions.QuerySyntax
 ```
 
-Both packages expose their public API in the `Raffinert.Expressions` namespace.
+For EF Core async condition overloads and optional expansion in ordinary LINQ lambdas, add:
+
+```shell
+dotnet add package Raffinert.Expressions.EntityFrameworkCore
+```
+
+This adapter targets `net6.0`, depends on core and EF Core 7.0.20 or later, and does not depend on QuerySyntax.
+All three packages expose their public API in the `Raffinert.Expressions` namespace.
 
 ## 30-second example
 
@@ -187,7 +194,7 @@ var result = basis.MergeBindings(overrides); // overrides win
 
 ## EF Core and provider compatibility
 
-The runtime library knows nothing about EF Core. It expands a condition or projection before passing its
+The core runtime library knows nothing about EF Core. It expands a condition or projection before passing its
 ordinary expression tree to LINQ:
 
 ```csharp
@@ -210,8 +217,8 @@ This design requires:
 
 ### Explicit expansion boundaries
 
-Because Raffinert.Expressions does not wrap the query provider, it does not scan or rewrite an entire `IQueryable`
-expression tree. Invocation markers must be expanded before the expression reaches EF Core.
+The core package expands wrappers at explicit operator boundaries. Invocation markers must be expanded
+before EF Core translates the query. The optional EF Core adapter can expand an entire query during compilation.
 
 Pass wrappers directly to the provided LINQ overloads:
 
@@ -243,14 +250,13 @@ overloads by selecting first:
 var total = db.Products.Select(priceProjection).Sum();
 ```
 
-Provider-specific async operators that accept lambdas are outside the provider-independent runtime package.
-Pass the expanded expression to those APIs explicitly:
+With the core package alone, pass the expanded expression to EF's predicate-consuming async operators:
 
 ```csharp
 var exists = await db.Products.AnyAsync(condition.GetExpandedExpression());
 ```
 
-Do not place invocation markers directly inside an ordinary provider-facing lambda:
+With only the core package, invocation markers inside ordinary provider-facing lambdas are not expanded:
 
 ```csharp
 // Not automatically expanded:
@@ -260,7 +266,7 @@ db.Products.OrderBy(product => sortProjection.Invoke(product));
 ```
 
 Those expressions are handled by the standard LINQ operators, so EF Core sees the `Invoke` method calls
-without Raffinert first expanding them.
+without Raffinert first expanding them. Register the optional EF Core integration below to support this form.
 
 Invocation inside a condition or projection remains supported because the wrapper is recursively
 expanded before it is passed to the provider:
@@ -274,6 +280,46 @@ var row = Projection<Product>.Create(product => new ProductRow
 
 var query = db.Products.Select(row);
 ```
+
+### Optional EF Core integration
+
+Install `Raffinert.Expressions.EntityFrameworkCore` for predicate-consuming async methods:
+
+```csharp
+using Raffinert.Expressions;
+using Microsoft.EntityFrameworkCore;
+
+var expensive = Condition<Order>.Create(x => x.TotalCents >= 10_000);
+bool exists = await db.Orders.AnyAsync(expensive);
+```
+
+All ten async condition operators expand before calling EF and work without registration.
+Existing EF `ToListAsync()` and `ToArrayAsync()` already work when the query is expanded.
+
+For invocation markers inside ordinary EF LINQ lambdas, opt in when configuring the context:
+
+```csharp
+var options = new DbContextOptionsBuilder<OrdersContext>()
+    .UseSqlite(connection) // Keep an in-memory SQLite connection open throughout its use.
+    .UseRaffinertExpressions()
+    .Options;
+
+var rows = await db.Orders
+    .Where(x => expensive.Invoke(x))
+    .Select(x => new { x.Id, IsExpensive = expensive.Invoke(x) })
+    .ToListAsync();
+```
+
+Create `db` using those options. Registration is local to the configured contexts and uses public EF APIs.
+The adapter preserves extracted wrapper values and generates the provider's cache key from the expanded
+query, so changing a captured wrapper or a scalar inside it cannot reuse an obsolete predicate.
+Newly inlined scalar closure values become SQL constants; keep frequently changing values in the outer
+LINQ lambda or use direct wrapper overloads to retain EF parameterization.
+
+SQLite execution tests verify the same EF 7-compiled adapter on EF **7.0.20**, **8.0.31**, **9.0.20** and
+**10.0.11**. EF 7 / .NET 6 are retired compatibility baselines. Compiled EF queries support stable closed
+wrappers and scalar delegate parameters; wrapper delegate parameters and changing closed wrappers are unsupported.
+See [EF Core integration](docs/efcore-integration.md) for examples, caching details and limitations.
 
 ### LINQ query syntax
 
@@ -316,8 +362,8 @@ var rows = await db.Products
 The query-syntax satellite cannot be referenced from .NET Framework 4.7.2 because that platform does not implement
 `netstandard2.1`.
 
-Without `AsRaffinertQuery()`, invocation markers inside ordinary provider-facing query-syntax lambdas are not
-expanded. Direct invocation in query syntax works normally for in-memory `IEnumerable<T>` sequences because no
+Without `AsRaffinertQuery()` or the optional EF interceptor, invocation markers inside ordinary provider-facing
+query-syntax lambdas are not expanded. Direct invocation in query syntax works normally for in-memory `IEnumerable<T>` sequences because no
 LINQ provider needs to translate the expression.
 
 ### Trade-off
@@ -327,6 +373,9 @@ query. Raffinert instead uses explicit expansion boundaries. Core method overloa
 or projection; the optional `AsRaffinertQuery()` facade expands compiler-created query-syntax lambdas clause by
 clause while delegating to the original provider. This keeps both packages provider-independent and the final
 expression tree directly inspectable.
+
+The separate EF Core adapter adds async predicate consumers and optional whole-query expansion at compilation.
+The core and QuerySyntax packages keep their existing provider-independent boundaries.
 
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
 supported by the selected LINQ provider.

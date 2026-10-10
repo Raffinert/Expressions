@@ -61,26 +61,24 @@ always compiles against EF 7.0.20 on net6.0; only the consumer provider changes.
 
 | EF Core / SQLite | Test target | Runtime | Passed | Failed / skipped |
 | --- | --- | --- | --- | --- |
-| 7.0.20 | net6.0 | 6.0.36 | 58 | 0 / 0 |
-| 8.0.31 | net8.0 | 8.0.31 | 58 | 0 / 0 |
-| 9.0.20 | net8.0 | 8.0.31 | 58 | 0 / 0 |
-| 10.0.11 | net10.0 | 10.0.12 | 58 | 0 / 0 |
+| 7.0.20 | net6.0 | 6.0.36 | 60 | 0 / 0 |
+| 8.0.31 | net8.0 | 8.0.31 | 60 | 0 / 0 |
+| 9.0.20 | net8.0 | 8.0.31 | 60 | 0 / 0 |
+| 10.0.11 | net10.0 | 10.0.12 | 60 | 0 / 0 |
 
 Commands:
 
 ```shell
-dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef7/Ef7.csproj
-dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef8/Ef8.csproj
-dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef9/Ef9.csproj
-dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.csproj
+dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef7/Ef7.csproj --configuration Release
+dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef8/Ef8.csproj --configuration Release
+dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef9/Ef9.csproj --configuration Release
+dotnet test tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests.csproj --configuration Release
 ```
 
 The EF 7 leg required installing the retired .NET 6.0.36 runtime into a temporary
 local dotnet directory; it executed on .NET 6, without rolling forward to .NET 8/10.
-The adapter DLL SHA256 was identical across the production and EF 7/8/9 outputs:
-`E2107D5AC2E63712D11B8C9B2F51784EF20CDF9C366D22CFF960B74078550027`.
-This hash records the pre-documentation checkpoint; later source/version changes
-produce a new hash.
+The final Release adapter DLL SHA256 was identical across production and all four test outputs:
+`247EC509EA5FB88A011034F43BD9E572673AFD41C281504CBC122C013D8146DC`.
 
 CI now defines the same four explicit version legs on Windows and Ubuntu 22.04,
 uploading TRX results per version/OS. Remote CI has not been run in this session.
@@ -106,3 +104,20 @@ uploading TRX results per version/OS. Remote CI has not been run in this session
 - Cancellation tokens reach the command interceptor unchanged; pre-cancellation raises OperationCanceledException. EF terminal exceptions are preserved.
 - Stable closed wrappers work in EF compiled sync/async queries with scalar delegate parameters. Wrapper delegate parameters fail before SQL; reassigned closed wrappers remain fixed at compilation, matching the documented restriction.
 - Only SQLite has been tested. Configure the provider before registration; manually supplied internal service providers and replacement of the decorated services are outside this integration's tested configuration.
+
+## Final checks
+
+- `dotnet restore Raffinert.Expressions.slnx`: passed.
+- `dotnet build Raffinert.Expressions.slnx --configuration Release --no-restore`: passed, zero warnings/errors.
+- `dotnet test Raffinert.Expressions.slnx --configuration Release --no-build`: 136 passed (57 core, 5 QuerySyntax, 14 existing SQLite, 60 new adapter), zero failed/skipped.
+- `dotnet test Raffinert.Expressions.slnx --configuration Release --no-restore`: same 136 passed after the final source edits.
+- Final EF 7/8/9 Release compatibility runs: 60 passed per version; 180 additional passing executions.
+- `dotnet format Raffinert.Expressions.slnx --no-restore --verify-no-changes`: passed. The first run found whitespace in new files and preexisting indentation in `examples/LinqKitComparison/PureDotNetExamples.cs`; those formatting-only differences were fixed. `git diff -w` for the existing example was empty.
+- `git diff --check`: passed.
+- Release `dotnet pack` passed for all three 1.2.0 packages, including symbol packages. The adapter nuspec depends on core 1.2.0 and EF Core 7.0.20; it has no QuerySyntax dependency.
+- The complete SQLite documentation example compiles and runs using only the documented namespace imports. Late-inlined `DateTime.UtcNow` retains SQLite server translation in every matrix leg.
+- CI is configured for the four explicit EF versions on Windows and Ubuntu 22.04. Its remote runs await a push/PR; the results above are local Windows execution results.
+
+The mandatory local acceptance scenarios are passing with no skipped tests. The
+verified compiled-query restrictions, scalar snapshot cache tradeoff, SQLite-only
+provider coverage and unexecuted remote CI are documented limitations.

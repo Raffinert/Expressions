@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0 (unreleased)
+
+- Added the optional `Raffinert.Expressions.EntityFrameworkCore` package, targeting net6.0 and compiling against EF Core 7.0.20.
+- Added async composable-condition overloads for Any, All, Count, LongCount, First, FirstOrDefault, Single, SingleOrDefault, Last and LastOrDefault. They expand before calling EF and need no interceptor.
+- Added opt-in `UseRaffinertExpressions()` and `RaffinertExpressionInterceptor` for ordinary LINQ invocation markers, with public EF service integration for extracted wrapper values and expanded cache keys.
+- Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
+- Added SQLite execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage, plus EF 7/8/9/10 compatibility projects and CI matrix.
+- Bumped QuerySyntax alongside core to align its package dependency; its API and behavior remain unchanged.
+
+
 ## Raffinert.Expressions.QuerySyntax 1.1.0 - 2026-10-05
 
 - Bumped the satellite package alongside `Raffinert.Expressions` so the packaged dependency points to the 1.1.0 core release. The query-syntax API is unchanged.
