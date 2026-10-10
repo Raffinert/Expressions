@@ -40,8 +40,8 @@ For EF Core async condition overloads and optional expansion in ordinary LINQ la
 dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
 ```
 
-This adapter requires **.NET 10**, EF Core and Relational **>= 10.0.11 and < 11.0.0**, depends on core,
-and does not depend on QuerySyntax. EF Core 7, 8 and 9 are unsupported.
+This adapter requires **.NET 10**, EF Core and Relational **>= 10.0.11**, depends on core,
+and does not depend on QuerySyntax.
 All three packages expose their public API in the `Raffinert.Expressions` namespace.
 
 ## 30-second example
