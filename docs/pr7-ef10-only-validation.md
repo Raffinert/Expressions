@@ -215,3 +215,83 @@ Final EfRuntimeParameters uses QueryContext.Parameters, dictionary Add,
 new QueryParameterExpression(name, type), QueryParameterExpression.Name and generic
 ParameterExpression.Name. All version adapter reflection fields listed in Phase 4
 are removed. Legitimate expression MemberInfo metadata is retained.
+
+## Delivery inventory
+
+Starting SHA: `3711497019fe6a24522060b23ba14f815c590a68`.
+Source/docs/package checkpoint: `0916e8a6a724e680bfdde50391970b97a2972dab`.
+The final evidence-only checkpoint follows; its full SHA and exact-head CI run are
+recorded in the live PR description and delivery response to avoid a self-referential
+commit hash. The existing feature/efcore-integration branch is retained.
+
+Checkpoint subjects and full SHAs before the evidence-only checkpoint:
+
+```text
+0f9f45deefd817e5d5dfb8e50ae8df992fc242c4 docs: establish EF10-only migration baseline
+9238fb955bd55ad514d6b9030f5298d58177a566 test: specify EF10 explicit parameterization behavior
+9bca3cb4ab8b238c887d2f018440485ffbf82ac1 build: target EF adapter to .NET 10 and EF Core 10
+df01c8ee0065e9aca495878991f1cc2e8076f448 refactor: use native EF10 runtime parameter APIs
+cac201d5bc918a24c2009fd328e604d84eb84776 fix: preserve EF10 directives after late wrapper expansion
+4e8c3910ea69e0d861f77bf1dab7358abb1874da ci: replace legacy EF compatibility with EF10 package smoke
+47188c70b9010eee3c051b5cc314f000c989e5be test: record complete native EF10 LocalDB validation
+226c1febaeec55f05bfac7e6408f177625980595 test: record full EF10 functional and privacy regression
+0916e8a6a724e680bfdde50391970b97a2972dab docs: align EF10 support and verify release candidate packages
+```
+
+Changed/added/deleted files relative to the starting SHA (M/A/D):
+
+```text
+M	.github/workflows/ci.yml
+M	CHANGELOG.md
+M	README.md
+M	docs/README.md
+M	docs/efcore-integration.md
+M	docs/efcore-validation.md
+A	docs/pr7-ef10-only-validation.md
+M	docs/pr7-parameter-lifting-validation.md
+M	docs/pr7-parameter-naming-validation.md
+M	docs/pr7-remediation-work-log.md
+M	docs/pr7-sqlserver-localdb-validation.md
+M	src/Raffinert.Expressions.EntityFrameworkCore/EfQueryExpansion.cs
+M	src/Raffinert.Expressions.EntityFrameworkCore/EfRuntimeParameters.cs
+M	src/Raffinert.Expressions.EntityFrameworkCore/Properties/AssemblyInfo.cs
+M	src/Raffinert.Expressions.EntityFrameworkCore/Raffinert.Expressions.EntityFrameworkCore.csproj
+M	src/Raffinert.Expressions.EntityFrameworkCore/RaffinertDbContextOptionsBuilderExtensions.cs
+D	tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/CompatibilityTests.props
+D	tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef7/Ef7.csproj
+D	tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef8/Ef8.csproj
+D	tests/Raffinert.Expressions.EntityFrameworkCore.CompatibilityTests/Ef9/Ef9.csproj
+M	tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/CachePolicyTests.cs
+A	tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/ExplicitEfParameterizationTests.cs
+M	tests/Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/RuntimeParameterLiftingTests.cs
+M	tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj
+M	tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/Program.cs
+M	tests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests/Raffinert.Expressions.EntityFrameworkCore.SqlServerTests.csproj
+```
+
+No source edits in core/QuerySyntax, QueryExecutionState, parameter name generator,
+privacy factory, LocalDB ownership fixture or .slnx. All eight previously untracked
+user documents remain excluded and untouched. No force push, PR merge, NuGet
+publication, new query provider, or removal of runtime parameter lifting.
+
+## Phase 10 — source checkpoint CI and final evidence checkpoint
+
+Phase 9 checkpoint: `0916e8a6a724e680bfdde50391970b97a2972dab`.
+Normal push on the existing branch completed. Exact source-head
+[CI run 38065677880](https://github.com/Raffinert/Expressions/actions/runs/38065677880)
+completed successfully; inspected every job and downloaded their logs:
+
+| Job | Conclusion | Actual evidence |
+| --- | --- | --- |
+| [Verify Linux](https://github.com/Raffinert/Expressions/actions/runs/38065677880/job/114252705621) | success | 228 passed, 0 failed/skipped; format, all release packages/symbols uploaded |
+| [Verify Windows](https://github.com/Raffinert/Expressions/actions/runs/38065677880/job/114252705805) | success | 228 passed, 0 failed/skipped |
+| [LocalDB Windows](https://github.com/Raffinert/Expressions/actions/runs/38065677880/job/114252705822) | success | 42 passed; engine 17.0.4025.3; formatting and TRX upload passed |
+| [EF10 package smoke Linux](https://github.com/Raffinert/Expressions/actions/runs/38065677880/job/114252705842) | success | Fresh-cache nupkg-only consumer, EF10.0.11/runtime10.0.12 |
+| [EF10 package smoke Windows](https://github.com/Raffinert/Expressions/actions/runs/38065677880/job/114252705855) | success | Fresh-cache nupkg-only consumer, EF10.0.11/runtime10.0.12 |
+
+There are exactly five jobs and no EF7/8/9 compatibility lanes. Live PR summary
+has been rewritten for current EF10-only scope and actual counts. This final
+report-only commit (docs: record verified EF10 migration CI and delivery inventory)
+will be normally pushed and its own exact-head checks awaited; that final SHA/run
+will be placed in the live PR description and final response. Source changes and
+locally inspected packages already passed the exact source checkpoint above.
