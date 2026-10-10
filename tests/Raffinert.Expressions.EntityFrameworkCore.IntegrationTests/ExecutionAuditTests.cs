@@ -13,7 +13,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     public async Task EmbeddedAndDirectStringsStayOutOfSqlWithSensitiveLoggingDisabled()
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableSensitiveDataLogging(false));
-        var marker = "synthetic-private-value-pr7";
+        var marker = "synthetic-private-value-efcore";
         var condition = Condition<OrderRow>.Create(x => x.Name == marker);
         Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         var embedded = Assert.Single(fixture.Commands.Executed);

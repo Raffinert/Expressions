@@ -2,7 +2,7 @@
 
 ## 1.2.0 (unreleased)
 
-- Added the optional `Raffinert.Expressions.EntityFrameworkCore` package, requiring .NET 10 and EF Core 10.x (minimum 10.0.11). EF Core 7/8/9 are unsupported.
+- Added the optional `Raffinert.Expressions.EntityFrameworkCore` package, requiring .NET 10 and EF Core/Relational >= 10.0.11 and < 11.0.0. EF Core 7/8/9 are unsupported.
 - Added async composable-condition overloads for Any, All, Count, LongCount, First, FirstOrDefault, Single, SingleOrDefault, Last and LastOrDefault. They expand before calling EF and need no interceptor.
 - Added opt-in `UseRaffinertExpressions()` and `RaffinertExpressionInterceptor` for ordinary LINQ invocation markers, with public EF service integration for extracted wrapper values and expanded cache keys.
 - Reused the core expansion engine through an internal whole-expression entry point. Core remains netstandard2.0 and has no EF dependency.
@@ -11,7 +11,7 @@
 - Added deterministic EF-style lifted parameter names derived from captured member paths, with bounded ASCII identifiers and case-insensitive collision avoidance. Runtime values remain bound separately.
 - Prevented captured SQL literals, sanitized getter diagnostics and rejected ToQueryString rendering of lifted values. Verified pooled contexts/factories, deferred execution and interceptor composition. Explicit compiled wrappers with runtime captures fail safely; use scalar delegate parameters.
 - Replaced version-dependent reflection with native EF10 QueryParameterExpression and QueryContext.Parameters APIs, retaining automatic runtime lifting.
-- Preserved embedded EF.Constant / EF.Parameter semantics for scalar captures and literals, with sanitized rejection of unsupported operands. Explicit constants intentionally appear in SQL.
+- Preserved embedded EF.Constant / EF.Parameter semantics for scalar captures and literals in conditions and projections, with sanitized rejection of unsupported operands. Explicit constants intentionally appear in SQL.
 - Added capture/service-composition regressions and isolated EF10 NuGet consumers on Windows and Linux; removed obsolete compatibility projects and matrix.
 - Added EF10 SQLite and real Windows SQL Server LocalDB execution, cache, nullability, cancellation, terminal semantics and compiled-query coverage.
 - Bumped QuerySyntax alongside core to align its package dependency; its API and behavior remain unchanged.

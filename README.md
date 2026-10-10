@@ -30,7 +30,7 @@ For EF Core async condition overloads and optional expansion in ordinary LINQ la
 dotnet add package Raffinert.Expressions.EntityFrameworkCore
 ```
 
-This adapter requires **.NET 10 and EF Core 10.x** (minimum 10.0.11), depends on core,
+This adapter requires **.NET 10**, EF Core and Relational **>= 10.0.11 and < 11.0.0**, depends on core,
 and does not depend on QuerySyntax. EF Core 7, 8 and 9 are unsupported.
 All three packages expose their public API in the `Raffinert.Expressions` namespace.
 
@@ -328,7 +328,7 @@ executing against real Windows LocalDB in a separate project and CI job.
 See [tested versions](docs/efcore-integration.md#tested-versions) for evidence and coverage limits.
 Azure SQL and other SQL Server versions/collations are not certified.
 The adapter uses native EF10 parameter nodes and QueryContext.Parameters directly.
-Embedded `EF.Constant` / `EF.Parameter` support scalar captures and literals;
+Embedded `EF.Constant` / `EF.Parameter` support scalar captures and literals in conditions and projections;
 see [directive scope](docs/efcore-integration.md#explicit-ef-directives) for restrictions.
 Explicit `EF.Constant` intentionally puts its value in SQL and is outside the capture privacy guarantee.
 Compiled EF queries support stable closed

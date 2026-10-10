@@ -8,12 +8,13 @@ namespace Raffinert.Expressions.EntityFrameworkCore.SqlServerTests;
 
 internal sealed class LocalDbFixture : IAsyncDisposable
 {
+    private const string DatabasePrefix = "Raffinert_EfCoreTests_";
     internal const string DefaultMasterConnection = @"Server=(localdb)\MSSQLLocalDB;Database=master;Integrated Security=True;Encrypt=False;Connection Timeout=30;";
     private readonly string _masterConnection;
     private readonly string _databaseConnection;
     private bool _creationStarted;
     private bool _disposed;
-    public string DatabaseName { get; } = "Raffinert_PR7_" + Guid.NewGuid().ToString("N");
+    public string DatabaseName { get; } = DatabasePrefix + Guid.NewGuid().ToString("N");
     public string EngineVersion { get; private set; } = "";
     public LocalDbCommandRecorder Commands { get; } = new();
     public List<string> Messages { get; } = [];
@@ -121,7 +122,8 @@ internal sealed class LocalDbFixture : IAsyncDisposable
             if (_creationStarted)
             {
                 var builder = new SqlConnectionStringBuilder(_databaseConnection);
-                if (builder.InitialCatalog != DatabaseName || !Regex.IsMatch(DatabaseName, "^Raffinert_PR7_[a-f0-9]{32}$"))
+                if (builder.InitialCatalog != DatabaseName || !Regex.IsMatch(DatabaseName,
+                    @"\A" + Regex.Escape(DatabasePrefix) + @"[a-f0-9]{32}\z", RegexOptions.CultureInvariant))
                     throw new InvalidOperationException("Refusing cleanup of a database not owned by this fixture.");
                 await using var cleanup = new LocalDbOrdersContext(new DbContextOptionsBuilder<LocalDbOrdersContext>()
                     .UseSqlServer(builder.ConnectionString).Options);

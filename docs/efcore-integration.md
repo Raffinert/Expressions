@@ -22,8 +22,9 @@ dotnet add package Raffinert.Expressions.EntityFrameworkCore
 dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.11
 ```
 
-Use .NET 10. The minimum EF Core/Relational dependency is 10.0.11; compatible EF10
-patches are allowed by NuGet lower-bound semantics, but future EF11 is not claimed/tested.
+Use .NET 10. Both EF Core/Relational dependencies use the bounded NuGet range
+`[10.0.11,11.0.0)`: >= 10.0.11 and < 11.0.0. Compatible EF10 patches are allowed;
+EF11 is excluded from the dependency contract and remains unverified.
 The 1.2.0 adapter depends on core 1.2.0, which supplies the internal whole-query expansion seam.
 
 ## Async predicates without interception
@@ -187,6 +188,9 @@ and defaults. Literal `EF.Parameter(1000)` binds under `__raffinert_p_0`;
 captured operands keep readable names. Captured A → B → A, nullable value → null
 → value, mixed modes, nested wrapper composition and wrapper reassignment are
 tested against native direct EF controls on SQLite and real SQL Server LocalDB.
+Embedded `Projection<T>` with a projected Boolean comparison using either directive
+also matches native EF10 controls on SQLite and LocalDB across A → B → A, including
+current bindings/forced constants and parameter-guarded/constant-only diagnostics.
 Already lifted operands are left to native EF normalization; literal/default
 operands receive a native parameter node/binding before normalization.
 
@@ -293,11 +297,11 @@ See [acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.Integr
 
 | EF Core / provider version | Consumer framework | Execution tests |
 | --- | --- | --- |
-| 10.0.11 / SQLite | net10.0 | 147 passed |
-| 10.0.11 / SQL Server LocalDB (Windows) | net10.0 | 42 passed |
+| 10.0.11 / SQLite | net10.0 | 149 passed |
+| 10.0.11 / SQL Server LocalDB (Windows) | net10.0 | 44 passed |
 
-The solution passes 228 tests; the separate Windows-only suite passes 42, all with
-zero failures/skips. Counts include 19 explicit-directive cases per provider and
+The release-hardening solution run passed 230 tests; the separate Windows-only suite passed 44, all with
+zero failures/skips. Counts include 21 explicit-directive cases per provider and
 8 LocalDB fixture safety cases. The single adapter is compiled against EF10.
 EF7/8/9 compatibility projects and CI lanes have been removed; historical results
 do not establish current support. Other providers/future major versions are not certified.
@@ -305,7 +309,8 @@ do not establish current support. Other providers/future major versions are not 
 The [EF10 source checkpoint CI](https://github.com/Raffinert/Expressions/actions/runs/38065677880)
 passed all five jobs: Windows/Linux solution verification, Windows/Linux isolated
 nupkg consumers, and real Windows LocalDB. The latest exact-head CI result is
-recorded in [PR #7](https://github.com/Raffinert/Expressions/pull/7).
+available in the [CI workflow](https://github.com/Raffinert/Expressions/actions/workflows/ci.yml);
+select the run for the current commit.
 
 Run the cross-platform checks from the repository root:
 
@@ -323,7 +328,7 @@ A separate Windows-only project executes the real Microsoft SQL Server provider
 reuse, A → B → A bindings, nullable values, nested composition/getters, repeated
 captures, EF-name collisions, wrapper reassignment, diagnostic protection,
 compiled-query restrictions, context isolation and recovery after cancellation/failure.
-The 19 explicit-directive cases compare embedded wrappers with native EF controls.
+Explicit-directive cases compare embedded conditions and projections with native EF controls.
 The production adapter has no SQL Server dependency.
 
 Run explicitly on Windows with LocalDB installed and the current user's instance running:
@@ -343,7 +348,9 @@ with the generated fixture database. Default `Encrypt=False` is for ephemeral lo
 tests, not production guidance.
 
 Master connectivity has a 30-second timeout. The fixture verifies that its generated
-`Raffinert_PR7_` database does not already exist before creating it. Disposal checks
+`Raffinert_EfCoreTests_` database does not already exist before creating it. The prefix
+is shared by generation and the anchored ownership guard, which requires exactly
+32 lowercase hexadecimal GUID characters. Disposal checks
 the generated name/catalog and deletes through a separate cleanup context, including
 partial initialization failures without masking their original error. Local validation
 found zero leftover fixture databases. Recorders normalize `DBNull` to null, assert
@@ -390,9 +397,11 @@ These sources explain behavior; no private EF API is called/copied.
 
 ### Test-first findings
 
-The initial directive suite passed native controls on both providers; embedded
+The initial condition directive suite passed native controls on both providers; embedded
 queries passed 9 of 13 cases and failed four. The final suite has 19 cases per
-provider, all passing to the scope below, without skips or client filtering.
+provider at the EF10-only checkpoint, all passing to the scope below, without skips
+or client filtering. Two later projection regressions passed immediately on both
+providers; no production expansion change was necessary.
 
 | Scenario | Initial finding | Final SQLite / LocalDB evidence |
 | --- | --- | --- |
@@ -406,6 +415,7 @@ provider, all passing to the scope below, without skips or client filtering.
 | Nested directive operands (four combinations) | Native rejected | Native and adapter reject; nested wrappers remain supported |
 | Computed operand getter | Read before rejection | Unsupported operand rejected without reading getter |
 | Supported getters / failure diagnostics | Added regression | One read per occurrence/execution; failure detail sanitized |
+| Parameter/Constant in embedded projections, A → B → A | Passed immediately in hardening tests | Projected rows match native controls; current mode and diagnostics retained |
 
 Captured automatic, Constant and Parameter A → B → A tests each observed two combined
 native/embedded compilations, one per query form, on both providers. Forced constants
@@ -442,18 +452,18 @@ and [LocalDB tests/fixture](../tests/Raffinert.Expressions.EntityFrameworkCore.S
 
 Local validation used SDK 10.0.401/runtime 10.0.12 on Windows, with LocalDB
 SQL Server 2025 CU3 engine 17.0.4025.3; CI confirmed the same engine/runtime.
-Full solution: **228 passed** (62 core, 5 QuerySyntax, 14 existing integration,
-147 adapter). Separate LocalDB: **42 passed** (23 existing + 19 directive cases,
+Release-hardening solution: **230 passed** (62 core, 5 QuerySyntax, 14 existing integration,
+149 adapter). Separate LocalDB: **44 passed** (23 existing + 21 directive cases,
 including 8 fixture safety cases). No failures/skips. Release build completed
 without warnings/errors; solution/separate-project formatting and diff checks passed.
 
 All three 1.2.0 nupkg/snupkg builds passed. ZIP/nuspec inspection confirmed:
 
-| Package | Library TFM | Dependency lower bounds |
+| Package | Library TFM | Dependency versions/ranges |
 | --- | --- | --- |
 | Core | netstandard2.0 | None |
 | QuerySyntax | netstandard2.1 | Core 1.2.0 |
-| EF adapter | net10.0 | Core 1.2.0; EF Core and Relational 10.0.11 |
+| EF adapter | net10.0 | Core 1.2.0; EF Core and Relational [10.0.11,11.0.0) |
 
 README, XML docs, release/repository metadata and symbols are included. The isolated
 EF10 consumer has no ProjectReferences, maps Raffinert packages exclusively to the
@@ -464,13 +474,14 @@ LocalDB uploaded TRX and passed its separate formatting check.
 
 ```powershell
 foreach ($name in @('Raffinert.Expressions', 'Raffinert.Expressions.QuerySyntax', 'Raffinert.Expressions.EntityFrameworkCore')) {
-    dotnet pack "src/$name/$name.csproj" -c Release --output artifacts/pr7-packages
+    dotnet pack "src/$name/$name.csproj" -c Release --output artifacts/local-feed
     if ($LASTEXITCODE -ne 0) { throw 'Package build failed.' }
 }
 $cache = Join-Path $env:TEMP ('raffinert-ef10-' + [guid]::NewGuid().ToString('N'))
 dotnet restore tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj "-p:RestorePackagesPath=$cache"
 if ($LASTEXITCODE -ne 0) { throw 'Consumer restore failed.' }
 dotnet run --project tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj -c Release --no-restore "-p:RestorePackagesPath=$cache"
+if ($LASTEXITCODE -ne 0) { throw 'Consumer execution failed.' }
 ```
 
 ### Historical checkpoints
@@ -483,10 +494,11 @@ dotnet run --project tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmok
 | Readable naming, `40cd334` | 209 solution / 128 adapter per EF major; [CI](https://github.com/Raffinert/Expressions/actions/runs/38061591008) |
 | LocalDB baseline, `3711497` | 209 solution + 23 LocalDB; [CI](https://github.com/Raffinert/Expressions/actions/runs/38063914180) |
 | EF10-only source, `0916e8a` | 228 solution + 42 LocalDB; all five current jobs passed; [CI](https://github.com/Raffinert/Expressions/actions/runs/38065677880) |
+| Release-hardening baseline, `7ec5dd8` | 228 solution + 42 LocalDB reproduced before edits; [CI](https://github.com/Raffinert/Expressions/actions/runs/38066194497) |
 
 Earlier EF7/8/9/10 matrix results used one EF7-built assembly and are historical only.
 The current adapter supports EF10 and retains automatic runtime lifting. Migration
 checkpoints, changed/deleted files and commit subjects are available in the
 [migration comparison](https://github.com/Raffinert/Expressions/compare/3711497019fe6a24522060b23ba14f815c590a68...feature/efcore-integration).
-Current final HEAD/check conclusions are recorded on the PR. Version remains 1.2.0;
-this implementation did not merge the PR, publish packages or modify user planning files.
+Check the CI workflow for the exact current commit. Version remains 1.2.0;
+release validation does not merge changes, publish packages or modify user planning files.

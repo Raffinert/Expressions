@@ -263,6 +263,65 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         Assert.Empty(fixture.Commands.Executed);
     }
 
+    [Fact]
+    public Task ParameterProjectionMatchesNativeAcrossChanges() => ProjectionMatchesNativeAcrossChanges(false);
+
+    [Fact]
+    public Task ConstantProjectionMatchesNativeAcrossChanges() => ProjectionMatchesNativeAcrossChanges(true);
+
+    private async Task ProjectionMatchesNativeAcrossChanges(bool constant)
+    {
+        await using var fixture = await CreateAsync();
+        var threshold = 1000;
+        var projection = constant
+            ? Projection<Row>.Create(x => new { x.Id, IsExpensive = x.TotalCents > EF.Constant(threshold) })
+            : Projection<Row>.Create(x => new { x.Id, IsExpensive = x.TotalCents > EF.Parameter(threshold) });
+        var native = constant
+            ? fixture.Db.Orders.Select(x => new { x.Id, IsExpensive = x.TotalCents > EF.Constant(threshold) }).OrderBy(x => x.Id)
+            : fixture.Db.Orders.Select(x => new { x.Id, IsExpensive = x.TotalCents > EF.Parameter(threshold) }).OrderBy(x => x.Id);
+        var embedded = fixture.Db.Orders.Select(x => projection.Invoke(x)).OrderBy(x => x.Id);
+        var nativeCompilations = 0;
+        var embeddedCompilations = 0;
+        foreach (var value in new[] { 1000, 10000, 1000 })
+        {
+            threshold = value;
+            var before = fixture.QueryCompilations;
+            var expected = await native.ToArrayAsync();
+            nativeCompilations += fixture.QueryCompilations - before;
+            var nativeCommand = fixture.Commands.Executed.Last();
+            Assert.Equal(new[] { 1, 2, 3, 4 }, expected.Select(x => x.Id));
+            Assert.Equal(value == 1000 ? new[] { false, true, true, true } : new[] { false, true, false, false },
+                expected.Select(x => x.IsExpensive));
+            before = fixture.QueryCompilations;
+            Assert.Equal(expected, await embedded.ToArrayAsync());
+            embeddedCompilations += fixture.QueryCompilations - before;
+            var embeddedCommand = fixture.Commands.Executed.Last();
+            if (constant)
+            {
+                Assert.Empty(nativeCommand.Values);
+                Assert.Empty(embeddedCommand.Values);
+                Assert.Matches(@">\s*" + value + @"\b", nativeCommand.Sql);
+                Assert.Matches(@">\s*" + value + @"\b", embeddedCommand.Sql);
+            }
+            else
+            {
+                Assert.Equal(value, Assert.Single(nativeCommand.Values));
+                Assert.Equal(value, Assert.Single(embeddedCommand.Values));
+                Assert.Equal("__raffinert_threshold_0", Assert.Single(embeddedCommand.Names));
+                Assert.DoesNotContain(value.ToString(), embeddedCommand.Sql);
+            }
+        }
+        output.WriteLine($"Projection {(constant ? "constant" : "parameter")}: native compilations {nativeCompilations}; embedded compilations {embeddedCompilations}; bindings omitted.");
+        if (constant)
+            Assert.Matches(@">\s*1000\b", embedded.ToQueryString());
+        else
+        {
+            var error = Assert.Throws<NotSupportedException>(() => embedded.ToQueryString());
+            Assert.DoesNotContain(threshold.ToString(), error.ToString());
+            Assert.Null(error.InnerException);
+        }
+    }
+
     private sealed class Holder
     {
         public const string Marker = "synthetic-ef10-getter@example.invalid";
