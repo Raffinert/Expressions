@@ -25,10 +25,12 @@ internal static class EfQueryExpansion
     {
         private static readonly MethodInfo ConstantDirective = ((MethodCallExpression)((Expression<Func<int, int>>)(value => EF.Constant(value))).Body).Method.GetGenericMethodDefinition();
         private static readonly MethodInfo ParameterDirective = ((MethodCallExpression)((Expression<Func<int, int>>)(value => EF.Parameter(value))).Body).Method.GetGenericMethodDefinition();
+        private static readonly MethodInfo MultipleParametersDirective = ((MethodCallExpression)((Expression<Func<int[], int[]>>)(values => EF.MultipleParameters(values))).Body).Method.GetGenericMethodDefinition();
         private readonly RaffinertParameterNameGenerator _names = new(context == null ? [] : EfRuntimeParameters.Values(context).Keys);
 
         private static bool IsDirective(MethodInfo method) => method.IsGenericMethod &&
-            (method.GetGenericMethodDefinition() == ConstantDirective || method.GetGenericMethodDefinition() == ParameterDirective);
+            (method.GetGenericMethodDefinition() == ConstantDirective || method.GetGenericMethodDefinition() == ParameterDirective ||
+             method.GetGenericMethodDefinition() == MultipleParametersDirective);
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
@@ -37,6 +39,10 @@ internal static class EfQueryExpansion
 
             // Validate computed operands before visiting or evaluating their children.
             var original = node.Arguments[0];
+            if (ExplicitCollectionDirectiveBinder.IsSupportedType(original.Type))
+                return node.Update(node.Object, [ExplicitCollectionDirectiveBinder.Bind(original, context, _names)]);
+            if (node.Method.GetGenericMethodDefinition() == MultipleParametersDirective)
+                throw ExplicitCollectionDirectiveBinder.Unsupported();
             if (original is not (ConstantExpression or DefaultExpression or QueryParameterExpression) &&
                 !(original is MemberExpression capture && IsCapture(capture)))
             {

@@ -1,7 +1,7 @@
 # Computed EF directive operands
 
 - Base SHA: `c247403120a12c553f0028d56f4f8bb2f31382db`.
-- Branch: `feature/ef10-computed-directive-operands`. Final SHA and exact-head CI conclusions are recorded in the final PR description/checks, after this report is committed.
+- Branch: `feature/ef10-computed-directive-operands`. Final scalar SHA: `63ad1527216570e00be0c8c6ee3230e8b62b337d`, [draft PR #8](https://github.com/Raffinert/Expressions/pull/8).
 - Starting status: tracked clean; 11 untracked user planning/summary files preserved.
 - Status: implemented; local acceptance gates passed.
 - Strategy: original small structural validator followed by guarded expression interpretation (plan option B). No EF source copied, no third-party notice required.
@@ -137,8 +137,11 @@ verified restored adapter metadata names local-feed and its SHA256 matches newly
 Smoke includes computed parameter/constant A/B/A, fresh results/bindings/literals,
 parameter compilation/shape stability and diagnostics, alongside previous package regressions.
 Frameworks/dependency ranges/version and the separate LocalDB workflow/fixture guard remain intact.
-Exact-head CI conclusions will be recorded in the PR description after the final commit;
-no remote result is asserted by this local report.
+[Exact-head scalar CI](https://github.com/Raffinert/Expressions/actions/runs/38070102060)
+passed all five jobs: Windows/Linux verification, Windows/Linux isolated package smoke
+and Windows LocalDB. Actual logs show 265 tests per solution run (184 adapter),
+75 LocalDB tests and both consumer successes. This is the scalar checkpoint;
+the separate collection report records its follow-up implementation and checks.
 
 ## Scope decisions and recommendation
 
@@ -147,4 +150,4 @@ which have native controls on both providers. Other numeric types, decimal arith
 division/modulo/negation and receiver conversions are deferred rather than assumed supported.
 The LocalDB fixture and cleanup policy, core evaluator, execution-state/decorators and
 diagnostic guard were not changed. No release/publish/merge/tag/force push occurred.
-Recommendation: accept the narrow change after exact-head remote checks pass.
+Recommendation: accept the narrow scalar change; exact-head remote checks passed.

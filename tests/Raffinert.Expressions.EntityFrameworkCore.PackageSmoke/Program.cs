@@ -156,6 +156,59 @@ foreach (var constant in new[] { false, true })
     }
 }
 
+foreach (var mode in new[] { "constant", "parameter", "multiple" })
+{
+    foreach (var list in new[] { false, true })
+    {
+        int[] ids = [1];
+        List<int> idList = [1];
+        var explicitCollection = (mode, list) switch
+        {
+            ("constant", false) => Condition<SmokeRow>.Create(x => Enumerable.Contains(EF.Constant(ids), x.Id)),
+            ("parameter", false) => Condition<SmokeRow>.Create(x => Enumerable.Contains(EF.Parameter(ids), x.Id)),
+            ("multiple", false) => Condition<SmokeRow>.Create(x => Enumerable.Contains(EF.MultipleParameters(ids), x.Id)),
+            ("constant", true) => Condition<SmokeRow>.Create(x => Enumerable.Contains(EF.Constant(idList), x.Id)),
+            ("parameter", true) => Condition<SmokeRow>.Create(x => Enumerable.Contains(EF.Parameter(idList), x.Id)),
+            _ => Condition<SmokeRow>.Create(x => Enumerable.Contains(EF.MultipleParameters(idList), x.Id))
+        };
+        var embeddedCollection = db.Rows.Where(x => explicitCollection.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        var embeddedCompilations = 0;
+        foreach (var replacement in new int[][] { [1], [2], [], [1, 1, 2], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], [1] })
+        {
+            ids = replacement;
+            idList.Clear();
+            idList.AddRange(replacement);
+            var nativeRows = await db.Rows.Where(explicitCollection).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+            var nativeCommand = commands.Executed.Last();
+            var before = compilations;
+            Check((await embeddedCollection.ToArrayAsync()).SequenceEqual(nativeRows), "collection mode native results");
+            embeddedCompilations += compilations - before;
+            var embeddedCommand = commands.Executed.Last();
+            Check(embeddedCommand.Values.SequenceEqual(nativeCommand.Values), "collection mode native physical bindings");
+            if (mode == "constant") Check(embeddedCommand.Values.Length == 0, "collection forced constants");
+            else
+            {
+                Check(embeddedCommand.Names.All(x => x.StartsWith("__raffinert_", StringComparison.Ordinal)), "collection readable expanded names");
+                if (mode == "multiple") Check(!embeddedCommand.Sql.Contains("json", StringComparison.OrdinalIgnoreCase), "multiple element parameter mode");
+            }
+        }
+        Check(embeddedCompilations == 1, "collection compilation independent of cardinality");
+        if (mode == "constant") embeddedCollection.ToQueryString();
+        else
+        {
+            try
+            {
+                embeddedCollection.ToQueryString();
+                throw new InvalidOperationException("Collection parameter rendering must fail safely.");
+            }
+            catch (NotSupportedException error)
+            {
+                Check(error.InnerException == null, "collection diagnostic protection");
+            }
+        }
+    }
+}
+
 Console.WriteLine($"Package smoke passed: EF {typeof(DbContext).Assembly.GetName().Version}, runtime {Environment.Version}.");
 
 static void Check(bool success, string scenario)

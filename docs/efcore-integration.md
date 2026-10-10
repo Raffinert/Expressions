@@ -239,6 +239,81 @@ broader client-evaluatable operand support. No generic evaluator is provided.
 Embedded literal/computed directives need ordinary per-execution preparation and are
 unsupported in standalone interception or explicitly compiled wrappers.
 
+### Explicit collection directives
+
+Ordinary queries with `UseRaffinertExpressions()` support **captured** `int[]`,
+`List<int>`, `int?[]` and `string[]` in three distinct explicit modes:
+
+| Directive | Requested SQL mode | Responsibility |
+| --- | --- | --- |
+| `EF.Constant(ids)` | SQL element constants | EF/provider; intentionally not confidential |
+| `EF.Parameter(ids)` | One array-like parameter; provider may use JSON | EF/provider |
+| `EF.MultipleParameters(ids)` | Element parameters; provider may pad/bucket | EF/provider |
+
+```csharp
+int[] ids = [1, 3];
+var selected = Condition<OrderRow>.Create(x =>
+    Enumerable.Contains(EF.MultipleParameters(ids), x.Id));
+var query = db.Orders.Where(x => selected.Invoke(x)).OrderBy(x => x.Id);
+await query.ToArrayAsync();
+ids = [2, 4];
+await query.ToArrayAsync(); // current replacement, not the previous collection
+```
+
+Use `Enumerable.Contains` explicitly: .NET 10 overload resolution can otherwise
+select span-based methods. This applies to native controls and embedded queries alike.
+The collection operand must be a closed captured field/non-indexed property chain,
+rooted in a closure constant or static field, or an already-native query parameter.
+Captured null collections have the tested native empty-collection semantics.
+Literal/default/null expression nodes, constructed arrays/lists, receiver casts,
+row-dependent operands, methods/LINQ computations, nested directives, interfaces,
+`IQueryable` and lazy/other collection types are unsupported. Runtime collection
+objects must have the exact approved declared CLR type, excluding list subclasses.
+Strings alone are scalars, not approved collections.
+
+The separate binder validates the original capture without reading getters. An approved
+capture is read once per occurrence per execution and bound as **one whole collection**
+with its original static type and metadata-derived name, such as `__raffinert_ids_0`.
+Raffinert does not enumerate, serialize, split, pad or bucket it. EF owns physical
+parameters and SQL generation. Repeated occurrences receive distinct logical names;
+collisions with native EF parameters are avoided. Keep getters deterministic and keep
+the collection stable during execution. Getter failures are sanitized without an inner
+exception; standalone interception and explicit compiled wrappers retain their limits.
+
+SQLite and real LocalDB native comparisons cover array replacement, mutation of the
+same list, changing sizes, duplicates, captured null collections, nullable elements,
+nested/mixed scalar/collection composition, projection and wrapper reassignment.
+All 12 mode/type combinations observed one embedded compilation over the tested
+sequence; executed SQL shapes differ with constants, size and null optimization.
+This is EF compilation evidence, not a database plan-cache guarantee.
+Context/factory pooling, failure/cancellation recovery and getter counts are also tested.
+
+String comparison still follows provider collation rules. LocalDB native JSON collection
+comparison with its default column collation raised a collation conflict. String tests
+use explicit `Latin1_General_BIN2` on SQL Server and `BINARY` on SQLite, placed in ordinary
+LINQ before extraction:
+
+```csharp
+var names = new[] { "Desk", "Pencil" };
+var matchesName = Condition<string>.Create(name =>
+    Enumerable.Contains(EF.Parameter(names), name));
+// SQL Server example; use the collation required by your provider/model.
+var query = db.Orders.Where(x =>
+    matchesName.Invoke(EF.Functions.Collate(x.Name, "Latin1_General_BIN2")));
+```
+
+Provider-specific function evaluation inside a late-expanded wrapper is not broadened
+by this feature. Check native EF translation and your model's collation requirements.
+For bound modes, executed SQL omits synthetic private strings and the existing
+ToQueryString guard recognizes physical element parameters after expansion. Constant
+mode intentionally exposes literals. Empty/null collections may optimize away every
+physical parameter, permitting diagnostics without captured values. Sensitive/custom
+parameter logging remains outside the SQL-text privacy guarantee.
+
+Bare hidden collections remain unsupported; use explicit directives or direct wrapper
+operators so native EF can extract them. See the
+[collection report](experiments/ef10-collection-directives.md) for RED/GREEN and provider evidence.
+
 ### SQL diagnostics and migration from constant snapshots
 
 This replaces the earlier constant-snapshot implementation; there is no implicit legacy
@@ -282,8 +357,9 @@ See [acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.Integr
   deduplicated, so no universal once-per-getter contract is promised.
 - Supported inlined runtime captures include primitive/enum values, strings, decimals,
   Guid, DateTime, DateTimeOffset, DateOnly, TimeOnly and TimeSpan, including nullable forms.
-  Hidden captured arrays/lists are rejected before SQL with guidance to use direct
-  wrapper operators. Direct operators allow EF to extract collections and observe their
+  Bare hidden captured arrays/lists are rejected before SQL with guidance to use direct
+  wrapper operators; explicit collection directives have the separate narrow contract above.
+  Direct operators allow EF to extract collections and observe their
   current contents. Use `Enumerable.Contains(ids, x.Id)` explicitly for array captures
   when C# overload resolution would otherwise choose a span-based `Contains` method.
   Arbitrary method-based evaluation remains outside the runtime capture contract.
@@ -328,12 +404,12 @@ See [acceptance tests](../tests/Raffinert.Expressions.EntityFrameworkCore.Integr
 
 | EF Core / provider version | Consumer framework | Execution tests |
 | --- | --- | --- |
-| 10.0.11 / SQLite | net10.0 | 184 passed |
-| 10.0.11 / SQL Server LocalDB (Windows) | net10.0 | 75 passed |
+| 10.0.11 / SQLite | net10.0 | 237 passed |
+| 10.0.11 / SQL Server LocalDB (Windows) | net10.0 | 117 passed |
 
-The computed-directive solution run passed 265 tests; the separate Windows-only suite passed 75, all with
-zero failures/skips. Counts include 52 explicit-directive cases per provider,
-four adapter validator checks and eight LocalDB fixture safety cases.
+The scalar/collection directive solution run passed 318 tests; the separate Windows-only suite passed 117, all with
+zero failures/skips. Counts include 94 shared explicit-directive cases per provider,
+four scalar and eleven collection adapter helper checks and eight LocalDB fixture safety cases.
 The single adapter is compiled against EF10. See the
 [computed directive report](experiments/ef10-computed-directives.md) for RED/GREEN evidence,
 the original evaluator/source-reuse decision and intentionally deferred numeric types.
