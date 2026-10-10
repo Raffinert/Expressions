@@ -8,7 +8,7 @@ public class CaptureRegressionTests(ITestOutputHelper output)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task HiddenCollectionsHaveADescriptiveRestrictionAndDirectOperatorsUseCurrentValues(bool list)
+    public async Task HiddenCollectionsAndDirectOperatorsUseNativeCurrentValues(bool list)
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         int[] ids = [1, 2];
@@ -16,10 +16,8 @@ public class CaptureRegressionTests(ITestOutputHelper output)
         var condition = list
             ? Condition<OrderRow>.Create(x => items.Contains(x.Id))
             : Condition<OrderRow>.Create(x => Enumerable.Contains(ids, x.Id));
-        var error = await Assert.ThrowsAsync<NotSupportedException>(() =>
-            fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id).ToArrayAsync());
-        Assert.Contains("Captured collections", error.Message);
-        Assert.Empty(fixture.Commands.Executed);
+        var embedded = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        Assert.Equal(new[] { 1, 2 }, await embedded.ToArrayAsync());
 
         var query = fixture.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 1, 2 }, await query.ToArrayAsync());
@@ -27,10 +25,11 @@ public class CaptureRegressionTests(ITestOutputHelper output)
         items.Clear();
         items.Add(4);
         Assert.Equal(new[] { 4 }, await query.ToArrayAsync());
-        Assert.Equal(2, fixture.Commands.Executed.Count);
+        Assert.Equal(new[] { 4 }, await embedded.ToArrayAsync());
+        Assert.Equal(4, fixture.Commands.Executed.Count);
         Assert.All(fixture.Commands.Executed, command => Assert.Contains("WHERE", command.Sql));
         output.WriteLine(fixture.Commands.Executed[1].Sql);
-        output.WriteLine($"Collection parameters: [{string.Join(", ", fixture.Commands.Executed[1].Values)}]");
+        output.WriteLine("Native collection bindings verified; values omitted.");
     }
 
     [Theory]

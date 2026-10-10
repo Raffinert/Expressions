@@ -14,7 +14,14 @@ namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 // Experimental acceptance suite: native and direct controls execute before the embedded form.
 public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
 {
-    private static Task<Fixture> CreateAsync() => Fixture.CreateAsync();
+    private static Task<Fixture> CreateAsync()
+    {
+#if SQLSERVER_TESTS
+        return Fixture.CreateAsync();
+#else
+        return Fixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
+#endif
+    }
 
     [Theory]
     [InlineData("computed-parameter")]
@@ -196,8 +203,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             var command = f.Commands.Executed.Last();
             Assert.True(command.Values.Contains(secret), "Private value must be bound; values omitted.");
             Assert.False(command.Sql.Contains(secret, StringComparison.Ordinal), "Executed SQL must omit private value.");
-            var error = Assert.Throws<NotSupportedException>(() => query.ToQueryString());
-            Assert.False(error.ToString().Contains(secret, StringComparison.Ordinal), "Diagnostic failure must omit private value.");
+            Assert.True(query.ToQueryString().Contains(secret, StringComparison.Ordinal), "Native diagnostic rendering includes parameter values; values omitted.");
         }
         Assert.True(f.Db.Orders.Where(x => x.Name == secret).ToQueryString().Length > 0);
         var constant = Condition<Row>.Create(x => x.Id == EF.Constant(1));
@@ -209,5 +215,90 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
         public int Threshold = 1000;
         public int Reads;
         public int GetThreshold() { Reads++; return Threshold; }
+    }
+
+    [Theory]
+    [InlineData("constant")]
+    [InlineData("parameter")]
+    [InlineData("multiple")]
+    public async Task NullableCollectionAndNullCollectionMatchNative(string mode)
+    {
+        await using var f = await CreateAsync();
+        int?[]? ids = [1, null];
+        Expression<Func<Row, bool>> predicate = mode switch
+        {
+            "constant" => x => Enumerable.Contains(EF.Constant(ids)!, x.CustomerId),
+            "parameter" => x => Enumerable.Contains(EF.Parameter(ids)!, x.CustomerId),
+            _ => x => Enumerable.Contains(EF.MultipleParameters(ids)!, x.CustomerId)
+        };
+        var condition = Condition<Row>.Create(predicate);
+        foreach (var values in new int?[]?[] { [1, null], [2], [], null, [1, null] })
+        {
+            ids = values;
+            var expected = await f.Db.Orders.Where(predicate).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+            var command = f.Commands.Executed.Last();
+            Assert.Equal(expected, await f.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+            Assert.Equal(expected, await f.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+            Assert.Equal(command.Sql, f.Commands.Executed.Last().Sql);
+            Assert.Equal(command.Values, f.Commands.Executed.Last().Values);
+        }
+    }
+
+    [Fact]
+    public async Task ProviderSpecificFunctionMatchesNative()
+    {
+        await using var f = await CreateAsync();
+#if SQLSERVER_TESTS
+        Expression<Func<Row, bool>> predicate = x => EF.Functions.DateDiffDay(DateTime.Today.AddDays(-x.Id), DateTime.Today) > 1;
+#else
+        Expression<Func<Row, bool>> predicate = x => EF.Functions.Glob(x.Name, "D*");
+#endif
+        var condition = Condition<Row>.Create(predicate);
+        var expected = await f.Db.Orders.Where(predicate).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
+        var command = f.Commands.Executed.Last();
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected, await f.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
+        Assert.Equal(command.Sql, f.Commands.Executed.Last().Sql);
+        Assert.Equal(command.Values, f.Commands.Executed.Last().Values);
+    }
+
+    [Fact]
+    public async Task CurrentBindingsAndNativeCacheShapeAcrossTwentyFiveValuesAndRepeat()
+    {
+        await using var f = await CreateAsync();
+        var threshold = 100;
+        var condition = Condition<Row>.Create(x => x.TotalCents > threshold);
+        var embedded = f.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
+        var before = f.QueryCompilations;
+        foreach (var value in Enumerable.Range(100, 25).Append(124))
+        {
+            threshold = value;
+            Assert.Equal(new[] { 1, 2, 3, 4 }, await embedded.ToArrayAsync());
+            Assert.Equal(value, Assert.Single(f.Commands.Executed.Last().Values));
+        }
+        Assert.Equal(26, f.Commands.Executed.Count);
+        Assert.Single(f.Commands.Executed.Select(x => x.Sql).Distinct());
+        Assert.Equal(1, f.QueryCompilations - before);
+    }
+
+    [Fact]
+    public async Task NativeGetterFailureRemainsNativeAndRecoverable()
+    {
+        await using var f = await CreateAsync();
+        var holder = new FailingHolder();
+        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(holder.GetThreshold()));
+        var query = f.Db.Orders.Where(x => condition.Invoke(x));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
+        Assert.NotNull(error.InnerException); // EF preserves the user exception; no adapter exception policy after expansion.
+        Assert.Empty(f.Commands.Executed);
+        holder.Fail = false;
+        Assert.Equal(3, await query.CountAsync());
+    }
+
+    private sealed class FailingHolder
+    {
+        public const string Secret = "synthetic-native-getter-private@example.invalid";
+        public bool Fail = true;
+        public int GetThreshold() => Fail ? throw new InvalidOperationException(Secret) : 1000;
     }
 }

@@ -14,10 +14,7 @@ internal sealed class RaffinertOptionsExtension : IDbContextOptionsExtension
     public void ApplyServices(IServiceCollection services)
     {
         services.TryAddScoped<QueryExecutionState>();
-#pragma warning disable EF1001 // Preserve and decorate the already registered EF10 compiler descriptor.
-        Decorate<Microsoft.EntityFrameworkCore.Query.Internal.IQueryCompiler>(services,
-            (provider, _) => new NativeExtractionQueryCompiler(provider));
-#pragma warning restore EF1001
+        NativeExtractionQueryCompiler.Decorate(services);
         Decorate<IQueryContextFactory>(services, (provider, state) => new RecordingQueryContextFactory(provider, state));
         Decorate<ICompiledQueryCacheKeyGenerator>(services, (provider, state) => new ExpansionCacheKeyGenerator(provider, state));
         if (services.Any(x => x.ServiceType == typeof(IRelationalQueryStringFactory)))
