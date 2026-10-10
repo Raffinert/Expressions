@@ -27,3 +27,29 @@ and invoking compilation. See the source for
 [EF 7](https://github.com/dotnet/efcore/blob/v7.0.20/src/EFCore/Query/Internal/QueryCompiler.cs)
 and [EF 10](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/Internal/QueryCompiler.cs).
 This ordering must be covered by executable cache regression tests.
+
+## Required adjustment to the proposed interceptor
+
+The first EF 10 SQLite regression failed with `Unable to resolve expression instance`
+using only `IQueryExpressionInterceptor`: the captured condition had already become an
+EF query parameter. Preventing evaluation through a filter plugin was also insufficient:
+EF parameterized the enclosing closure instead.
+
+The implementation therefore decorates two **public** EF extension interfaces:
+`IQueryContextFactory` to make extracted wrapper values available within the current
+context scope, and `ICompiledQueryCacheKeyGenerator` to use the expanded query for the
+provider's existing key generation. The interceptor uses the same normalization and
+core expansion engine. This addresses both lost wrapper instances and stale cached
+conditions without wrapping the LINQ provider, replacing translation preprocessing,
+or calling any EF private/internal API.
+
+EF 10 renamed the public `QueryContext.ParameterValues` property to `Parameters` and
+EF 9 introduced public `QueryParameterExpression`. The adapter resolves these public
+members at runtime to keep the single EF 7-compiled assembly compatible. Compatibility
+must be verified by the runtime matrix, not inferred from reflection alone.
+
+Scalar closure members introduced by expansion are snapshotted because EF's parameter
+extraction has already run. They participate in the expanded cache key; changing them
+produces a new key. Scalars already present in ordinary LINQ retain EF parameterization.
+Wrapper structure remains immutable as required by core. Property getters can run
+during expansion and must return stable values throughout a query execution.
