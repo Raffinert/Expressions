@@ -12,6 +12,69 @@ public class WholeQueryExpansionTests
 
     private static Expression Expand(Expression root) => ExpressionExpander.Expand(root);
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CarriedDelegateFieldDoesNotReadItsPropertyReceiver(bool fail)
+    {
+        var holder = new FieldCallbackHolder { Fail = fail };
+        Expression<Func<int, Func<int, int>>> expression = value => holder.Provider.Callback;
+        Assert.Same(expression, Expand(expression));
+        Assert.Equal(0, holder.Reads);
+    }
+
+    private sealed class FieldCallbackHolder
+    {
+        public int Reads;
+        public bool Fail;
+        public FieldCallbackProvider Provider
+        {
+            get
+            {
+                Reads++;
+                if (Fail) throw new ApplicationException("synthetic property-backed field failure");
+                return new FieldCallbackProvider();
+            }
+        }
+    }
+
+    private sealed class FieldCallbackProvider
+    {
+        public Func<int, int> Callback = value => value + 1;
+    }
+
+    [Fact]
+    public void PropertyBackedMarkerDelegateFieldStillExpandsInCallbackPositions()
+    {
+        var condition = Condition<Row>.Create(row => row.Value > 10);
+        var holder = new MarkerFieldHolder(condition.Invoke);
+        var query = Rows.Where(row => holder.Provider.Callback(row))
+            .Select(row => row.Children.Any(holder.Provider.Callback));
+        Assert.Equal(new[] { false }, query.Provider.CreateQuery<bool>(Expand(query.Expression)));
+        Assert.Equal(2, holder.Reads);
+    }
+
+    [Fact]
+    public void ConstantMarkerDelegateStillExpands()
+    {
+        var condition = Condition<Row>.Create(row => row.Value > 10);
+        Func<Row, bool> callback = condition.Invoke;
+        var parameter = Expression.Parameter(typeof(Row));
+        var expression = Expression.Lambda<Func<Row, bool>>(Expression.Invoke(Expression.Constant(callback), parameter), parameter);
+        Assert.Equal(new[] { 2 }, Rows.Where((Expression<Func<Row, bool>>)Expand(expression)).Select(row => row.Id));
+    }
+
+    private sealed class MarkerFieldHolder(Func<Row, bool> callback)
+    {
+        public int Reads;
+        public MarkerFieldProvider Provider { get { Reads++; return new MarkerFieldProvider(callback); } }
+    }
+
+    private sealed class MarkerFieldProvider(Func<Row, bool> callback)
+    {
+        public Func<Row, bool> Callback = callback;
+    }
+
     [Fact]
     public void NonRaffinertDelegateMemberIsNotEagerlyReadByExpansion()
     {

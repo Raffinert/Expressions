@@ -489,9 +489,94 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PropertyBackedDelegateFieldMatchesNative(bool fail)
+    {
+        await using var f = await CreateAsync();
+        var nativeBuilder = new DbContextOptionsBuilder<Context>();
+#if SQLSERVER_TESTS
+        nativeBuilder.UseSqlServer(f.Db.Database.GetConnectionString());
+#else
+        nativeBuilder.UseSqlite(f.Db.Database.GetDbConnection());
+#endif
+        var nativeCompilations = 0;
+        nativeBuilder.EnableServiceProviderCaching(false).AddInterceptors(f.Commands)
+            .LogTo(_ => nativeCompilations++, new[] { Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.QueryCompilationStarting });
+        await using var native = new Context(nativeBuilder.Options);
+        var holder = new FieldCallbackHolder();
+        Expression<Func<Row, Func<int, int>>> projection = x => holder.Provider.Callback;
+        var nativeQuery = native.Orders.OrderBy(x => x.Id).Select(projection);
+        var registeredQuery = f.Db.Orders.OrderBy(x => x.Id).Select(projection);
+        Assert.Equal(0, holder.Reads);
+        foreach (var offset in new[] { 10, 20, 10 })
+        {
+            holder.Offset = offset;
+            holder.Reads = 0;
+            if (fail)
+            {
+                holder.Fail = true;
+                var commandsBefore = f.Commands.Executed.Count;
+                var nativeFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => nativeQuery.ToArrayAsync());
+                var nativeFailedReads = holder.Reads;
+                holder.Reads = 0;
+                var registeredFailure = await Assert.ThrowsAsync<InvalidOperationException>(() => registeredQuery.ToArrayAsync());
+                output.WriteLine($"Property-backed field failure: native reads={nativeFailedReads}, registered reads={holder.Reads}; native inner={nativeFailure.InnerException?.GetType().Name}, registered inner={registeredFailure.InnerException?.GetType().Name}.");
+                Assert.Equal(nativeFailedReads, holder.Reads);
+                Assert.Equal(nativeFailure.InnerException?.GetType(), registeredFailure.InnerException?.GetType());
+                Assert.Equal(commandsBefore, f.Commands.Executed.Count);
+                holder.Fail = false;
+                holder.Reads = 0;
+            }
+            var nativeResults = await nativeQuery.ToArrayAsync();
+            var nativeReads = holder.Reads;
+            var nativeCommand = f.Commands.Executed.Last();
+            holder.Reads = 0;
+            var registeredResults = await registeredQuery.ToArrayAsync();
+            output.WriteLine($"Property-backed field offset={offset}: native reads={nativeReads}, registered reads={holder.Reads}.");
+            Assert.Equal(nativeResults.Select(callback => callback(1)), registeredResults.Select(callback => callback(1)));
+            Assert.All(registeredResults, callback => Assert.Equal(offset + 1, callback(1)));
+            Assert.Equal(nativeCommand.Sql, f.Commands.Executed.Last().Sql);
+            Assert.Equal(nativeCommand.Values, f.Commands.Executed.Last().Values);
+            Assert.Equal(nativeReads, holder.Reads);
+        }
+        Assert.Equal(1, nativeCompilations);
+        Assert.Equal(1, f.QueryCompilations);
+        Assert.Equal(6, f.Commands.Executed.Count);
+        holder.Reads = 0;
+        var nativeSql = nativeQuery.ToQueryString();
+        var nativeDiagnosticReads = holder.Reads;
+        holder.Reads = 0;
+        Assert.Equal(nativeSql, registeredQuery.ToQueryString());
+        Assert.Equal(nativeDiagnosticReads, holder.Reads);
+    }
+
+    private sealed class FieldCallbackHolder
+    {
+        public int Reads;
+        public int Offset;
+        public bool Fail;
+        public FieldCallbackProvider Provider
+        {
+            get
+            {
+                Reads++;
+                if (Fail) throw new ApplicationException("synthetic property-backed field failure");
+                return new FieldCallbackProvider(Offset);
+            }
+        }
+    }
+
+    private sealed class FieldCallbackProvider(int offset)
+    {
+        public Func<int, int> Callback = value => value + offset;
+    }
+
+    [Theory]
     [InlineData("method-group")]
     [InlineData("captured-field")]
     [InlineData("opaque-property")]
+    [InlineData("property-backed-field")]
     public async Task MarkerDelegateCallbacksKeepServerExpansionAndCurrentValues(string mode)
     {
         await using var f = await CreateAsync();
@@ -503,6 +588,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
         {
             "method-group" => f.Db.Orders.Where(row => f.Db.Orders.Where(x => x.Id == row.Id).Any(condition.Invoke)),
             "captured-field" => f.Db.Orders.Where(row => f.Db.Orders.Where(x => x.Id == row.Id).Any(callback)),
+            "property-backed-field" => f.Db.Orders.Where(row => f.Db.Orders.Where(x => x.Id == row.Id).Any(holder.Provider.Callback)),
             _ => f.Db.Orders.Where(row => f.Db.Orders.Where(x => x.Id == row.Id).Any(holder.Callback))
         };
         foreach (var value in new[] { 1000, 10000, 1000 })
@@ -512,7 +598,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             Assert.Equal(value == 1000 ? new[] { 2, 3, 4 } : new[] { 2 }, await query.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
             Assert.Equal(value, Assert.Single(f.Commands.Executed.Last().Values));
             Assert.Contains("EXISTS", f.Commands.Executed.Last().Sql);
-            if (mode == "opaque-property") Assert.Equal(1, holder.Reads);
+            if (mode is "opaque-property" or "property-backed-field") Assert.Equal(1, holder.Reads);
         }
         condition = Condition<Row>.Create(x => x.Id == 1);
         callback = condition.Invoke;
@@ -525,5 +611,11 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
         public Func<Row, bool> Value = value;
         public int Reads;
         public Func<Row, bool> Callback { get { Reads++; return Value; } }
+        public MarkerFieldCallbackProvider Provider { get { Reads++; return new MarkerFieldCallbackProvider(Value); } }
+    }
+
+    private sealed class MarkerFieldCallbackProvider(Func<Row, bool> callback)
+    {
+        public Func<Row, bool> Callback = callback;
     }
 }

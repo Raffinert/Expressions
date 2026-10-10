@@ -104,7 +104,8 @@ internal static class ExpressionExpander
 
         protected override Expression VisitMember(MemberExpression node)
         {
-            if (node.Member is FieldInfo && typeof(Delegate).IsAssignableFrom(node.Type) &&
+            // A final field can still have a getter/constructor in its receiver chain.
+            if (IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
                 SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
             {
                 return expression;
@@ -118,13 +119,22 @@ internal static class ExpressionExpander
 
         private Expression VisitDelegateOperand(Expression node)
         {
-            // Opaque properties must be read to identify a marker only when used as callbacks.
+            // Opaque receiver chains must be read to identify a marker only when used as callbacks.
             // Merely carrying one leaves its evaluation to the eventual execution provider.
-            if (node is MemberExpression { Member: PropertyInfo } && typeof(Delegate).IsAssignableFrom(node.Type) &&
+            if (node is MemberExpression && !IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
                 SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
                 return expression;
             return Visit(node)!;
         }
+
+        private static bool IsFieldOnlyAccess(Expression? node) => node switch
+        {
+            null or ConstantExpression => true,
+            MemberExpression { Member: FieldInfo } member => IsFieldOnlyAccess(member.Expression),
+            UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked or ExpressionType.TypeAs } conversion =>
+                IsFieldOnlyAccess(conversion.Operand),
+            _ => false
+        };
 
         private bool TryResolveMethodGroup(Expression targetExpression, out LambdaExpression expression)
         {
