@@ -122,3 +122,13 @@ EF10.0.11/runtime10.0.12. Smoke asserts 25-value cache reuse, readable bindings,
 automatic A → B → A, captured/literal directives and private EF.Parameter binding.
 Active source/test/CI search finds no compatibility/version-probing references.
 Linux/Windows CI conclusions will be recorded only after new-head runs complete.
+
+## Phase 7 — complete real LocalDB regression
+
+Phase 6 checkpoint: `4e8c391`. HEAD before this phase: `4e8c391`.
+The full separate SQL Server suite passed: **42 passed, 0 failed, 0 skipped**
+(23 existing cases + 19 explicit-directive cases), with TRX recorded locally.
+Provider 10.0.11, .NET runtime 10.0.12, current-user MSSQLLocalDB SQL Server
+2025 CU3 engine 17.0.4025.3. Separate project formatting passed. The safety
+fixture and production provider dependencies are unchanged; LocalDB stays outside
+.slnx. CI engine/job evidence will be recorded after the actual new-head run.
