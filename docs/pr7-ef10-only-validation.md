@@ -132,3 +132,16 @@ Provider 10.0.11, .NET runtime 10.0.12, current-user MSSQLLocalDB SQL Server
 2025 CU3 engine 17.0.4025.3. Separate project formatting passed. The safety
 fixture and production provider dependencies are unchanged; LocalDB stays outside
 .slnx. CI engine/job evidence will be recorded after the actual new-head run.
+
+## Phase 8 — full regression
+
+Phase 7 checkpoint: `47188c7`. HEAD before this phase: `47188c7`.
+Release restore/build passed with zero build warnings/errors. Full solution test:
+**228 passed, 0 failed, 0 skipped** (62 core, 5 QuerySyntax, 14 existing integration,
+147 adapter SQLite). Increase from 209 is the 19 explicit-directive cases.
+Solution formatter verification and git diff --check passed. The formatter emitted
+its existing workspace-load warning but completed successfully with no edits.
+The complete separate LocalDB 42-case pass is recorded immediately above.
+Existing regression classes cover runtime bindings/cache identity, getter counts,
+naming collisions/limits, pooling/services/interceptors, async terminals,
+compiled controls, cancellation/recovery and privacy; no redundant tests added.
