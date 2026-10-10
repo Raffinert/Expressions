@@ -46,9 +46,9 @@ public class CachePolicyTests(ITestOutputHelper output)
         Assert.Equal(expectedCompilations, fixture.QueryCompilations);
         output.WriteLine($"{mode}: {fixture.QueryCompilations} compilations for 25 distinct values plus one repeat.");
         output.WriteLine(fixture.Commands.Executed[0].Sql);
-        output.WriteLine($"Parameters: [{string.Join(", ", fixture.Commands.Executed[0].Values)}]");
+        output.WriteLine($"Parameter names: [{string.Join(", ", fixture.Commands.Executed[0].Names)}]");
         output.WriteLine(fixture.Commands.Executed[24].Sql);
-        output.WriteLine($"Parameters: [{string.Join(", ", fixture.Commands.Executed[24].Values)}]");
+        output.WriteLine($"Parameter names: [{string.Join(", ", fixture.Commands.Executed[24].Names)}]");
     }
 
     [Fact]

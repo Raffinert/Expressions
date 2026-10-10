@@ -103,3 +103,22 @@ Parameter/automatic SQL uses __raffinert_threshold_0 and current values; forced
 constant SQL has no DbParameters and matches native SQL for every execution.
 Constant-only ToQueryString renders intentional constants. Any actual lifted bound
 parameter remains protected. Test output contains shapes/metadata, never bound values.
+
+## Phase 6 — obsolete compatibility removal and package lane
+
+Phase 5 checkpoint: `cac201d`. HEAD before this phase: `cac201d`.
+Removed the EF7/8/9 project files and compatibility-only props, plus their three
+friend-assembly declarations. The test-only parameter prototype now uses direct
+EF10 nodes/storage; legitimate FieldInfo capture metadata remains. Existing cache
+tests now print names rather than bound values. Eight prototype/cache tests passed.
+The canonical solution and LocalDB separation are unchanged.
+
+CI retains Windows/Linux verify and strict Windows LocalDB; the obsolete matrix
+is replaced by two EF10 isolated-package smoke jobs. PackageSmoke unconditionally
+targets net10.0/SQLite 10.0.11. Source mapping is retained and CI overrides the
+private cache with a fresh runner-temp path, used consistently for restore/run.
+Local core/adapter packs and a fresh-cache nupkg consumer passed on Windows:
+EF10.0.11/runtime10.0.12. Smoke asserts 25-value cache reuse, readable bindings,
+automatic A → B → A, captured/literal directives and private EF.Parameter binding.
+Active source/test/CI search finds no compatibility/version-probing references.
+Linux/Windows CI conclusions will be recorded only after new-head runs complete.

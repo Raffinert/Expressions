@@ -484,12 +484,8 @@ public class RuntimeParameterLiftingTests
             var closure = Assert.IsAssignableFrom<ConstantExpression>(capture.Expression);
             var value = ((FieldInfo)capture.Member).GetValue(closure.Value);
             const string parameterName = "__raffinert_prototype_0";
-            var nodeType = typeof(QueryContext).Assembly.GetType("Microsoft.EntityFrameworkCore.Query.QueryParameterExpression");
-            var parameter = nodeType == null ? Expression.Parameter(capture.Type, parameterName)
-                : (Expression)nodeType.GetConstructor(new[] { typeof(string), typeof(Type) })!.Invoke(new object[] { parameterName, capture.Type });
-            var parameters = typeof(QueryContext).GetProperty("Parameters");
-            if (parameters != null) ((IDictionary<string, object?>)parameters.GetValue(_context)!).Add(parameterName, value);
-            else typeof(QueryContext).GetMethod("AddParameter")!.Invoke(_context, new[] { parameterName, value });
+            var parameter = new QueryParameterExpression(parameterName, capture.Type);
+            _context!.Parameters.Add(parameterName, value);
             var predicate = Expression.Lambda<Func<OrderRow, bool>>(binary.Update(binary.Left, binary.Conversion, parameter), lambda.Parameters);
             var where = Assert.IsType<MethodCallExpression>(query, exactMatch: false);
             _original = query;

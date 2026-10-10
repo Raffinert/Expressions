@@ -1,7 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <EfCoreVersion>9.0.20</EfCoreVersion>
-  </PropertyGroup>
-  <Import Project="..\CompatibilityTests.props" />
-</Project>

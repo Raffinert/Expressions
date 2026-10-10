@@ -55,6 +55,42 @@ Check(await lifted.CountAsync() == 2, "lifted cache hit");
 Check(compilations == 1, "one lifted compilation");
 Check(commands.Executed.Select(x => x.Sql).Distinct().Count() == 1, "one lifted SQL shape");
 
+foreach (var next in new[] { 1000, 30000, 1000 })
+{
+    threshold = next;
+    Check(await lifted.CountAsync() == (next == 30000 ? 0 : 1), "automatic A -> B -> A");
+    Check(Equals(commands.Executed.Last().Values.Single(), threshold), "automatic fresh cache-hit binding");
+}
+
+foreach (var constant in new[] { false, true })
+{
+    commands.Executed.Clear();
+    var forced = constant ? Condition<SmokeRow>.Create(x => x.Value > EF.Constant(threshold))
+        : Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(threshold));
+    var forcedQuery = db.Rows.Where(x => forced.Invoke(x));
+    foreach (var next in new[] { 1000, 30000, 1000 })
+    {
+        threshold = next;
+        Check(await forcedQuery.CountAsync() == (next == 30000 ? 0 : 1), "explicit directive fresh results");
+        var command = commands.Executed.Last();
+        if (constant) Check(command.Values.Length == 0, "explicit constant mode");
+        else
+        {
+            Check(Equals(command.Values.Single(), threshold), "explicit parameter binding");
+            Check(command.Names.Single() == "__raffinert_threshold_0", "explicit parameter readable name");
+            Check(!command.Sql.Contains(threshold.ToString(), StringComparison.Ordinal), "explicit parameter absent from SQL");
+        }
+    }
+}
+commands.Executed.Clear();
+var literalParameter = Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(1000));
+Check(await db.Rows.CountAsync(x => literalParameter.Invoke(x)) == 1, "literal EF.Parameter");
+Check(commands.Executed.Last().Names.Single() == "__raffinert_p_0", "literal fallback name");
+Check(Equals(commands.Executed.Last().Values.Single(), 1000), "literal forced binding");
+var literalConstant = Condition<SmokeRow>.Create(x => x.Value > EF.Constant(1000));
+Check(await db.Rows.CountAsync(x => literalConstant.Invoke(x)) == 1, "literal EF.Constant");
+Check(commands.Executed.Last().Values.Length == 0, "literal forced constant");
+
 commands.Executed.Clear();
 var marker = "synthetic-smoke-private@example.invalid";
 var privateCondition = Condition<SmokeRow>.Create(x => x.Name == marker);
@@ -72,6 +108,12 @@ catch (NotSupportedException error)
 {
     Check(!error.ToString().Contains(marker, StringComparison.Ordinal), "sanitized rendering diagnostic");
 }
+
+commands.Executed.Clear();
+var explicitPrivate = Condition<SmokeRow>.Create(x => x.Name == EF.Parameter(marker));
+Check((await db.Rows.Where(x => explicitPrivate.Invoke(x)).ToArrayAsync()).Length == 0, "private explicit parameter result");
+Check(commands.Executed.Single().Values.Contains(marker), "private explicit parameter binding");
+Check(!commands.Executed.Single().Sql.Contains(marker, StringComparison.Ordinal), "private explicit parameter absent from SQL");
 
 Console.WriteLine($"Package smoke passed: EF {typeof(DbContext).Assembly.GetName().Version}, runtime {Environment.Version}.");
 
