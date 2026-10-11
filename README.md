@@ -296,7 +296,7 @@ var query = db.Products.Select(row);
 
 `Raffinert.Expressions.EntityFrameworkCore` 1.2.0 adds async composable-condition
 operators and opt-in invocation expansion for ordinary EF LINQ queries. It requires
-**.NET 10**, EF Core and Relational **>= 10.0.11 and < 11.0.0**.
+**.NET 10**, EF Core and Relational **>= 10.0.11**.
 
 ```shell
 dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
