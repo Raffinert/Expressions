@@ -212,12 +212,11 @@ Expansion produces a normal conditional expression. Ordinary `Invoke` does not a
 An order export always includes the order number and customer name. Depending on the export configuration, it may also include the net or gross total. `MergeBindings()` adds the optional calculation without duplicating the base projection:
 
 ```csharp
-var netTotal = Projection<Order>.Create(o =>
-    o.Lines.Sum(l => l.Quantity * l.UnitPrice));
+var netAmount = Projection<OrderLine>.Create(l =>
+    l.Quantity * l.UnitPrice);
 
-var grossTotal = Projection<Order>.Create(o =>
-    o.Lines.Sum(l =>
-        l.Quantity * l.UnitPrice * (1m + l.VatRate)));
+var grossAmount = Projection<OrderLine>.Create(l =>
+    netAmount.Invoke(l) * (1m + l.VatRate));
 
 var export = Projection<Order>.Create(o => new OrderExportRow
 {
@@ -227,7 +226,9 @@ var export = Projection<Order>.Create(o => new OrderExportRow
 
 if (includeAmounts)
 {
-    var total = includeVat ? grossTotal : netTotal;
+    var lineAmount = includeVat ? grossAmount : netAmount;
+    var total = Projection<Order>.Create(o =>
+        o.Lines.Sum(l => lineAmount.Invoke(l)));
 
     export = export.MergeBindings(
         Projection<Order>.Create(o => new OrderExportRow
@@ -239,7 +240,9 @@ if (includeAmounts)
 var rows = await db.Orders.Select(export).ToListAsync();
 ```
 
-Here `OrderExportRow` has a parameterless constructor and a `decimal? Total` property; `VatRate` is a decimal fraction such as `0.25m` for 25%.
+The line calculation is defined once in `netAmount` and reused by `grossAmount`. The selected line projection feeds a single order-level sum, so VAT remains specific to each line.
+
+Here `Order.Lines` contains `OrderLine` objects, `OrderExportRow` has a parameterless constructor and a `decimal? Total` property, and `VatRate` is a decimal fraction such as `0.25m` for 25%.
 
 | Configuration | Projection |
 |---|---|
