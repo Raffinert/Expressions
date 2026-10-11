@@ -17,6 +17,17 @@ await db.Database.EnsureCreatedAsync();
 db.Rows.AddRange(new SmokeRow { Id = 1, Value = 200 }, new SmokeRow { Id = 2, Value = 20000 });
 await db.SaveChangesAsync();
 
+var highValue = Condition<SmokeRow>.Create(x => x.Value > 1000);
+var id = Projection<SmokeRow>.Create(x => x.Id);
+var plainQuery =
+    from row in db.Rows
+    where highValue.Invoke(row)
+    orderby id.Invoke(row)
+    select id.Invoke(row);
+
+Check((await plainQuery.ToArrayAsync()).SequenceEqual(new[] { 2 }),
+    "plain C# query syntax without QuerySyntax package");
+
 IComposableExpression<SmokeRow, bool> condition = Condition<SmokeRow>.Create(x => x.Value > 1000);
 Check(await db.Rows.AnyAsync(condition), "condition overload");
 Check(await db.Rows.AnyAsync(x => x.Value > 1000), "lambda overload");
