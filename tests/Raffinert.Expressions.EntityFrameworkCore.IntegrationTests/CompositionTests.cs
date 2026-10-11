@@ -6,6 +6,51 @@ namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 public class CompositionTests
 {
     [Fact]
+    public async Task EfAdapterExpandsPlainQuerySyntaxWithoutAsRaffinertQuery()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync(intercept: true);
+        var active = Condition<OrderRow>.Create(x => x.Active);
+        var name = Projection<OrderRow>.Create(x => x.Name);
+
+        // Intentionally use ordinary C# query syntax without AsRaffinertQuery().
+        var query =
+            from order in fixture.Db.Orders
+            where active.Invoke(order)
+            orderby name.Invoke(order)
+            select new
+            {
+                order.Id,
+                Name = name.Invoke(order)
+            };
+
+        var rows = await query.ToArrayAsync();
+
+        Assert.Equal(new[] { 2, 1 }, rows.Select(x => x.Id).ToArray());
+        Assert.Equal(new[] { "Desk", "Pencil" }, rows.Select(x => x.Name).ToArray());
+
+        var command = Assert.Single(fixture.Commands.Executed);
+        Assert.Contains("WHERE", command.Sql);
+        Assert.Contains("ORDER BY", command.Sql);
+        Assert.DoesNotContain("Invoke", command.Sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PlainQuerySyntaxWithInvokeRequiresRegisteredEfAdapter()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync(intercept: false);
+        var active = Condition<OrderRow>.Create(x => x.Active);
+
+        var query =
+            from order in fixture.Db.Orders
+            where active.Invoke(order)
+            select order.Id;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
+
+        Assert.Empty(fixture.Commands.Executed);
+    }
+
+    [Fact]
     public async Task AsyncTerminalWithEmbeddedMarkerExecutesSql()
     {
         await using var fixture = await SqliteFixture.CreateAsync();

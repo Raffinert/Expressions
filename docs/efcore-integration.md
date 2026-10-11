@@ -103,6 +103,8 @@ var query = configuredDb.Orders.Where(x => expensive.Invoke(x) && x.Active);
 
 Registration applies only to contexts configured with it; repeated calls are harmless. It supports nested conditions/projections, native wrappers referenced through `IComposableExpression<,>`, `InvokeOrDefault`, and Raffinert method-group/captured-delegate callbacks.
 
+With `UseRaffinertExpressions()`, ordinary C# query syntax also supports embedded Raffinert invocations. `AsRaffinertQuery()` and the QuerySyntax package are not required for this EF Core scenario. The adapter includes Core transitively and does not depend on QuerySyntax.
+
 Passing a wrapper directly to an operator needs no registration. Invocation inside another wrapper also works when that outer wrapper is passed directly to an operator. Register the adapter for invocations in ordinary provider-facing lambdas without such an explicit expansion boundary.
 
 ## 5. Conditions, projections and captured values
