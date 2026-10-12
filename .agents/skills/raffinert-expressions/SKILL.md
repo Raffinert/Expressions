@@ -85,6 +85,6 @@ var query = db.Orders.Where(eligible); // Core direct operator expands
 
 ## Finish the task
 
-Preserve existing business behavior and package compatibility. Prefer generic consumer examples (`Order`, `Product`, `Customer`) over procurement-specific terminology. Verify the actual code compiles and that relevant provider tests execute. Explain which expansion boundary was chosen and which optional package, if any, was needed. Never invent an API or claim that a hypothetical future feature exists.
+Preserve existing business behavior and package compatibility. Verify the actual code compiles and that relevant provider tests execute. Explain which expansion boundary was chosen and which optional package, if any, was needed. Never invent an API or claim that a hypothetical future feature exists.
 
 Canonical project docs: https://github.com/Raffinert/Expressions (README, `docs/efcore-integration.md`, and `docs/architecture.md`).
