@@ -86,7 +86,7 @@ var active = Condition<Order>.Create(o => o.IsActive);
 var expensive = Condition<Order>.Create(o => o.Total > 1000m);
 var urgent = Condition<Order>.Create(o => o.IsUrgent);
 
-var eligible = (active & expensive) | urgent;
+var eligible = (active && expensive) || urgent;
 
 bool accepted = eligible.Invoke(order);
 var query = db.Orders.Where(eligible);
@@ -99,7 +99,7 @@ Create a condition inline or subclass `Condition<T>` and override `GetExpression
 ```csharp
 var inStock = Condition<Product>.Create(product => product.Stock > 0);
 var visible = inStock.And(product => !product.IsHidden);
-var wanted = visible & !Condition<Product>.Create(product => product.IsDiscontinued);
+var wanted = visible && !Condition<Product>.Create(product => product.IsDiscontinued);
 
 bool matches = wanted.Invoke(product);
 ```
