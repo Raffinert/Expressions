@@ -485,6 +485,16 @@ See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blo
 - [LINQKit comparison](examples/LinqKitComparison/README.md) — the LINQKit README scenarios implemented three
   ways in a .NET 10 / EF Core 10 console app: plain EF Core lambdas, LINQKit, and Raffinert.Expressions.
 
+## AI Agent Skill
+
+Use Raffinert.Expressions in your own project with a portable [Agent Skill](https://agentskills.io/specification):
+
+```shell
+npx skills add Raffinert/Expressions
+```
+
+The `raffinert-expressions` skill teaches coding agents package selection, reusable `Condition`/`Projection` composition, LINQ and EF Core expansion boundaries, query syntax without unnecessary packages, and common mistakes. It is stored in [`.agents/skills/raffinert-expressions/`](.agents/skills/raffinert-expressions/) and can also be read directly as a `SKILL.md` file. This skill helps **consumers** of the library; it does not require AI to participate in your build or runtime.
+
 ## Useful reading
 
 Expression composition and reusable query logic:
