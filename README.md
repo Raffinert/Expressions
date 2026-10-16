@@ -211,6 +211,8 @@ Expansion produces a normal conditional expression. Ordinary `Invoke` does not a
 
 An order export always includes the order number and customer name. Depending on the export configuration, it may also include the net or gross total. `MergeBindings()` adds the optional calculation without duplicating the base projection:
 
+<p align="right"><a href="https://dotnetfiddle.net/iucjOg">Run .NET fiddle</a></p>
+
 ```csharp
 var netAmount = Projection<OrderLine>.Create(l =>
     l.Quantity * l.UnitPrice);
