@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,7 +8,7 @@ namespace Raffinert.Expressions;
 
 // EF10 compiler boundary: Raffinert expands; the original compiler owns all extraction and execution.
 #pragma warning disable EF1001 // Implement and forward the provider's scoped IQueryCompiler.
-internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQueryCompiler
+internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner, IDbContextOptions options) : IQueryCompiler
 {
     internal static void Decorate(IServiceCollection services)
     {
@@ -22,13 +23,13 @@ internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQue
         services.Add(original.ImplementationFactory is { } factory
             ? ServiceDescriptor.DescribeKeyed(typeof(IQueryCompiler), key, (provider, _) => factory(provider), original.Lifetime)
             : ServiceDescriptor.DescribeKeyed(typeof(IQueryCompiler), key, original.ImplementationType!, original.Lifetime));
-        services.AddScoped<IQueryCompiler>(provider => new NativeExtractionQueryCompiler(provider.GetRequiredKeyedService<IQueryCompiler>(key)));
+        services.AddScoped<IQueryCompiler>(provider => new NativeExtractionQueryCompiler(provider.GetRequiredKeyedService<IQueryCompiler>(key), provider.GetRequiredService<IDbContextOptions>()));
     }
 
-    public TResult Execute<TResult>(Expression query) => inner.Execute<TResult>(Expand(query));
+    public TResult Execute<TResult>(Expression query) => inner.Execute<TResult>(Transform(Expand(query)));
 
     public TResult ExecuteAsync<TResult>(Expression query, CancellationToken cancellationToken) =>
-        inner.ExecuteAsync<TResult>(Expand(query), cancellationToken);
+        inner.ExecuteAsync<TResult>(Transform(Expand(query)), cancellationToken);
 
     public Func<QueryContext, TResult> CreateCompiledQuery<TResult>(Expression query) =>
         inner.CreateCompiledQuery<TResult>(query);
@@ -42,6 +43,16 @@ internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQue
             ? throw new NotSupportedException("Precompiled queries containing Raffinert wrappers are unsupported. Use ordinary LINQ or supported EF compiled queries.")
             : inner.PrecompileQuery<TResult>(query, async);
 #pragma warning restore EF9100
+
+    private Expression Transform(Expression query)
+    {
+        var transformers = options.FindExtension<RaffinertOptionsExtension>()?.Transformers;
+        if (transformers == null) return query;
+        foreach (var transformer in transformers)
+            query = transformer(query) ?? throw new InvalidOperationException(
+                "An expression transformer returned null.");
+        return query;
+    }
 
     private static Expression Expand(Expression query)
     {

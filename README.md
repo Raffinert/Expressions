@@ -43,7 +43,7 @@ dotnet add package Raffinert.Expressions.QuerySyntax
 For EF Core async condition overloads and optional expansion in ordinary LINQ lambdas, add:
 
 ```shell
-dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
+dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.1
 ```
 
 This adapter requires **.NET 10**, EF Core and Relational **`[10.0.11,11.0.0)`**, depends on core,
@@ -341,12 +341,12 @@ var query = db.Products.Select(row);
 
 ### Optional EF Core integration
 
-`Raffinert.Expressions.EntityFrameworkCore` 1.2.0 adds async composable-condition
+`Raffinert.Expressions.EntityFrameworkCore` 1.2.1 provides async composable-condition
 operators and opt-in invocation expansion for ordinary EF LINQ queries. It requires
 **.NET 10**, EF Core and Relational **`[10.0.11,11.0.0)`**.
 
 ```shell
-dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
+dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.1
 ```
 
 For an application with an `OrdersContext` exposing an `Orders` set:
@@ -368,6 +368,40 @@ var rows = await db.Orders.Where(x => expensive.Invoke(x)).ToListAsync();
 Register `UseRaffinertExpressions()` for invocations inside ordinary EF-facing
 lambdas. Passing wrappers directly, such as `.Where(expensive)` or
 `await db.Orders.AnyAsync(expensive)`, needs no registration.
+
+### Custom EF Core expression transformations
+
+Optionally register user-defined transformations of the **complete EF query expression**. Raffinert expands nested `Condition` and `Projection` invocations first, then applies the callbacks in registration order before EF Core's native parameter extraction. No optimizer is required by the adapter.
+
+For example, to use the independently installed [Linq.Expression.Optimizer](https://www.nuget.org/packages/Linq.Expression.Optimizer):
+
+```shell
+dotnet add package Linq.Expression.Optimizer --version 1.0.39
+```
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Raffinert.Expressions;
+
+var options = new DbContextOptionsBuilder<OrdersContext>()
+    .UseSqlite("Data Source=orders.db")
+    .UseRaffinertExpressions(config =>
+    {
+        // ExpressionOptimizer is provided by the optional third-party package.
+        config.Transform(ExpressionOptimizer.visit);
+    })
+    .Options;
+
+await using var db = new OrdersContext(options);
+var expensive = Condition<Order>.Create(order => order.TotalCents > 1000);
+var rows = await db.Orders
+    .Where(order => expensive.Invoke(order) && order.IsActive)
+    .ToListAsync();
+```
+
+`Transform(Func<Expression, Expression>)` also accepts a custom expression visitor or another optimizer. Each callback receives the previous callback's output; callbacks must return a non-null expression, preserve EF-translatable query semantics, and be thread-safe. The third-party optimizer assumes side-effect-free expressions: do not enable transformations that evaluate captured values prematurely or break EF parameterization. This hook applies to ordinary synchronous/asynchronous queries, not compiled/precompiled queries; the separate expansion interceptor does not rerun custom transformations.
+
+See the [custom transformation guide](docs/efcore-expression-transformers.md) for the pipeline contract and limitations.
 
 The adapter supports nested conditions/projections, current captured values, native
 EF parameterization and explicit scalar/collection directives. SQLite and SQL Server

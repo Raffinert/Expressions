@@ -28,6 +28,31 @@ public static class RaffinertDbContextOptionsBuilderExtensions
         return optionsBuilder;
     }
 
+    /// <summary>Registers post-expansion transformations of ordinary EF query expressions.</summary>
+    public static DbContextOptionsBuilder UseRaffinertExpressions(
+        this DbContextOptionsBuilder optionsBuilder,
+        Action<RaffinertExpressionTransformOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(optionsBuilder);
+        ArgumentNullException.ThrowIfNull(configure);
+        var configuration = new RaffinertExpressionTransformOptions();
+        configure(configuration);
+        UseRaffinertExpressions(optionsBuilder);
+        var current = optionsBuilder.Options.FindExtension<RaffinertOptionsExtension>()!;
+        ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(
+            current.WithTransformers(configuration.Snapshot()));
+        return optionsBuilder;
+    }
+
+    /// <summary>Registers post-expansion transformations while retaining typed context options.</summary>
+    public static DbContextOptionsBuilder<TContext> UseRaffinertExpressions<TContext>(
+        this DbContextOptionsBuilder<TContext> optionsBuilder,
+        Action<RaffinertExpressionTransformOptions> configure) where TContext : DbContext
+    {
+        UseRaffinertExpressions((DbContextOptionsBuilder)optionsBuilder, configure);
+        return optionsBuilder;
+    }
+
     /// <summary>Enables invocation expansion while retaining the typed options builder.</summary>
     /// <param name="optionsBuilder">The context options to configure.</param>
     /// <typeparam name="TContext">The context type.</typeparam>
