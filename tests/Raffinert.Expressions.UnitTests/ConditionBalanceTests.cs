@@ -55,6 +55,42 @@ public class ConditionBalanceTests
     }
 
     [Fact]
+    public void BalancesNestedGroupsWithoutCrossingAndOrOrNotBoundaries()
+    {
+        var condition = Condition<int>.Create(x => x > 0);
+        for (var i = 0; i < 256; i++)
+            condition = condition.And(x => x < 1000);
+
+        var nested = Condition<int>.Create(x => x == -1);
+        for (var i = 0; i < 256; i++)
+            nested = nested.Or(x => x == 42);
+
+        var combined = condition.Or(nested.Not()).And(x => x != 7).And(x => x != 8);
+        var balanced = combined.Balance();
+        var root = Assert.IsType<BinaryExpression>(balanced.GetExpression().Body);
+
+        Assert.True(Depth(root) < 24);
+        foreach (var value in new[] { -1, 0, 7, 8, 42, 1001 })
+            Assert.Equal(combined.Invoke(value), balanced.Invoke(value));
+        Assert.Equal(balanced.GetExpression().ToString(),
+            balanced.Balance().GetExpression().ToString());
+    }
+
+    [Fact]
+    public void HandlesDeepAlternatingGroupsWithoutRecursiveTraversal()
+    {
+        var condition = Condition<int>.Create(x => x > 0);
+        for (var i = 0; i < 2048; i++)
+            condition = (i & 1) == 0
+                ? condition.And(x => x < 100)
+                : condition.Or(x => x == 42);
+
+        var balanced = condition.Balance();
+        // Alternating operators cannot be reassociated across their group boundaries.
+        Assert.Equal(condition.GetExpression().ToString(), balanced.GetExpression().ToString());
+    }
+
+    [Fact]
     public void KeepsShortCircuitOperandOrder()
     {
         var calls = new List<int>();
