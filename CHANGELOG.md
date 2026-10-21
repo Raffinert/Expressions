@@ -1,5 +1,12 @@
 # Changelog
 
+## Raffinert.Expressions.EntityFrameworkCore 1.2.1 - 2026-10-21
+
+- Added configurable, ordered post-expansion expression transformations through `UseRaffinertExpressions(options => options.Transform(...))`.
+- Custom transformers run after Raffinert invocation expansion and before EF Core's native parameter extraction for ordinary synchronous and asynchronous queries.
+- Added SQLite integration coverage using the optional third-party `Linq.Expression.Optimizer`, including transformation order, configuration isolation, and invalid transformer results.
+- The Core and QuerySyntax package APIs and versions are unchanged.
+
 ## 1.2.0
 
 - Added the optional `Raffinert.Expressions.EntityFrameworkCore` package for .NET 10 and EF Core/Relational >= 10.0.11 and < 11.0.0.
