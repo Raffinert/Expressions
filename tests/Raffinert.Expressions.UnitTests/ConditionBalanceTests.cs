@@ -87,7 +87,7 @@ public class ConditionBalanceTests
 
         var balanced = condition.Balance();
         // Alternating operators cannot be reassociated across their group boundaries.
-        Assert.Equal(condition.GetExpression().ToString(), balanced.GetExpression().ToString());
+        Assert.Same(condition, balanced);
     }
 
     [Fact]
