@@ -16,6 +16,7 @@ public class NativeCompilerContractTests
     public void DecorationPreservesScopedProviderCompilerAndDisposesItOnce(bool factory)
     {
         var services = new ServiceCollection();
+        services.AddSingleton<IDbContextOptions>(new DbContextOptionsBuilder().Options);
         if (factory) services.AddScoped<IQueryCompiler>(_ => new RecordingCompiler());
         else services.AddScoped<IQueryCompiler, RecordingCompiler>();
         NativeExtractionQueryCompiler.Decorate(services);
@@ -58,7 +59,7 @@ public class NativeCompilerContractTests
     public void AsyncAndCompiledMembersForwardExpressionAndTokenOnce()
     {
         var inner = new RecordingCompiler();
-        var compiler = new NativeExtractionQueryCompiler(inner);
+        var compiler = new NativeExtractionQueryCompiler(inner, new DbContextOptionsBuilder().Options);
         var query = Expression.Constant(7);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
@@ -74,7 +75,7 @@ public class NativeCompilerContractTests
     public void NoMarkerPrecompilationForwardsUnmodifiedAndMarkersFailBeforeProvider()
     {
         var inner = new RecordingCompiler();
-        var compiler = new NativeExtractionQueryCompiler(inner);
+        var compiler = new NativeExtractionQueryCompiler(inner, new DbContextOptionsBuilder().Options);
         // Reflection exercises the experimental boundary without adding an EF9100 exception at the call site.
         var method = typeof(NativeExtractionQueryCompiler).GetMethod("PrecompileQuery")!.MakeGenericMethod(typeof(int));
         var query = Expression.Constant(7);
