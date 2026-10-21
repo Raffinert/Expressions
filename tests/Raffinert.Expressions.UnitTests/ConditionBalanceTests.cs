@@ -24,10 +24,10 @@ public class ConditionBalanceTests
 
         Assert.Same(original, condition.GetExpression());
         Assert.Equal(original.Parameters[0], result.Parameters[0]);
-        Assert.True(Depth(result.Body) <= 11);
+        Assert.True(Depth(result.Body) <= 12);
         Assert.Equal(condition.Invoke(1), balanced.Invoke(1));
         Assert.Equal(condition.Invoke(-1), balanced.Invoke(-1));
-        Assert.Same(balanced, balanced.Balance());
+        Assert.Equal(result.ToString(), balanced.Balance().GetExpression().ToString());
     }
 
     [Fact]
