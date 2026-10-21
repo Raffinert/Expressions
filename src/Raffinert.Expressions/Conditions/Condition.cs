@@ -85,6 +85,22 @@ public abstract class Condition<T> : ComposableExpression<T, bool>
             : Create(BooleanExpressionComposer.Or(GetExpression(), expression));
     }
 
+    /// <summary>Balances nested homogeneous short-circuit AND and OR groups throughout this condition.</summary>
+    /// <remarks>
+    /// Preserves operand order and AND/OR grouping, and traverses built-in Boolean NOT.
+    /// Other operators remain opaque. Does not expand nested composition markers or mutate this condition.
+    /// Only built-in, non-lifted Boolean operators are reassociated.
+    /// </remarks>
+    /// <returns>A condition whose homogeneous Boolean groups have logarithmic depth.</returns>
+    public Condition<T> Balance()
+    {
+        var expression = GetExpression();
+        var body = BooleanExpressionBalancer.Balance(expression.Body);
+        return ReferenceEquals(body, expression.Body)
+            ? this
+            : Create(Expression.Lambda<Func<T, bool>>(body, expression.Parameters));
+    }
+
     /// <summary>Negates this condition.</summary>
     /// <returns>A condition that accepts exactly the values rejected by this condition.</returns>
     public Condition<T> Not()
