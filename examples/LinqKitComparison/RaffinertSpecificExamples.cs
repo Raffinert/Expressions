@@ -23,9 +23,9 @@ public static class RaffinertSpecificExamples
 
     private static async Task StructuralAdaptationAsync(ExampleDbContext db, bool showSql)
     {
-        var templateCondition = Condition<ProductTemplate>.Create(product =>
+        var templateCondition = ComposableExpression<ProductTemplate>.Create(product =>
             product.Price >= 300m && product.Description.Contains("phone"));
-        var templateProjection = Projection<ProductTemplate, ProductCardTemplate>.Create(product =>
+        var templateProjection = ComposableExpression<ProductTemplate, ProductCardTemplate>.Create(product =>
             new ProductCardTemplate
             {
                 Id = product.Id,
@@ -53,11 +53,11 @@ public static class RaffinertSpecificExamples
 
     private static async Task TypedForwardCompositionAsync(ExampleDbContext db, bool showSql)
     {
-        var price = Projection<Product, decimal>.Create(product => product.Price);
-        var withTax = Projection<decimal, decimal>.Create(value => value * 1.25m);
-        var premium = Condition<decimal>.Create(value => value >= 1_000m);
+        var price = ComposableExpression<Product, decimal>.Create(product => product.Price);
+        var withTax = ComposableExpression<decimal, decimal>.Create(value => value * 1.25m);
+        var premium = ComposableExpression<decimal>.Create(value => value >= 1_000m);
 
-        // Then preserves the intermediate types and returns a Condition<Product>. LINQKit can reproduce the
+        // Then preserves the intermediate types and returns a ComposableExpression<Product, bool>. LINQKit can reproduce the
         // final tree with Invoke/Expand, but does not provide a typed projection-to-projection/condition API.
         var premiumAfterTax = price.Then(withTax).Then(premium);
         var query = db.Products
@@ -75,12 +75,12 @@ public static class RaffinertSpecificExamples
 
     private static async Task MergeProjectionBindingsAsync(ExampleDbContext db, bool showSql)
     {
-        var identity = Projection<Product, ProductCard>.Create(product => new ProductCard
+        var identity = ComposableExpression<Product, ProductCard>.Create(product => new ProductCard
         {
             Id = product.Id,
             Description = product.Description
         });
-        var commercial = Projection<Product, ProductCard>.Create(product => new ProductCard
+        var commercial = ComposableExpression<Product, ProductCard>.Create(product => new ProductCard
         {
             Price = product.Price,
             IsPremium = product.Price >= 800m
@@ -103,14 +103,14 @@ public static class RaffinertSpecificExamples
 
     private static void NullSafeProjection()
     {
-        var card = Projection<Product, ProductCard>.Create(product => new ProductCard
+        var card = ComposableExpression<Product, ProductCard>.Create(product => new ProductCard
         {
             Id = product.Id,
             Description = product.Description,
             Price = product.Price,
             IsPremium = product.Price >= 800m
         });
-        var optionalCard = Projection<OptionalProduct, ProductCard?>.Create(value =>
+        var optionalCard = ComposableExpression<OptionalProduct, ProductCard?>.Create(value =>
             card.InvokeOrDefault(value.Product));
 
         // InvokeOrDefault expands to a conditional and returns default when the source is null.
@@ -128,7 +128,7 @@ public static class RaffinertSpecificExamples
 
     private static async Task MapToExistingAsync(ExampleDbContext db)
     {
-        var map = Projection<Product, ProductCard>.Create(product => new ProductCard
+        var map = ComposableExpression<Product, ProductCard>.Create(product => new ProductCard
         {
             Id = product.Id,
             Description = product.Description,

@@ -103,7 +103,7 @@ public static class PureDotNetExamples
         string prefix) =>
         db.PriceLists
             // Limitation: the ValidFrom/ValidTo rule is hardcoded for PriceList. LINQKit can compose a generic
-            // expression and Raffinert.Expressions a generic Condition<TEntity> with the entity-specific name rule.
+            // expression and Raffinert.Expressions a generic ComposableExpression<TEntity, bool> with the entity-specific name rule.
             .Where(priceList =>
                 (priceList.ValidFrom == null || priceList.ValidFrom <= asOf) &&
                 (priceList.ValidTo == null || priceList.ValidTo >= asOf) &&
@@ -118,6 +118,6 @@ public static class PureDotNetExamples
         select new DailyAverage(
             orders.Key,
             // Limitation: Average is hardcoded in this projection. LINQKit can invoke a reusable aggregate
-            // expression here; Raffinert.Expressions can invoke a reusable Projection<IQueryable<Order>, double?>.
+            // expression here; Raffinert.Expressions can invoke a reusable ComposableExpression<IQueryable<Order>, double?>.
             orders.Average(order => (double?)order.Amount));
 }

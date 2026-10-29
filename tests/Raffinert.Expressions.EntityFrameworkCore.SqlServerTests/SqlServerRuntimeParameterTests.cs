@@ -22,7 +22,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var threshold = 100;
-        var condition = Condition<SqlOrderRow>.Create(x => x.TotalCents > threshold);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.TotalCents > threshold);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         foreach (var value in Enumerable.Range(100, 25).Append(100))
         {
@@ -44,7 +44,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var id = 2;
-        var condition = Condition<SqlOrderRow>.Create(x => x.Id == id);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.Id == id);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id);
         foreach (var value in new[] { 2, 4, 2 })
         {
@@ -62,7 +62,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var settings = new Settings();
-        var condition = Condition<SqlOrderRow>.Create(x => x.TotalCents > settings.MinPrice);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.TotalCents > settings.MinPrice);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         foreach (var value in new[] { 1000, 10000, 1000 })
         {
@@ -80,7 +80,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var threshold = 3;
-        var condition = Condition<SqlOrderRow>.Create(x => x.TotalCents > threshold && x.Id < threshold);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.TotalCents > threshold && x.Id < threshold);
         Assert.Equal(new[] { 1, 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.Single(command.Names);
@@ -93,7 +93,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
         await using var fixture = await LocalDbFixture.CreateAsync();
         var __raffinert_id_0 = 1000;
         var id = 2;
-        var condition = Condition<SqlOrderRow>.Create(x => x.Id == id);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.Id == id);
         Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x) && x.TotalCents > __raffinert_id_0)
             .Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
@@ -111,7 +111,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         int? customerId = 1;
-        var condition = Condition<SqlOrderRow>.Create(x => x.CustomerId == customerId);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.CustomerId == customerId);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         foreach (var value in new int?[] { 1, null, 2, null })
         {
@@ -133,9 +133,9 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var threshold = 1000;
-        var active = Condition<SqlOrderRow>.Create(x => x.Active);
-        var expensive = Condition<SqlOrderRow>.Create(x => x.TotalCents > threshold);
-        var condition = Condition<SqlOrderRow>.Create(x => active.Invoke(x) && expensive.Invoke(x));
+        var active = ComposableExpression<SqlOrderRow>.Create(x => x.Active);
+        var expensive = ComposableExpression<SqlOrderRow>.Create(x => x.TotalCents > threshold);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => active.Invoke(x) && expensive.Invoke(x));
         Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.Single(command.Names);
@@ -149,14 +149,14 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var id = 2;
-        var condition = Condition<SqlOrderRow>.Create(x => x.Id == id);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.Id == id);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
         id = 4;
-        condition = Condition<SqlOrderRow>.Create(x => x.Id == id);
+        condition = ComposableExpression<SqlOrderRow>.Create(x => x.Id == id);
         Assert.Equal(new[] { 4 }, await query.ToArrayAsync());
         Assert.Equal(1, fixture.QueryCompilations);
-        condition = Condition<SqlOrderRow>.Create(x => x.Id != id);
+        condition = ComposableExpression<SqlOrderRow>.Create(x => x.Id != id);
         Assert.Equal(new[] { 1, 2, 3 }, await query.ToArrayAsync());
         Assert.Equal(2, fixture.QueryCompilations);
     }
@@ -166,7 +166,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var customerEmail = "synthetic-localdb-diagnostic@example.invalid";
-        var condition = Condition<SqlOrderRow>.Create(x => x.Name == customerEmail);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.Name == customerEmail);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         Assert.True(query.ToQueryString().Contains(customerEmail, StringComparison.Ordinal));
         Assert.Empty(fixture.Commands.Executed);
@@ -182,7 +182,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var unsupported = new Uri("https://synthetic-localdb-private.example.invalid/path");
-        var projection = Projection<SqlOrderRow>.Create(x => unsupported);
+        var projection = ComposableExpression<SqlOrderRow>.Create(x => unsupported);
         var expected = await fixture.Db.Orders.Select(x => unsupported).ToArrayAsync();
         Assert.Equal(expected, await fixture.Db.Orders.Select(x => projection.Invoke(x)).ToArrayAsync());
     }
@@ -192,12 +192,12 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var customerEmail = "synthetic-localdb-compiled@example.invalid";
-        var condition = Condition<SqlOrderRow>.Create(x => x.Name == customerEmail);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.Name == customerEmail);
         var compiled = EF.CompileQuery((LocalDbOrdersContext db) => db.Orders.Count(x => condition.Invoke(x)));
         var error = Assert.Throws<NotSupportedException>(() => compiled(fixture.Db));
         Assert.DoesNotContain(customerEmail, error.ToString());
         Assert.Empty(fixture.Commands.Executed);
-        var stable = Condition<SqlOrderRow>.Create(x => x.Active);
+        var stable = ComposableExpression<SqlOrderRow>.Create(x => x.Active);
         var control = EF.CompileQuery((LocalDbOrdersContext db, string name) => db.Orders.Count(x => stable.Invoke(x) && x.Name == name));
         Assert.Equal(1, control(fixture.Db, "Desk"));
         Assert.Equal(0, control(fixture.Db, customerEmail));
@@ -215,8 +215,8 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
         await using var second = fixture.CreateContext(secondCommands);
         var id = 2;
         var otherId = 4;
-        var firstCondition = Condition<SqlOrderRow>.Create(x => x.Id == id);
-        var secondCondition = Condition<SqlOrderRow>.Create(x => x.Id == otherId);
+        var firstCondition = ComposableExpression<SqlOrderRow>.Create(x => x.Id == id);
+        var secondCondition = ComposableExpression<SqlOrderRow>.Create(x => x.Id == otherId);
         var firstQuery = fixture.Db.Orders.Where(x => firstCondition.Invoke(x)).Select(x => x.Id);
         var secondQuery = second.Orders.Where(x => secondCondition.Invoke(x)).Select(x => x.Id);
         Assert.Equal(new[] { 2 }, await firstQuery.ToArrayAsync());
@@ -233,12 +233,12 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var holder = new ThrowingHolder();
-        var failing = Condition<SqlOrderRow>.Create(x => x.Name == holder.Value);
+        var failing = ComposableExpression<SqlOrderRow>.Create(x => x.Name == holder.Value);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => failing.Invoke(x)).ToArrayAsync());
         Assert.NotNull(error.InnerException);
         Assert.Empty(fixture.Commands.Executed);
         var id = 2;
-        var condition = Condition<SqlOrderRow>.Create(x => x.Id == id);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.Id == id);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id);
         Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
         using var cancellation = new CancellationTokenSource();
@@ -271,7 +271,7 @@ public class SqlServerRuntimeParameterTests(ITestOutputHelper output)
     {
         await using var fixture = await LocalDbFixture.CreateAsync();
         var customerEmail = "synthetic-localdb-private@example.invalid";
-        var condition = Condition<SqlOrderRow>.Create(x => x.Name == customerEmail);
+        var condition = ComposableExpression<SqlOrderRow>.Create(x => x.Name == customerEmail);
         Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.True(command.SqlClientParameters);
