@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.0 (breaking)
+
+- Replaced the separate public `Condition<T>` and `Projection<TSource,TResult>` types with one `ComposableExpression<TSource,TResult>` abstraction.
+- Added `ComposableExpression<TSource>.Create(...)` with inferred result types and `ComposableExpression<TSource,TResult>.Create(...)` for explicitly typed expressions.
+- Boolean-valued expressions now support fluent `.And(...)`, `.Or(...)`, and `.Not()`; removed the `&`, `|`, `!`, `&&` and `||` operators.
+- Moved Boolean `True`, `False` and seed-free `Start(...)` to the source-type factory.
+- Unified `Then`, structural adaptation, `MergeBindings` and `MapToExisting` on the common composable-expression type.
+- Updated LINQ, EF Core, QuerySyntax, docs, examples and tests for the new API; no legacy wrapper compatibility is provided.
+
+
 ## 1.2.0
 
 - Added the optional `Raffinert.Expressions.EntityFrameworkCore` package for .NET 10 and EF Core/Relational >= 10.0.11 and < 11.0.0.
