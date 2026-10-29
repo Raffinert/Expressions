@@ -8,8 +8,8 @@ public static class RaffinertExamples
         ExampleDbContext db,
         decimal minimumPrice)
     {
-        var purchaseCriteria = ComposableExpression<Purchase>.Create(purchase => purchase.Price > minimumPrice);
-        var customerCriteria = ComposableExpression<Customer>.Create(customer =>
+        var purchaseCriteria = Expr<Purchase>.Create(purchase => purchase.Price > minimumPrice);
+        var customerCriteria = Expr<Customer>.Create(customer =>
             customer.Purchases.Any(purchaseCriteria.Invoke));
 
         return db.Customers
@@ -22,7 +22,7 @@ public static class RaffinertExamples
         ExampleDbContext db,
         decimal minimumPrice)
     {
-        var purchaseCriteria = ComposableExpression<Purchase>.Create(purchase => purchase.Price > minimumPrice);
+        var purchaseCriteria = Expr<Purchase>.Create(purchase => purchase.Price > minimumPrice);
 
         return
             from customer in db.Customers.AsRaffinertQuery()
@@ -34,8 +34,8 @@ public static class RaffinertExamples
 
     public static IQueryable<string> CombinedPurchaseCriteria(ExampleDbContext db, decimal minimumPrice)
     {
-        var expensive = ComposableExpression<Purchase>.Create(purchase => purchase.Price > minimumPrice);
-        var combined = ComposableExpression<Purchase>.Create(purchase =>
+        var expensive = Expr<Purchase>.Create(purchase => purchase.Price > minimumPrice);
+        var combined = Expr<Purchase>.Create(purchase =>
             expensive.Invoke(purchase) || purchase.Description.Contains("service"));
 
         return db.Purchases
@@ -49,11 +49,11 @@ public static class RaffinertExamples
         params string[] keywords)
     {
         var predicate = keywords
-            .Select(keyword => ComposableExpression<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(ComposableExpression<Product>.Start(), (current, next) => current.And(next));
+            .Select(keyword => Expr<Product>.Create(product => product.Description.Contains(keyword)))
+            .Aggregate(Expr<Product>.Start(), (current, next) => current.And(next));
 
         if (keywords.Length == 0)
-            predicate = ComposableExpression<Product>.True;
+            predicate = Expr<Product>.True;
 
         return db.Products
             .Where(predicate)
@@ -66,8 +66,8 @@ public static class RaffinertExamples
         params string[] keywords)
     {
         var predicate = keywords
-            .Select(keyword => ComposableExpression<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(ComposableExpression<Product>.Start(), (current, next) => current.Or(next));
+            .Select(keyword => Expr<Product>.Create(product => product.Description.Contains(keyword)))
+            .Aggregate(Expr<Product>.Start(), (current, next) => current.Or(next));
 
         return db.Products
             .Where(predicate)
@@ -77,10 +77,10 @@ public static class RaffinertExamples
 
     public static IQueryable<string> NestedProductCriteria(ExampleDbContext db)
     {
-        var descriptions = ComposableExpression<Product>.Create(product => product.Description.Contains("foo"))
+        var descriptions = Expr<Product>.Create(product => product.Description.Contains("foo"))
             .Or(product => product.Description.Contains("far"));
 
-        var predicate = ComposableExpression<Product>.Create(product => product.Price > 100m)
+        var predicate = Expr<Product>.Create(product => product.Price > 100m)
             .And(product => product.Price < 1_000m)
             .And(descriptions);
 
@@ -120,7 +120,7 @@ public static class RaffinertExamples
 
     public static IQueryable<DailyAverage> DailyOrderAverages(ExampleDbContext db)
     {
-        var average = ComposableExpression<IQueryable<Order>, double?>.Create(orders =>
+        var average = Expr<IQueryable<Order>, double?>.Create(orders =>
             orders.Average(order => (double?)order.Amount));
 
         return
@@ -132,18 +132,18 @@ public static class RaffinertExamples
                 average.Invoke(orders.AsQueryable()));
     }
 
-    private static ComposableExpression<TEntity, bool> IsCurrent<TEntity>(DateTime asOf)
+    private static Expr<TEntity, bool> IsCurrent<TEntity>(DateTime asOf)
         where TEntity : IValidFromTo =>
-        ComposableExpression<TEntity>.Create(entity =>
+        Expr<TEntity>.Create(entity =>
             (entity.ValidFrom == null || entity.ValidFrom <= asOf) &&
             (entity.ValidTo == null || entity.ValidTo >= asOf));
 
-    private static ComposableExpression<Product, bool> ContainsInDescription(params string[] keywords) =>
+    private static Expr<Product, bool> ContainsInDescription(params string[] keywords) =>
         keywords
-            .Select(keyword => ComposableExpression<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(ComposableExpression<Product>.Start(), (current, next) => current.Or(next));
+            .Select(keyword => Expr<Product>.Create(product => product.Description.Contains(keyword)))
+            .Aggregate(Expr<Product>.Start(), (current, next) => current.Or(next));
 
-    private static ComposableExpression<Product, bool> IsSelling(DateTime recentSaleCutoff) =>
-        ComposableExpression<Product>.Create(product =>
+    private static Expr<Product, bool> IsSelling(DateTime recentSaleCutoff) =>
+        Expr<Product>.Create(product =>
             !product.Discontinued && product.LastSale > recentSaleCutoff);
 }

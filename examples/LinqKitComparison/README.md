@@ -6,7 +6,7 @@ This .NET 10 console app runs equivalent EF Core 10 SQLite queries three ways:
    custom expression visitor, parameter rebinder, or home-grown expansion helper.
 2. **LINQKit** — `AsExpandable`, `Invoke`, `Expand`, and `PredicateBuilder`, following the patterns in the
    [LINQKit README](https://github.com/scottksmith95/LINQKit/blob/master/README.md).
-3. **Raffinert.Expressions** — `ComposableExpression<T, bool>`, `ComposableExpression<TSource, TResult>`, direct composable LINQ overloads,
+3. **Raffinert.Expressions** — `Expr<T, bool>`, `Expr<TSource, TResult>`, direct composable LINQ overloads,
    and `AsRaffinertQuery()` for query syntax.
 
 The runner executes every query against the same in-memory database and fails if the three result sets differ.
@@ -30,12 +30,12 @@ dotnet run --project examples/LinqKitComparison -- --sql
 | Predicate in a navigation collection | Inline the purchase predicate | `AsExpandable()` + `Compile()` | Nested the unified expression's `Invoke` method group, expanded before `Where` |
 | Expression variable in a correlated subquery | Inline the predicate | `AsExpandable()` + an expression passed to subquery `Any` | `AsRaffinertQuery()` + the unified expression's `Invoke` |
 | Combining expressions | Write the combined lambda inline | `Invoke()` + `Expand()` | A condition containing another condition's `Invoke()` |
-| Dynamic all-keyword predicate | Chain ordinary `Where` calls | `PredicateBuilder.And` | Fold conditions from `ComposableExpression<T>.Start()` with `And`; use `ComposableExpression<T>.True` when empty |
-| Dynamic any-keyword predicate | Spell out the OR terms (two in this example) | `PredicateBuilder.Or` | Fold conditions from `ComposableExpression<T>.Start()` with `Or` |
-| Nested predicates | Write the parenthesized lambda inline | Nested `PredicateBuilder` instances | Compose inner and outer Boolean-valued `ComposableExpression` instances |
+| Dynamic all-keyword predicate | Chain ordinary `Where` calls | `PredicateBuilder.And` | Fold conditions from `Expr<T>.Start()` with `And`; use `Expr<T>.True` when empty |
+| Dynamic any-keyword predicate | Spell out the OR terms (two in this example) | `PredicateBuilder.Or` | Fold conditions from `Expr<T>.Start()` with `Or` |
+| Nested predicates | Write the parenthesized lambda inline | Nested `PredicateBuilder` instances | Compose inner and outer Boolean-valued `Expr` instances |
 | Reusable predicate library | Duplicate the complete rule inline | Reusable expressions composed with `And`/`Or` | Reusable conditions composed with `And`/`Or` |
-| Generic validity predicate | Duplicate the validity clauses in the provider lambda | Generic expression + `And` | Generic `ComposableExpression<TEntity, bool>` + `And` |
-| Reusable aggregate | Put `Average` directly in the group projection | Invoked aggregate expression + `AsExpandable()` | Invoked `ComposableExpression<IQueryable<Order>, double?>` + `AsRaffinertQuery()` |
+| Generic validity predicate | Duplicate the validity clauses in the provider lambda | Generic expression + `And` | Generic `Expr<TEntity, bool>` + `And` |
+| Reusable aggregate | Put `Average` directly in the group projection | Invoked aggregate expression + `AsExpandable()` | Invoked `Expr<IQueryable<Order>, double?>` + `AsRaffinertQuery()` |
 
 The pure .NET implementations are deliberately the baseline, not an expression-composition library hidden inside
 the example. They show that EF Core can solve every concrete query when the logic is placed directly in the
@@ -56,7 +56,7 @@ APIs and LINQKit does not expose directly:
 | Raffinert.Expressions API | What the runnable example does | LINQKit comparison |
 |---|---|---|
 | `AdaptSource` / `Adapt` | Reuses a condition and projection with structurally compatible source and result types | No structural source/result adaptation API |
-| `ComposableExpression.Then` | Type-safely chains projections and then a condition | Possible with `Invoke`/`Expand`, but no typed forward-composition abstraction |
+| `Expr.Then` | Type-safely chains projections and then a condition | Possible with `Invoke`/`Expand`, but no typed forward-composition abstraction |
 | `MergeBindings` | Combines two member-initializer projections, with defined conflict behavior | No projection-binding merge API |
 | `InvokeOrDefault` | Inlines a nested projection with built-in null-to-default behavior | Requires an explicit conditional around a LINQKit invocation |
 | `MapToExisting` | Compiles a projection into an updater and preserves an existing destination instance | Outside LINQKit's expression-expansion scope |

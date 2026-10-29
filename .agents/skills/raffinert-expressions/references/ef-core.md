@@ -7,8 +7,8 @@ For documented Raffinert 1.2.0, the optional adapter targets .NET 10 and require
 Core (no adapter registration needed for the direct overloads):
 
 ```csharp
-var active = ComposableExpression<Order>.Create(o => o.IsActive);
-var summary = ComposableExpression<Order>.Create(o => new OrderDto { Id = o.Id });
+var active = Expr<Order>.Create(o => o.IsActive);
+var summary = Expr<Order>.Create(o => new OrderDto { Id = o.Id });
 var rows = await db.Orders.Where(active).Select(summary).ToListAsync();
 ```
 
@@ -27,8 +27,8 @@ var options = new DbContextOptionsBuilder<OrdersContext>()
 Then ordinary method syntax and ordinary C# query syntax work:
 
 ```csharp
-var active = ComposableExpression<Order>.Create(o => o.IsActive);
-var name = ComposableExpression<Order>.Create(o => o.Name);
+var active = Expr<Order>.Create(o => o.IsActive);
+var name = Expr<Order>.Create(o => o.Name);
 
 var query =
     from order in db.Orders

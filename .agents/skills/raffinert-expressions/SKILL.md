@@ -15,7 +15,7 @@ Use this skill to implement **consumer code** with Raffinert.Expressions. Model 
 
 1. Identify the target framework, query provider (if any), EF Core version, and whether the code runs in memory or in an `IQueryable` pipeline.
 2. Select **only the package(s) needed** from the table below; inspect the installed version and adapt examples to its actual API. Do not blindly upgrade EF or add optional packages.
-3. Express reusable Boolean rules as `ComposableExpression<T, bool>` and reusable value/DTO transformations as `ComposableExpression<TSource, TResult>` (or `ComposableExpression<T>.Create(...)` with inferred result type).
+3. Express reusable Boolean rules as `Expr<T, bool>` and reusable value/DTO transformations as `Expr<TSource, TResult>` (or `Expr<T>.Create(...)` with inferred result type).
 4. Compose independent rules before consumption (`And`/`Or`/`Not`, `Then`, or nested `Invoke`). Keep compositions immutable: assign the returned wrapper rather than expecting in-place mutation.
 5. Choose the correct expansion boundary for the **specific** query form. Do not leave an unexpanded Raffinert invocation for a provider to translate.
 6. Test observable results. For `IQueryable`, execute against the actual provider (SQLite/SQL Server as appropriate) and inspect SQL/parameters where material. Do not mistake passing `IEnumerable` tests for proof of database translation.
@@ -39,13 +39,13 @@ Read [the usage patterns](references/patterns.md) for composition and structural
 ```csharp
 using Raffinert.Expressions;
 
-var total = ComposableExpression<Order>.Create(o =>
+var total = Expr<Order>.Create(o =>
     o.Lines.Sum(l => l.Price * l.Quantity));
 
-var expensive = ComposableExpression<Order>.Create(o =>
+var expensive = Expr<Order>.Create(o =>
     total.Invoke(o) > 1000m);
 
-var summary = ComposableExpression<Order>.Create(o => new OrderDto
+var summary = Expr<Order>.Create(o => new OrderDto
 {
     Id = o.Id,
     Total = total.Invoke(o)
@@ -61,16 +61,16 @@ var rows = await db.Orders.Where(expensive).Select(summary).ToListAsync();
 `condition.Invoke(entity)` and `projection.Invoke(entity)` **execute** a lazily compiled, per-wrapper cached delegate in ordinary code. Inside a Raffinert expression being expanded, those same `Invoke` calls are composition markers whose bodies are substituted. They are not arbitrary EF-translatable CLR methods.
 
 ```csharp
-var active = ComposableExpression<Order>.Create(o => o.IsActive);
-var expensive = ComposableExpression<Order>.Create(o => o.Total > 1000m);
-var urgent = ComposableExpression<Order>.Create(o => o.IsUrgent);
+var active = Expr<Order>.Create(o => o.IsActive);
+var expensive = Expr<Order>.Create(o => o.Total > 1000m);
+var urgent = Expr<Order>.Create(o => o.IsUrgent);
 var eligible = (active & expensive) | urgent;
 
 bool accepted = eligible.Invoke(order); // in-memory execution
 var query = db.Orders.Where(eligible); // Core direct operator expands
 ```
 
-`ComposableExpression<T>.Start()` is for dynamic `And`/`Or` folds: an unchanged starter evaluates to `false` unless `Start(defaultWhenEmpty: true)` was used; its first composition supplies the initial rule without an extra Boolean seed. `True` and `False` are ordinary conditions, not starters.
+`Expr<T>.Start()` is for dynamic `And`/`Or` folds: an unchanged starter evaluates to `false` unless `Start(defaultWhenEmpty: true)` was used; its first composition supplies the initial rule without an extra Boolean seed. `True` and `False` are ordinary conditions, not starters.
 
 ## Stop and check these traps
 
