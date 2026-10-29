@@ -2,20 +2,20 @@
 
 ## Shared expression abstraction
 
-`IComposableExpression<TSource,out TResult>` is the covariant public consumption contract used by the LINQ extensions.
-`ComposableExpression<TSource,TResult>` is the **single public representation** for reusable predicates and value/result expressions.
+`IExpr<TSource,out TResult>` is the covariant public consumption contract used by the LINQ extensions.
+`Expr<TSource,TResult>` is the **single public representation** for reusable predicates and value/result expressions.
 It owns expansion, compiled-delegate caching, forward composition, structural adaptation and member-initializer transformations.
-`ComposableExpression<TSource>.Create(...)` infers the result type; `ComposableExpression<TSource,TResult>.Create(...)` is explicitly typed.
-Boolean composition (`And`, `Or`, `Not`) is exposed only for `ComposableExpression<TSource,bool>` through extensions.
+`Expr<TSource>.Create(...)` infers the result type; `Expr<TSource,TResult>.Create(...)` is explicitly typed.
+Boolean composition (`And`, `Or`, `Not`) is exposed only for `Expr<TSource,bool>` through extensions.
 The engine continues to use the internal `IExpressionExpansionSource` contract.
 
-Custom semantic wrappers should inherit `ComposableExpression<TSource,TResult>` rather than implementing
-`IComposableExpression<TSource,TResult>` directly. This preserves invocation-marker expansion, cycle detection, and
+Custom semantic wrappers should inherit `Expr<TSource,TResult>` rather than implementing
+`IExpr<TSource,TResult>` directly. This preserves invocation-marker expansion, cycle detection, and
 per-instance caching while allowing consumer APIs to benefit from result covariance.
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
-`ComposableExpression<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
+`Expr<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
 condition without composing a Boolean seed. An unchanged starter uses its configured result when empty,
 which defaults to `false`. Ordinary `True` and `False` conditions retain standard Boolean composition.
 
@@ -39,7 +39,7 @@ The engine never introduces `Expression.Invoke`.
 
 Because all semantic wrappers implement the same internal contract, nested expansion does not distinguish between conditions and projections. A Boolean output can be inserted into a member initializer, and a scalar/object projection can be inserted into a condition.
 
-`Then` composes already-expanded typed lambdas with direct substitution. `ComposableExpression<A,B>.Then(ComposableExpression<B,C>)` yields `ComposableExpression<A,C>`; `ComposableExpression<A,B>.Then(ComposableExpression<B, bool>)` yields `ComposableExpression<A, bool>`.
+`Then` composes already-expanded typed lambdas with direct substitution. `Expr<A,B>.Then(Expr<B,C>)` yields `Expr<A,C>`; `Expr<A,B>.Then(Expr<B, bool>)` yields `Expr<A, bool>`.
 
 ## Null-safe invocation
 

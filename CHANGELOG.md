@@ -2,8 +2,8 @@
 
 ## 2.0.0 (breaking)
 
-- Replaced the separate public `Condition<T>` and `Projection<TSource,TResult>` types with one `ComposableExpression<TSource,TResult>` abstraction.
-- Added `ComposableExpression<TSource>.Create(...)` with inferred result types and `ComposableExpression<TSource,TResult>.Create(...)` for explicitly typed expressions.
+- Replaced the separate public `Condition<T>` and `Projection<TSource,TResult>` types with one `Expr<TSource,TResult>` abstraction.
+- Added `Expr<TSource>.Create(...)` with inferred result types and `Expr<TSource,TResult>.Create(...)` for explicitly typed expressions.
 - Boolean-valued expressions now support fluent `.And(...)`, `.Or(...)`, and `.Not()`; removed the `&`, `|`, `!`, `&&` and `||` operators.
 - Moved Boolean `True`, `False` and seed-free `Start(...)` to the source-type factory.
 - Unified `Then`, structural adaptation, `MergeBindings` and `MapToExisting` on the common composable-expression type.
@@ -54,7 +54,7 @@
 
 - Aggregated reusable condition and projection APIs in `Raffinert.Expressions`.
 - Renamed `Spec<T>` and `Proj<TIn,TOut>` to `Condition<T>` and `Projection<TSource,TResult>`.
-- Renamed `Expr<TIn,TOut>` to `ComposableExpression<TSource,TResult>` and clarified the internal expression-expansion contract.
+- Renamed `Expr<TIn,TOut>` to `Expr<TSource,TResult>` and clarified the internal expression-expansion contract.
 - Added a shared expression expansion engine and canonical `Invoke` composition API.
 - Added mixed `Condition`/`Projection` composition and typed `Then` composition.
 - Added a single canonical `Invoke` API, shared `InvokeOrDefault` null/default lifting, LINQ extensions, method-group expansion, and debugger views.

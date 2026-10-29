@@ -42,7 +42,7 @@ await db.Database.EnsureCreatedAsync();
 db.Orders.Add(new Order { Id = 1, TotalCents = 2000, Active = true, Name = "Desk" });
 await db.SaveChangesAsync();
 
-var expensive = ComposableExpression<Order>.Create(x => x.TotalCents > 1000);
+var expensive = Expr<Order>.Create(x => x.TotalCents > 1000);
 var rows = await db.Orders
     .Where(x => expensive.Invoke(x))
     .Select(x => new { x.Id, x.TotalCents })
@@ -69,8 +69,8 @@ The following snippets use this context and model.
 Pass wrappers directly to Raffinert's LINQ overloads:
 
 ```csharp
-var expensive = ComposableExpression<Order>.Create(x => x.TotalCents > 1000);
-var summary = ComposableExpression<Order>.Create(x => new { x.Id, x.Name });
+var expensive = Expr<Order>.Create(x => x.TotalCents > 1000);
+var summary = Expr<Order>.Create(x => new { x.Id, x.Name });
 var rows = await db.Orders.Where(expensive).Select(summary).ToArrayAsync();
 bool exists = await db.Orders.AnyAsync(expensive, cancellationToken);
 ```
@@ -85,7 +85,7 @@ Direct `.Where(condition)` and `.Select(projection)` expand their wrapper argume
 | `SingleAsync`, `SingleOrDefaultAsync` | Single matching element |
 | `LastAsync`, `LastOrDefaultAsync` | Last matching element |
 
-They accept `IComposableExpression<T, bool>` and an optional cancellation token. EF determines empty-sequence, single-element and ordering semantics. Order a query before a last-element operator. EF's ordinary lambda and predicate-less overloads work as usual. Use EF's `ToListAsync`/`ToArrayAsync` for materialization.
+They accept `IExpr<T, bool>` and an optional cancellation token. EF determines empty-sequence, single-element and ordering semantics. Order a query before a last-element operator. EF's ordinary lambda and predicate-less overloads work as usual. Use EF's `ToListAsync`/`ToArrayAsync` for materialization.
 
 ## 4. Opt-in invocation expansion
 
@@ -101,7 +101,7 @@ await using var configuredDb = new OrdersContext(options);
 var query = configuredDb.Orders.Where(x => expensive.Invoke(x) && x.Active);
 ```
 
-Registration applies only to contexts configured with it; repeated calls are harmless. It supports nested conditions/projections, native wrappers referenced through `IComposableExpression<,>`, `InvokeOrDefault`, and Raffinert method-group/captured-delegate callbacks.
+Registration applies only to contexts configured with it; repeated calls are harmless. It supports nested conditions/projections, native wrappers referenced through `IExpr<,>`, `InvokeOrDefault`, and Raffinert method-group/captured-delegate callbacks.
 
 With `UseRaffinertExpressions()`, ordinary C# query syntax also supports embedded Raffinert invocations. `AsRaffinertQuery()` and the QuerySyntax package are not required for this EF Core scenario. The adapter includes Core transitively and does not depend on QuerySyntax.
 
@@ -111,9 +111,9 @@ Passing a wrapper directly to an operator needs no registration. Invocation insi
 
 ```csharp
 var threshold = 1000;
-var amount = ComposableExpression<Order>.Create(x => x.TotalCents);
-var expensive = ComposableExpression<Order>.Create(x => amount.Invoke(x) > threshold);
-var summary = ComposableExpression<Order>.Create(x => new
+var amount = Expr<Order>.Create(x => x.TotalCents);
+var expensive = Expr<Order>.Create(x => amount.Invoke(x) > threshold);
+var summary = Expr<Order>.Create(x => new
 {
     x.Id,
     IsExpensive = expensive.Invoke(x)
@@ -140,7 +140,7 @@ Use EF's explicit directives inside ordinary conditions and projections:
 ```csharp
 var threshold = 1000;
 int[] ids = [1, 3];
-var selected = ComposableExpression<Order>.Create(x =>
+var selected = Expr<Order>.Create(x =>
     x.TotalCents > EF.Parameter(threshold + 100) &&
     Enumerable.Contains(EF.MultipleParameters(ids), x.Id));
 var query = db.Orders.Where(x => selected.Invoke(x));
@@ -158,7 +158,7 @@ Computed scalars, client methods, arrays and mutable lists follow native semanti
 
 ```csharp
 var prefix = "D";
-var named = ComposableExpression<Order>.Create(x => EF.Functions.Like(x.Name, prefix + "%"));
+var named = Expr<Order>.Create(x => EF.Functions.Like(x.Name, prefix + "%"));
 var query = db.Orders.Where(x => named.Invoke(x));
 ```
 
@@ -169,7 +169,7 @@ var query = db.Orders.Where(x => named.Invoke(x));
 With `UseRaffinertExpressions()`, `EF.CompileQuery` and `EF.CompileAsyncQuery` support stable closed wrappers and scalar parameters to the compiled delegate:
 
 ```csharp
-var active = ComposableExpression<Order>.Create(x => x.Active);
+var active = Expr<Order>.Create(x => x.Active);
 var countActive = EF.CompileQuery((OrdersContext context, int minimum) =>
     context.Orders.Count(x => active.Invoke(x) && x.TotalCents > minimum));
 

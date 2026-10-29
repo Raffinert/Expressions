@@ -4,7 +4,7 @@
 
 **Raffinert.Expressions** turns reusable expression trees into first-class, composable building blocks. Define business logic once, combine it independently of LINQ, execute it in memory, or pass the resulting expression tree to your LINQ provider.
 
-One `ComposableExpression<TSource, TResult>` type supports both Boolean predicates and projections, with composition, nested reuse, in-memory execution, LINQ consumption and expression expansion.
+One `Expr<TSource, TResult>` type supports both Boolean predicates and projections, with composition, nested reuse, in-memory execution, LINQ consumption and expression expansion.
 
 It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec) and [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj) around one expression-expansion engine. The runtime package targets `netstandard2.0`, has no EF Core dependency, and requires neither a custom `IQueryProvider` nor `AsExpandable()`.
 
@@ -55,13 +55,13 @@ All three packages expose their public API in the `Raffinert.Expressions` namesp
 ```csharp
 using Raffinert.Expressions;
 
-var total = ComposableExpression<Order>.Create(order =>
+var total = Expr<Order>.Create(order =>
     order.Lines.Sum(line => line.Price * line.Quantity));
 
-var expensive = ComposableExpression<Order>.Create(order =>
+var expensive = Expr<Order>.Create(order =>
     total.Invoke(order) > 1000m);
 
-var summary = ComposableExpression<Order>.Create(order => new OrderDto
+var summary = Expr<Order>.Create(order => new OrderDto
 {
     Id = order.Id,
     Total = total.Invoke(order)
@@ -82,9 +82,9 @@ These examples use illustrative models. Async database materialization uses your
 Conditions form an independent algebra, outside LINQ:
 
 ```csharp
-var active = ComposableExpression<Order>.Create(o => o.IsActive);
-var expensive = ComposableExpression<Order>.Create(o => o.Total > 1000m);
-var urgent = ComposableExpression<Order>.Create(o => o.IsUrgent);
+var active = Expr<Order>.Create(o => o.IsActive);
+var expensive = Expr<Order>.Create(o => o.Total > 1000m);
+var urgent = Expr<Order>.Create(o => o.IsUrgent);
 
 var eligible = active.And(expensive).Or(urgent);
 
@@ -94,12 +94,12 @@ var query = db.Orders.Where(eligible);
 
 The same composable object can evaluate an in-memory order or filter a database query.
 
-Create a Boolean expression inline or subclass `ComposableExpression<T, bool>` and override `GetExpression()`:
+Create a Boolean expression inline or subclass `Expr<T, bool>` and override `GetExpression()`:
 
 ```csharp
-var inStock = ComposableExpression<Product>.Create(product => product.Stock > 0);
+var inStock = Expr<Product>.Create(product => product.Stock > 0);
 var visible = inStock.And(product => !product.IsHidden);
-var wanted = visible.And(ComposableExpression<Product>.Create(product => product.IsDiscontinued).Not());
+var wanted = visible.And(Expr<Product>.Create(product => product.IsDiscontinued).Not());
 
 bool matches = wanted.Invoke(product);
 ```
@@ -110,7 +110,7 @@ For a dynamic chain, `Start()` lets the first `And` or `Or` supply the condition
 seed to the expression tree:
 
 ```csharp
-var condition = ComposableExpression<Product>.Start();
+var condition = Expr<Product>.Start();
 foreach (var keyword in keywords)
     condition = condition.Or(product => product.Name.Contains(keyword));
 
@@ -120,8 +120,8 @@ var query = db.Products.Where(condition);
 An unchanged starter evaluates to `false`. Use `Start(defaultWhenEmpty: true)` when an empty chain
 should evaluate to `true`.
 
-Conditions remain immutable, so retain the result of each composition call. `ComposableExpression<T>.True` and
-`ComposableExpression<T>.False` remain ordinary unconditional conditions; they do not skip the first composition.
+Conditions remain immutable, so retain the result of each composition call. `Expr<T>.True` and
+`Expr<T>.False` remain ordinary unconditional conditions; they do not skip the first composition.
 
 ## Value and object projections
 
@@ -129,7 +129,7 @@ When the result is an anonymous type, specify only the source type; the result t
 lambda:
 
 ```csharp
-var summary = ComposableExpression<Product>.Create(product => new
+var summary = Expr<Product>.Create(product => new
 {
     product.Name,
     Total = product.Price * 2
@@ -137,7 +137,7 @@ var summary = ComposableExpression<Product>.Create(product => new
 ```
 
 ```csharp
-var summary = ComposableExpression<Product, ProductSummary>.Create(product => new ProductSummary
+var summary = Expr<Product, ProductSummary>.Create(product => new ProductSummary
 {
     Id = product.Id,
     Name = product.Name
@@ -164,12 +164,12 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 Forward composition is available from projections:
 
 ```csharp
-ComposableExpression<Order, Customer> customer = ...;
-ComposableExpression<Customer, string> customerName = ...;
-ComposableExpression<Customer, bool> active = ...;
+Expr<Order, Customer> customer = ...;
+Expr<Customer, string> customerName = ...;
+Expr<Customer, bool> active = ...;
 
-ComposableExpression<Order, string> orderCustomerName = customer.Then(customerName);
-ComposableExpression<Order, bool> activeCustomerOrder = customer.Then(active);
+Expr<Order, string> orderCustomerName = customer.Then(customerName);
+Expr<Order, bool> activeCustomerOrder = customer.Then(active);
 ```
 
 `Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes.
@@ -180,9 +180,9 @@ An existing condition or projection can be adapted to types with compatible publ
 template object is required:
 
 ```csharp
-ComposableExpression<InventoryItem, bool> inventoryFilter = productFilter.AdaptSource<InventoryItem>();
+Expr<InventoryItem, bool> inventoryFilter = productFilter.AdaptSource<InventoryItem>();
 
-ComposableExpression<InventoryItem, InventoryDto> inventoryProjection =
+Expr<InventoryItem, InventoryDto> inventoryProjection =
     productProjection.Adapt<InventoryItem, InventoryDto>();
 ```
 
@@ -196,8 +196,8 @@ ambiguous, inaccessible, and incompatible members fail descriptively when adapta
 Use `InvokeOrDefault` only where a null input should produce `default(TOut)`:
 
 ```csharp
-var category = ComposableExpression<Category>.Create(value => new CategoryDto { Name = value.Name });
-var product = ComposableExpression<Product>.Create(value => new ProductDto
+var category = Expr<Category>.Create(value => new CategoryDto { Name = value.Name });
+var product = Expr<Product>.Create(value => new ProductDto
 {
     Category = category.InvokeOrDefault(value.Category)
 });
@@ -214,13 +214,13 @@ An order export always includes the order number and customer name. Depending on
 <p align="right"><a href="https://dotnetfiddle.net/iucjOg">Run .NET fiddle</a></p>
 
 ```csharp
-var netAmount = ComposableExpression<OrderLine>.Create(l =>
+var netAmount = Expr<OrderLine>.Create(l =>
     l.Quantity * l.UnitPrice);
 
-var grossAmount = ComposableExpression<OrderLine>.Create(l =>
+var grossAmount = Expr<OrderLine>.Create(l =>
     netAmount.Invoke(l) * (1m + l.VatRate));
 
-var export = ComposableExpression<Order>.Create(o => new OrderExportRow
+var export = Expr<Order>.Create(o => new OrderExportRow
 {
     Number = o.Number,
     Customer = o.Customer.Name
@@ -229,11 +229,11 @@ var export = ComposableExpression<Order>.Create(o => new OrderExportRow
 if (includeAmounts)
 {
     var lineAmount = includeVat ? grossAmount : netAmount;
-    var total = ComposableExpression<Order>.Create(o =>
+    var total = Expr<Order>.Create(o =>
         o.Lines.Sum(l => lineAmount.Invoke(l)));
 
     export = export.MergeBindings(
-        ComposableExpression<Order>.Create(o => new OrderExportRow
+        Expr<Order>.Create(o => new OrderExportRow
         {
             Total = total.Invoke(o)
         }));
@@ -300,7 +300,7 @@ a key selector or key and element selectors. Each is available for both `IQuerya
 See the [core architecture](docs/architecture.md) for the shared consumption contract, result covariance and custom wrapper guidance.
 
 Operators requiring binary or indexed expressions, such as join result selectors and indexed predicates, are not
-represented by the unary `IComposableExpression<TSource, TResult>` contract. Pass ordinary expressions to those
+represented by the unary `IExpr<TSource, TResult>` contract. Pass ordinary expressions to those
 operators and expand wrapper arguments explicitly where needed. Numeric aggregates can be expressed without extra
 overloads by selecting first:
 
@@ -330,7 +330,7 @@ Invocation inside a condition or projection remains supported because the wrappe
 expanded before it is passed to the provider:
 
 ```csharp
-var row = ComposableExpression<Product>.Create(product => new ProductRow
+var row = Expr<Product>.Create(product => new ProductRow
 {
     Name = product.Name,
     IsVisible = condition.Invoke(product)
@@ -361,7 +361,7 @@ var options = new DbContextOptionsBuilder<OrdersContext>()
     .Options;
 
 await using var db = new OrdersContext(options);
-var expensive = ComposableExpression<Order>.Create(x => x.TotalCents >= 10_000);
+var expensive = Expr<Order>.Create(x => x.TotalCents >= 10_000);
 var rows = await db.Orders.Where(x => expensive.Invoke(x)).ToListAsync();
 ```
 
@@ -378,8 +378,8 @@ Standard C# query syntax compiles into ordinary LINQ operator calls. With regist
 
 ```csharp
 // DbContext is configured with UseRaffinertExpressions().
-var active = ComposableExpression<Order>.Create(o => o.IsActive);
-var total = ComposableExpression<Order>.Create(o => o.Total);
+var active = Expr<Order>.Create(o => o.IsActive);
+var total = Expr<Order>.Create(o => o.Total);
 
 var query =
     from order in db.Orders
@@ -478,7 +478,7 @@ Existing nested destinations are updated in place; missing writable destinations
 
 ## Migration
 
-Version 2 removes `Condition<T>` and `Projection<TSource,TResult>` in favor of a single `ComposableExpression<TSource,TResult>` type, with `ComposableExpression<TSource>.Create(...)` inferring the result type. Replace condition operators with `.And()`, `.Or()` and `.Not()`. The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Use the single `ComposableExpression<TSource,TResult>` type for both predicates (`TResult = bool`) and projections; the `ComposableExpression<TSource>.Create(...)` factory infers the result type.
+Version 2 removes `Condition<T>` and `Projection<TSource,TResult>` in favor of a single `Expr<TSource,TResult>` type, with `Expr<TSource>.Create(...)` inferring the result type. Replace condition operators with `.And()`, `.Or()` and `.Not()`. The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Use the single `Expr<TSource,TResult>` type for both predicates (`TResult = bool`) and projections; the `Expr<TSource>.Create(...)` factory infers the result type.
 
 See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blob/main/docs/migration.md) for details.
 

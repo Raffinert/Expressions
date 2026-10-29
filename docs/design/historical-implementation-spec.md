@@ -113,12 +113,12 @@ Nullable reference types must remain enabled.
 
 Introduce an internal/shared abstraction representing a reusable expression from `TSource` to `TResult`.
 
-The public design exposes `ComposableExpression<TSource,TResult>` as a supported base for custom semantic wrappers, but **does not require users to know or use it** for normal `Specification`/`Projection` scenarios.
+The public design exposes `Expr<TSource,TResult>` as a supported base for custom semantic wrappers, but **does not require users to know or use it** for normal `Specification`/`Projection` scenarios.
 
 Preferred design:
 
 ```csharp
-public abstract class ComposableExpression<TSource, TResult>
+public abstract class Expr<TSource, TResult>
 {
     public abstract Expression<Func<TSource, TResult>> GetExpression();
 
@@ -131,12 +131,12 @@ public abstract class ComposableExpression<TSource, TResult>
 Then:
 
 ```csharp
-public abstract class Specification<T> : ComposableExpression<T, bool>
+public abstract class Specification<T> : Expr<T, bool>
 {
     // specification-specific API
 }
 
-public abstract class Projection<TSource, TResult> : ComposableExpression<TSource, TResult>
+public abstract class Projection<TSource, TResult> : Expr<TSource, TResult>
 {
     // projection-specific API
 }
@@ -162,7 +162,7 @@ TResult Invoke(TSource value)
 
 At runtime, outside an expression tree, this executes the compiled expression.
 
-Inside a parent expression tree, calls to `Invoke(...)` on a supported `ComposableExpression`/`Specification`/`Projection` instance must be **inlined** by `GetExpandedExpression()`.
+Inside a parent expression tree, calls to `Invoke(...)` on a supported `Expr`/`Specification`/`Projection` instance must be **inlined** by `GetExpandedExpression()`.
 
 Example:
 
@@ -410,7 +410,7 @@ Preserve the semantic specification type.
 Required public API shape:
 
 ```csharp
-public abstract class Specification<T> : ComposableExpression<T, bool>
+public abstract class Specification<T> : Expr<T, bool>
 {
     public abstract override Expression<Func<T, bool>> GetExpression();
 
@@ -462,7 +462,7 @@ Preserve the semantic projection type.
 Required core API:
 
 ```csharp
-public abstract class Projection<TSource, TResult> : ComposableExpression<TSource, TResult>
+public abstract class Projection<TSource, TResult> : Expr<TSource, TResult>
 {
     public abstract override Expression<Func<TSource, TResult>> GetExpression();
 
@@ -776,7 +776,7 @@ GetExpandedExpression
 Add:
 
 ```text
-ComposableExpression<TSource,TResult>
+Expr<TSource,TResult>
 Invoke
 Then
 ```
@@ -1220,7 +1220,7 @@ Do not solve a local issue by duplicating expansion logic.
 
 Do not add public abstractions simply because an internal implementation needs them.
 
-Keep `ComposableExpression<TSource,TResult>` public only as a useful supported base for custom semantic expression wrappers, not merely as inheritance plumbing.
+Keep `Expr<TSource,TResult>` public only as a useful supported base for custom semantic expression wrappers, not merely as inheritance plumbing.
 
 Do not silently broaden the library into a mapping framework.
 
