@@ -8,8 +8,8 @@ public class CoreCompositionTests
     [Fact]
     public void ConditionInsideProjectionIsInlinedAndExecutes()
     {
-        var expensive = Condition<Product>.Create(product => product.Price > 100m);
-        var projection = Projection<Product>.Create(product => new ProductDto
+        var expensive = ComposableExpression<Product>.Create(product => product.Price > 100m);
+        var projection = ComposableExpression<Product>.Create(product => new ProductDto
         {
             Name = product.Name,
             IsExpensive = expensive.Invoke(product)
@@ -38,9 +38,9 @@ public class CoreCompositionTests
     [Fact]
     public void ProjectionInsideConditionIsInlinedAndExecutes()
     {
-        var total = Projection<Order>.Create(order =>
+        var total = ComposableExpression<Order>.Create(order =>
             order.Lines.Sum(line => line.Price * line.Quantity));
-        var expensive = Condition<Order>.Create(order => total.Invoke(order) > 1000m);
+        var expensive = ComposableExpression<Order>.Create(order => total.Invoke(order) > 1000m);
 
         var expanded = expensive.GetExpandedExpression();
 
@@ -56,10 +56,10 @@ public class CoreCompositionTests
     [Fact]
     public void DeepMixedCompositionExpandsRecursively()
     {
-        var price = Projection<Product>.Create(product => product.Price);
-        var rounded = Projection<Product>.Create(product => decimal.Round(price.Invoke(product)));
-        var high = Condition<Product>.Create(product => rounded.Invoke(product) >= 10m);
-        var result = Projection<Product>.Create(product => high.Invoke(product));
+        var price = ComposableExpression<Product>.Create(product => product.Price);
+        var rounded = ComposableExpression<Product>.Create(product => decimal.Round(price.Invoke(product)));
+        var high = ComposableExpression<Product>.Create(product => rounded.Invoke(product) >= 10m);
+        var result = ComposableExpression<Product>.Create(product => high.Invoke(product));
 
         var expanded = result.GetExpandedExpression();
 
@@ -72,8 +72,8 @@ public class CoreCompositionTests
     [Fact]
     public void ThenComposesProjectionAndProjectionWithoutInvocationNodes()
     {
-        var customer = Projection<Order>.Create(order => order.Customer);
-        var name = Projection<Customer>.Create(value => value.Name);
+        var customer = ComposableExpression<Order>.Create(order => order.Customer);
+        var name = ComposableExpression<Customer>.Create(value => value.Name);
 
         var composed = customer.Then(name);
         var expanded = composed.GetExpandedExpression();
@@ -86,8 +86,8 @@ public class CoreCompositionTests
     [Fact]
     public void ThenComposesProjectionAndCondition()
     {
-        var customer = Projection<Order>.Create(order => order.Customer);
-        var active = Condition<Customer>.Create(value => value.IsActive);
+        var customer = ComposableExpression<Order>.Create(order => order.Customer);
+        var active = ComposableExpression<Customer>.Create(value => value.IsActive);
 
         var composed = customer.Then(active);
 
@@ -98,7 +98,7 @@ public class CoreCompositionTests
     [Fact]
     public void DirectNewSubclassInvocationIsExpanded()
     {
-        var outer = Condition<Product>.Create(product => new MinimumPriceCondition(12m).Invoke(product));
+        var outer = ComposableExpression<Product>.Create(product => new MinimumPriceCondition(12m).Invoke(product));
 
         Assert.Equal("product => product.Price >= <minimum>P", outer.GetExpandedExpression().ToReadableString());
         Assert.True(outer.Invoke(new Product { Price = 15m }));
@@ -108,7 +108,7 @@ public class CoreCompositionTests
     public void ClosureMemberChainsAndReadonlyFieldsAreResolved()
     {
         var holder = new ConditionHolder(new MinimumPriceCondition(12m));
-        var outer = Condition<Product>.Create(product => holder.Nested.Minimum.Invoke(product));
+        var outer = ComposableExpression<Product>.Create(product => holder.Nested.Minimum.Invoke(product));
 
         Assert.Equal("product => product.Price >= <minimum>P", outer.GetExpandedExpression().ToReadableString());
         Assert.True(outer.Invoke(new Product { Price = 15m }));
@@ -118,8 +118,8 @@ public class CoreCompositionTests
     public void StaticTargetsResolveAndNestedExpandedExpressionsAreCached()
     {
         var counting = new CountingCondition();
-        var first = Condition<Product>.Create(product => counting.Invoke(product));
-        var second = Condition<Product>.Create(product => counting.Invoke(product) && StaticConditions.Minimum.Invoke(product));
+        var first = ComposableExpression<Product>.Create(product => counting.Invoke(product));
+        var second = ComposableExpression<Product>.Create(product => counting.Invoke(product) && StaticConditions.Minimum.Invoke(product));
 
         first.GetExpandedExpression();
         var expanded = second.GetExpandedExpression();
@@ -134,9 +134,9 @@ public class CoreCompositionTests
     [Fact]
     public void CanonicalInvocationMethodsAreExpanded()
     {
-        var positive = Condition<Product>.Create(product => product.Price > 0m);
-        var name = Projection<Product>.Create(product => product.Name);
-        var outer = Projection<Product>.Create(product => new ProductDto
+        var positive = ComposableExpression<Product>.Create(product => product.Price > 0m);
+        var name = ComposableExpression<Product>.Create(product => product.Name);
+        var outer = ComposableExpression<Product>.Create(product => new ProductDto
         {
             IsExpensive = positive.Invoke(product),
             Name = name.Invoke(product)
@@ -156,7 +156,7 @@ public class CoreCompositionTests
     public void PublicComposableExpressionBaseSupportsCustomSemanticWrappers()
     {
         var label = new ProductLabelExpression();
-        var condition = Condition<Product>.Create(product => label.Invoke(product).StartsWith("Desk"));
+        var condition = ComposableExpression<Product>.Create(product => label.Invoke(product).StartsWith("Desk"));
 
         var firstExpansion = label.GetExpandedExpression();
         var secondExpansion = label.GetExpandedExpression();
@@ -175,10 +175,10 @@ public class CoreCompositionTests
     [Fact]
     public void InvokeOrDefaultIsSharedByConditionsAndProjections()
     {
-        var active = Condition<Customer>.Create(customer => customer.IsActive);
-        var nameLength = Projection<Customer>.Create(customer => customer.Name.Length);
-        var condition = Condition<NullableCustomerHolder>.Create(holder => active.InvokeOrDefault(holder.Customer));
-        var projection = Projection<NullableCustomerHolder>.Create(
+        var active = ComposableExpression<Customer>.Create(customer => customer.IsActive);
+        var nameLength = ComposableExpression<Customer>.Create(customer => customer.Name.Length);
+        var condition = ComposableExpression<NullableCustomerHolder>.Create(holder => active.InvokeOrDefault(holder.Customer));
+        var projection = ComposableExpression<NullableCustomerHolder>.Create(
             holder => nameLength.InvokeOrDefault(holder.Customer));
 
         Assert.Equal(
@@ -196,9 +196,9 @@ public class CoreCompositionTests
     [Fact]
     public void MethodGroupsInAnyAndSelectAreExpanded()
     {
-        var positive = Condition<Product>.Create(product => product.Price > 0m);
-        var name = Projection<Product>.Create(product => product.Name);
-        var groupProjection = Projection<ProductGroup>.Create(group => new GroupDto
+        var positive = ComposableExpression<Product>.Create(product => product.Price > 0m);
+        var name = ComposableExpression<Product>.Create(product => product.Name);
+        var groupProjection = ComposableExpression<ProductGroup>.Create(group => new GroupDto
         {
             HasPositive = group.Products.Any(positive.Invoke),
             Names = group.Products.Select(name.Invoke).ToArray()
@@ -239,9 +239,9 @@ public class CoreCompositionTests
             range,
             selector);
         var sum = Expression.Call(typeof(Enumerable), nameof(Enumerable.Sum), Type.EmptyTypes, selected);
-        var unusual = Projection<int, int>.Create(
+        var unusual = ComposableExpression<int, int>.Create(
             Expression.Lambda<Func<int, int>>(Expression.Add(sum, shared), shared));
-        var input = Projection<NumberHolder, int>.Create(holder => holder.Value);
+        var input = ComposableExpression<NumberHolder, int>.Create(holder => holder.Value);
 
         var composed = input.Then(unusual);
 
@@ -282,17 +282,17 @@ public class CoreCompositionTests
         }
     }
 
-    private sealed class MinimumPriceCondition(decimal minimum) : Condition<Product>
+    private sealed class MinimumPriceCondition(decimal minimum) : ComposableExpression<Product, bool>
     {
         public override Expression<Func<Product, bool>> GetExpression() => product => product.Price >= minimum;
     }
 
-    private sealed class CyclicCondition : Condition<Product>
+    private sealed class CyclicCondition : ComposableExpression<Product, bool>
     {
         public override Expression<Func<Product, bool>> GetExpression() => product => Invoke(product);
     }
 
-    private sealed class CountingCondition : Condition<Product>
+    private sealed class CountingCondition : ComposableExpression<Product, bool>
     {
         public int ExpressionRequests { get; private set; }
 
@@ -316,17 +316,17 @@ public class CoreCompositionTests
 
     private static class StaticConditions
     {
-        public static readonly Condition<Product> Minimum = new MinimumPriceCondition(10m);
+        public static readonly ComposableExpression<Product, bool> Minimum = new MinimumPriceCondition(10m);
     }
 
-    private sealed class ConditionHolder(Condition<Product> minimum)
+    private sealed class ConditionHolder(ComposableExpression<Product, bool> minimum)
     {
         public readonly NestedConditionHolder Nested = new(minimum);
     }
 
-    private sealed class NestedConditionHolder(Condition<Product> minimum)
+    private sealed class NestedConditionHolder(ComposableExpression<Product, bool> minimum)
     {
-        public readonly Condition<Product> Minimum = minimum;
+        public readonly ComposableExpression<Product, bool> Minimum = minimum;
     }
 }
 

@@ -46,7 +46,7 @@ public class WholeQueryExpansionTests
     [Fact]
     public void PropertyBackedMarkerDelegateFieldStillExpandsInCallbackPositions()
     {
-        var condition = Condition<Row>.Create(row => row.Value > 10);
+        var condition = ComposableExpression<Row>.Create(row => row.Value > 10);
         var holder = new MarkerFieldHolder(condition.Invoke);
         var query = Rows.Where(row => holder.Provider.Callback(row))
             .Select(row => row.Children.Any(holder.Provider.Callback));
@@ -57,7 +57,7 @@ public class WholeQueryExpansionTests
     [Fact]
     public void ConstantMarkerDelegateStillExpands()
     {
-        var condition = Condition<Row>.Create(row => row.Value > 10);
+        var condition = ComposableExpression<Row>.Create(row => row.Value > 10);
         Func<Row, bool> callback = condition.Invoke;
         var parameter = Expression.Parameter(typeof(Row));
         var expression = Expression.Lambda<Func<Row, bool>>(Expression.Invoke(Expression.Constant(callback), parameter), parameter);
@@ -126,7 +126,7 @@ public class WholeQueryExpansionTests
     [Fact]
     public void OpaqueDelegatePropertyStillExpandsInCallbackPositions()
     {
-        var positive = Condition<Row>.Create(row => row.Value > 10);
+        var positive = ComposableExpression<Row>.Create(row => row.Value > 10);
         var holder = new MarkerDelegateHolder(positive.Invoke);
         var query = Rows.Where(row => holder.Callback(row))
             .Select(row => row.Children.Any(holder.Callback));
@@ -158,8 +158,8 @@ public class WholeQueryExpansionTests
     [InlineData(true)]
     public void InterfaceTypedInvocationExpands(bool explicitCast)
     {
-        IComposableExpression<Row, bool> condition = Condition<Row>.Create(x => x.Value > 10);
-        var concrete = Condition<Row>.Create(x => x.Value > 10);
+        IComposableExpression<Row, bool> condition = ComposableExpression<Row>.Create(x => x.Value > 10);
+        var concrete = ComposableExpression<Row>.Create(x => x.Value > 10);
         var query = explicitCast
             ? Rows.Where(x => ((IComposableExpression<Row, bool>)concrete).Invoke(x))
             : Rows.Where(x => condition.Invoke(x));
@@ -191,7 +191,7 @@ public class WholeQueryExpansionTests
     {
         var condition = new LinkedCondition();
         IComposableExpression<Row, bool> reference = condition;
-        condition.Next = Condition<Row>.Create(x => reference.Invoke(x));
+        condition.Next = ComposableExpression<Row>.Create(x => reference.Invoke(x));
         var query = Rows.Where(x => reference.Invoke(x));
         Assert.Contains("cycle", Assert.Throws<InvalidOperationException>(() => Expand(query.Expression)).Message);
     }
@@ -206,7 +206,7 @@ public class WholeQueryExpansionTests
     [Fact]
     public void RootWherePreservesQueryableAndExpandsCapturedCondition()
     {
-        var condition = Condition<Row>.Create(x => x.Value > 10);
+        var condition = ComposableExpression<Row>.Create(x => x.Value > 10);
         var query = Rows.Where(x => condition.Invoke(x));
         var root = Expand(query.Expression);
 
@@ -218,9 +218,9 @@ public class WholeQueryExpansionTests
     [Fact]
     public void NestedOperatorsAndCrossCompositionShareTheVisitor()
     {
-        var value = Projection<Row>.Create(x => x.Value);
-        var condition = Condition<Row>.Create(x => value.Invoke(x) > 1);
-        var result = Projection<Row>.Create(x => condition.Invoke(x) ? value.Invoke(x) : 0);
+        var value = ComposableExpression<Row>.Create(x => x.Value);
+        var condition = ComposableExpression<Row>.Create(x => value.Invoke(x) > 1);
+        var result = ComposableExpression<Row>.Create(x => condition.Invoke(x) ? value.Invoke(x) : 0);
         var query = Rows.Where(x => condition.Invoke(x)).OrderByDescending(x => value.Invoke(x)).Select(x => result.Invoke(x));
         var root = Expand(query.Expression);
 
@@ -231,11 +231,11 @@ public class WholeQueryExpansionTests
     [Fact]
     public void NullPropagationReturnsDefaultForReferenceAndNullableValueInputs()
     {
-        var value = Projection<Row>.Create(x => x.Value);
+        var value = ComposableExpression<Row>.Create(x => x.Value);
         var query = Rows.Select(x => value.InvokeOrDefault(x.Child));
         Assert.Equal(new[] { 0, 4 }, query.Provider.CreateQuery<int>(Expand(query.Expression)));
 
-        var nullable = Projection<int?, int>.Create(x => x!.Value + 1);
+        var nullable = ComposableExpression<int?, int>.Create(x => x!.Value + 1);
         var inputs = new int?[] { null, 2 }.AsQueryable();
         var numbers = inputs.Select(x => nullable.InvokeOrDefault(x));
         Assert.Equal(new[] { 0, 3 }, numbers.Provider.CreateQuery<int>(Expand(numbers.Expression)));
@@ -244,7 +244,7 @@ public class WholeQueryExpansionTests
     [Fact]
     public void NonNullableValueInputHasNoNullGuard()
     {
-        var value = Projection<int, int>.Create(x => x + 1);
+        var value = ComposableExpression<int, int>.Create(x => x + 1);
         var query = new[] { 0, 2 }.AsQueryable().Select(x => value.InvokeOrDefault(x));
         var root = Expand(query.Expression);
         Assert.DoesNotContain("IIF", root.ToString());
@@ -287,7 +287,7 @@ public class WholeQueryExpansionTests
     [Fact]
     public void NestedMethodGroupsAndCapturedDelegatesExpand()
     {
-        var positive = Condition<Row>.Create(x => x.Value > 0);
+        var positive = ComposableExpression<Row>.Create(x => x.Value > 0);
         Func<Row, bool> predicate = positive.Invoke;
         var query = Rows.Select(x => x.Children.Any(positive.Invoke) || x.Children.Any(predicate));
         var root = Expand(query.Expression);
@@ -336,7 +336,7 @@ public class WholeQueryExpansionTests
         public bool Invoke(Row row) => row.Value > 0;
     }
 
-    private sealed class HiddenInvoke : Condition<Row>
+    private sealed class HiddenInvoke : ComposableExpression<Row, bool>
     {
         public override Expression<Func<Row, bool>> GetExpression() => x => x.Value > 10;
         public new bool Invoke(Row row) => row.Value < 10;
@@ -351,16 +351,16 @@ public class WholeQueryExpansionTests
     private sealed class Factory
     {
         public int Calls { get; private set; }
-        public Condition<Row> Create()
+        public ComposableExpression<Row, bool> Create()
         {
             Calls++;
-            return Condition<Row>.True;
+            return ComposableExpression<Row>.True;
         }
     }
 
-    private sealed class LinkedCondition : Condition<Row>
+    private sealed class LinkedCondition : ComposableExpression<Row, bool>
     {
-        public Condition<Row> Next { get; set; } = null!;
+        public ComposableExpression<Row, bool> Next { get; set; } = null!;
         public override Expression<Func<Row, bool>> GetExpression() => x => Next.Invoke(x);
     }
 
@@ -368,13 +368,13 @@ public class WholeQueryExpansionTests
     {
         public int Reads { get; private set; }
         public bool Throw { get; set; }
-        public Condition<Row> Condition
+        public ComposableExpression<Row, bool> Condition
         {
             get
             {
                 Reads++;
                 if (Throw) throw new ApplicationException("getter failure");
-                return Condition<Row>.True;
+                return ComposableExpression<Row>.True;
             }
         }
     }
@@ -384,7 +384,7 @@ public class WholeQueryExpansionTests
         public int Calls { get; set; }
     }
 
-    private sealed class ConstructedCondition : Condition<Row>
+    private sealed class ConstructedCondition : ComposableExpression<Row, bool>
     {
         public ConstructedCondition(Counter counter, bool fail)
         {

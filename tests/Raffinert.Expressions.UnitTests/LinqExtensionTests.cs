@@ -13,10 +13,10 @@ public sealed class LinqExtensionTests
     public void EnumerableConditionConsumersUseComposableConditions()
     {
         IEnumerable<Product> source = Products;
-        var costsTwo = Condition<Product>.Create(product => product.Price == 2);
-        var expensive = Condition<Product>.Create(product => product.Price > 10);
-        var affordable = Condition<Product>.Create(product => product.Price < 25);
-        var missing = Condition<Product>.Create(product => product.Price < 0);
+        var costsTwo = ComposableExpression<Product>.Create(product => product.Price == 2);
+        var expensive = ComposableExpression<Product>.Create(product => product.Price > 10);
+        var affordable = ComposableExpression<Product>.Create(product => product.Price < 25);
+        var missing = ComposableExpression<Product>.Create(product => product.Price < 0);
         var ordered = source.OrderBy(product => product.Price).ThenBy(product => product.Name);
 
         Assert.True(source.Any(expensive));
@@ -37,10 +37,10 @@ public sealed class LinqExtensionTests
     public void QueryableConditionConsumersUseComposableConditions()
     {
         IQueryable<Product> source = Products.AsQueryable();
-        var costsTwo = Condition<Product>.Create(product => product.Price == 2);
-        var expensive = Condition<Product>.Create(product => product.Price > 10);
-        var affordable = Condition<Product>.Create(product => product.Price < 25);
-        var missing = Condition<Product>.Create(product => product.Price < 0);
+        var costsTwo = ComposableExpression<Product>.Create(product => product.Price == 2);
+        var expensive = ComposableExpression<Product>.Create(product => product.Price > 10);
+        var affordable = ComposableExpression<Product>.Create(product => product.Price < 25);
+        var missing = ComposableExpression<Product>.Create(product => product.Price < 0);
         var ordered = source.OrderBy(product => product.Price).ThenBy(product => product.Name);
 
         Assert.True(source.Any(expensive));
@@ -61,11 +61,11 @@ public sealed class LinqExtensionTests
     public void EnumerableProjectionConsumersUseComposableSelectors()
     {
         IEnumerable<Product> source = Products;
-        var name = Projection<Product>.Create(product => product.Name);
-        var price = Projection<Product>.Create(product => product.Price);
-        var category = Projection<Product>.Create(product => product.Category);
-        var tags = Projection<Product>.Create(product => product.Tags);
-        var tagArray = Projection<Product>.Create(product => product.Tags.ToArray());
+        var name = ComposableExpression<Product>.Create(product => product.Name);
+        var price = ComposableExpression<Product>.Create(product => product.Price);
+        var category = ComposableExpression<Product>.Create(product => product.Category);
+        var tags = ComposableExpression<Product>.Create(product => product.Tags);
+        var tagArray = ComposableExpression<Product>.Create(product => product.Tags.ToArray());
 
         Assert.Equal(["Desk", "Apple", "Pen"], source.OrderByDescending(price).ThenBy(name).Select(name));
         Assert.Equal(["Desk", "Pen", "Apple"], source.OrderByDescending(price).ThenByDescending(name).Select(name));
@@ -81,11 +81,11 @@ public sealed class LinqExtensionTests
     public void QueryableProjectionConsumersUseComposableSelectors()
     {
         IQueryable<Product> source = Products.AsQueryable();
-        var name = Projection<Product>.Create(product => product.Name);
-        var price = Projection<Product>.Create(product => product.Price);
-        var category = Projection<Product>.Create(product => product.Category);
-        var tags = Projection<Product>.Create(product => product.Tags);
-        var tagArray = Projection<Product>.Create(product => product.Tags.ToArray());
+        var name = ComposableExpression<Product>.Create(product => product.Name);
+        var price = ComposableExpression<Product>.Create(product => product.Price);
+        var category = ComposableExpression<Product>.Create(product => product.Category);
+        var tags = ComposableExpression<Product>.Create(product => product.Tags);
+        var tagArray = ComposableExpression<Product>.Create(product => product.Tags.ToArray());
 
         Assert.Equal(["Desk", "Apple", "Pen"], source.OrderByDescending(price).ThenBy(name).Select(name));
         Assert.Equal(["Desk", "Pen", "Apple"], source.OrderByDescending(price).ThenByDescending(name).Select(name));
