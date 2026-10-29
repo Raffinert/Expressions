@@ -14,8 +14,8 @@ public class CaptureRegressionTests(ITestOutputHelper output)
         int[] ids = [1, 2];
         var items = new List<int> { 1, 2 };
         var condition = list
-            ? Condition<OrderRow>.Create(x => items.Contains(x.Id))
-            : Condition<OrderRow>.Create(x => Enumerable.Contains(ids, x.Id));
+            ? ComposableExpression<OrderRow>.Create(x => items.Contains(x.Id))
+            : ComposableExpression<OrderRow>.Create(x => Enumerable.Contains(ids, x.Id));
         var embedded = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 1, 2 }, await embedded.ToArrayAsync());
 
@@ -52,13 +52,13 @@ public class CaptureRegressionTests(ITestOutputHelper output)
         var status = OrderStatus.Open;
         var condition = kind switch
         {
-            "string" => Condition<OrderRow>.Create(x => x.Name == name),
-            "Guid" => Condition<OrderRow>.Create(x => x.Token == token),
-            "decimal" => Condition<OrderRow>.Create(x => x.Price == price),
-            "DateTimeOffset" => Condition<OrderRow>.Create(x => x.RecordedAt == recorded),
-            "DateOnly" => Condition<OrderRow>.Create(x => x.Day == day),
-            "TimeOnly" => Condition<OrderRow>.Create(x => x.Time == time),
-            _ => Condition<OrderRow>.Create(x => x.Status == status)
+            "string" => ComposableExpression<OrderRow>.Create(x => x.Name == name),
+            "Guid" => ComposableExpression<OrderRow>.Create(x => x.Token == token),
+            "decimal" => ComposableExpression<OrderRow>.Create(x => x.Price == price),
+            "DateTimeOffset" => ComposableExpression<OrderRow>.Create(x => x.RecordedAt == recorded),
+            "DateOnly" => ComposableExpression<OrderRow>.Create(x => x.Day == day),
+            "TimeOnly" => ComposableExpression<OrderRow>.Create(x => x.Time == time),
+            _ => ComposableExpression<OrderRow>.Create(x => x.Status == status)
         };
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id);
         Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
@@ -86,7 +86,7 @@ public class CaptureRegressionTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         int? customer = 1;
-        var condition = Condition<OrderRow>.Create(x => x.CustomerId == customer);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.CustomerId == customer);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 1, 2 }, await query.ToArrayAsync());
         customer = null;
@@ -103,10 +103,10 @@ public class CaptureRegressionTests(ITestOutputHelper output)
     public async Task InterfaceWrapperThroughHolderPropertyUsesCurrentInstance()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var holder = new ConditionHolder { Predicate = Condition<OrderRow>.Create(x => x.Active) };
+        var holder = new ConditionHolder { Predicate = ComposableExpression<OrderRow>.Create(x => x.Active) };
         var query = fixture.Db.Orders.Where(x => holder.Predicate.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 1, 2 }, await query.ToArrayAsync());
-        holder.Predicate = Condition<OrderRow>.Create(x => !x.Active);
+        holder.Predicate = ComposableExpression<OrderRow>.Create(x => !x.Active);
         Assert.Equal(new[] { 3, 4 }, await query.ToArrayAsync());
         Assert.Equal(2, fixture.Commands.Executed.Count);
         Assert.All(fixture.Commands.Executed, command => Assert.Contains("WHERE", command.Sql));

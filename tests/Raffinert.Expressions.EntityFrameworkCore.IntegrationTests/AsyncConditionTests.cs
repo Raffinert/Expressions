@@ -15,14 +15,14 @@ public class AsyncConditionTests
     public async Task BooleanAndCountOperatorsExecutePredicatesWithoutInterceptor()
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
-        var active = Condition<OrderRow>.Create(x => x.Active);
-        var empty = Condition<OrderRow>.Create(x => x.Id < 0);
+        var active = ComposableExpression<OrderRow>.Create(x => x.Active);
+        var empty = ComposableExpression<OrderRow>.Create(x => x.Id < 0);
         IComposableExpression<OrderRow, bool> interfaceCondition = active;
 
         Assert.True(await fixture.Db.Orders.AnyAsync(interfaceCondition));
         Assert.False(await fixture.Db.Orders.AnyAsync(empty));
         Assert.False(await fixture.Db.Orders.AllAsync(active));
-        Assert.True(await fixture.Db.Orders.AllAsync(Condition<OrderRow>.True));
+        Assert.True(await fixture.Db.Orders.AllAsync(ComposableExpression<OrderRow>.True));
         Assert.True(await fixture.Db.Orders.Where(x => x.Id < 0).AllAsync(active));
         Assert.Equal(2, await fixture.Db.Orders.CountAsync(active));
         Assert.Equal(2L, await fixture.Db.Orders.LongCountAsync(active));
@@ -45,7 +45,7 @@ public class AsyncConditionTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
         var query = fixture.Db.Orders.OrderBy(x => x.Id);
-        var active = Condition<OrderRow>.Create(x => x.Active);
+        var active = ComposableExpression<OrderRow>.Create(x => x.Active);
         var result = Assert.IsType<OrderRow>(await ExecuteAsync(operation, query, active));
 
         Assert.Equal(expectedId, result.Id);
@@ -54,7 +54,7 @@ public class AsyncConditionTests
         Assert.Contains("ORDER BY", command.Sql);
         Assert.Contains("LIMIT", command.Sql);
 
-        var empty = Condition<OrderRow>.Create(x => x.Id < 0);
+        var empty = ComposableExpression<OrderRow>.Create(x => x.Id < 0);
         if (operation.EndsWith("OrDefault", StringComparison.Ordinal))
             Assert.Null(await ExecuteAsync(operation, query, empty));
         else
@@ -67,26 +67,26 @@ public class AsyncConditionTests
     public async Task SingleOperatorsRetainEfSemantics(string operation)
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
-        var one = Condition<OrderRow>.Create(x => x.Id == 2);
+        var one = ComposableExpression<OrderRow>.Create(x => x.Id == 2);
         Assert.Equal(2, Assert.IsType<OrderRow>(await ExecuteAsync(operation, fixture.Db.Orders, one)).Id);
         Assert.Contains("WHERE", Assert.Single(fixture.Commands.Executed).Sql);
 
-        var empty = Condition<OrderRow>.Create(x => x.Id < 0);
+        var empty = ComposableExpression<OrderRow>.Create(x => x.Id < 0);
         if (operation.EndsWith("OrDefault", StringComparison.Ordinal))
             Assert.Null(await ExecuteAsync(operation, fixture.Db.Orders, empty));
         else
             await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(operation, fixture.Db.Orders, empty));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(operation, fixture.Db.Orders, Condition<OrderRow>.True));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(operation, fixture.Db.Orders, ComposableExpression<OrderRow>.True));
     }
 
     [Fact]
     public async Task NestedProjectionConditionAndMethodGroupExecuteAsSql()
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
-        var amount = Projection<OrderRow>.Create(x => x.TotalCents);
-        var positiveLine = Condition<LineRow>.Create(x => x.AmountCents > 150);
-        var nested = Condition<OrderRow>.Create(x => x.Lines.Any(positiveLine.Invoke));
-        var condition = Condition<OrderRow>.Create(x => amount.Invoke(x) > 1000 && nested.Invoke(x));
+        var amount = ComposableExpression<OrderRow>.Create(x => x.TotalCents);
+        var positiveLine = ComposableExpression<LineRow>.Create(x => x.AmountCents > 150);
+        var nested = ComposableExpression<OrderRow>.Create(x => x.Lines.Any(positiveLine.Invoke));
+        var condition = ComposableExpression<OrderRow>.Create(x => amount.Invoke(x) > 1000 && nested.Invoke(x));
         Assert.Equal(1, await fixture.Db.Orders.CountAsync(condition));
         Assert.True(await fixture.Db.Orders.AnyAsync(condition));
         Assert.All(fixture.Commands.Executed, x =>
@@ -101,7 +101,7 @@ public class AsyncConditionTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
         var threshold = 1000;
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > threshold);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.TotalCents > threshold);
         Assert.Equal(3, await fixture.Db.Orders.CountAsync(condition));
         threshold = 10000;
         Assert.Equal(1, await fixture.Db.Orders.CountAsync(condition));
@@ -113,7 +113,7 @@ public class AsyncConditionTests
     public async Task NormalEfAndComposableOverloadsResolveWithDocumentedImports()
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Active);
         Assert.True(await fixture.Db.Orders.AnyAsync(condition));
         Assert.True(await fixture.Db.Orders.AnyAsync(x => x.Active));
         Assert.True(await fixture.Db.Orders.AnyAsync());
@@ -128,7 +128,7 @@ public class AsyncConditionTests
     public async Task NullArgumentsAreRejectedExplicitly(string operation)
     {
         var source = Array.Empty<OrderRow>().AsQueryable();
-        var sourceError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, null!, Condition<OrderRow>.True));
+        var sourceError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, null!, ComposableExpression<OrderRow>.True));
         Assert.Equal("source", sourceError.ParamName);
         var conditionError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, source, null!));
         Assert.Equal("condition", conditionError.ParamName);
@@ -140,7 +140,7 @@ public class AsyncConditionTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
         using var cancellation = new CancellationTokenSource();
-        var condition = Condition<OrderRow>.Create(x => x.Id == 2);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == 2);
         var query = fixture.Db.Orders.OrderBy(x => x.Id);
         await ExecuteAsync(operation, query, condition, cancellation.Token);
         Assert.Equal(cancellation.Token, Assert.Single(fixture.Commands.Executed).CancellationToken);
@@ -152,11 +152,11 @@ public class AsyncConditionTests
     public async Task ProviderErrorsAndUntranslatablePredicatesAreNotHidden()
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
-        var unsupported = Condition<OrderRow>.Create(x => CustomPredicate(x.Name));
+        var unsupported = ComposableExpression<OrderRow>.Create(x => CustomPredicate(x.Name));
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.AnyAsync(unsupported));
         Assert.Empty(fixture.Commands.Executed);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Array.Empty<OrderRow>().AsQueryable().AnyAsync(Condition<OrderRow>.True));
+            Array.Empty<OrderRow>().AsQueryable().AnyAsync(ComposableExpression<OrderRow>.True));
     }
 
     private static bool CustomPredicate(string value) => value.Length > 1;

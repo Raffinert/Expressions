@@ -8,7 +8,7 @@ public class CompiledQueryTests
     public async Task CompiledQueryWithStableClosedWrapperAndScalarParameterExecutesSql()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Active);
         var compiled = EF.CompileQuery((OrdersContext db, int minimum) => db.Orders
             .Where(x => condition.Invoke(x) && x.TotalCents > minimum).OrderBy(x => x.Id).Select(x => x.Id));
         Assert.Equal([2], compiled(fixture.Db, 1000));
@@ -23,7 +23,7 @@ public class CompiledQueryTests
     public async Task CompiledAsyncQueryWithStableWrapperUsesCurrentScalarParameters()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Active);
         var compiled = EF.CompileAsyncQuery((OrdersContext db, int minimum) => db.Orders
             .Where(x => condition.Invoke(x) && x.TotalCents > minimum).OrderBy(x => x.Id).Select(x => x.Id));
         Assert.Equal(new[] { 2 }, await CollectAsync(compiled(fixture.Db, 1000)));
@@ -36,9 +36,9 @@ public class CompiledQueryTests
     public async Task WrapperParametersOfCompiledQueriesAreExplicitlyUnsupported()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var compiled = EF.CompileQuery((OrdersContext db, Condition<OrderRow> predicate) =>
+        var compiled = EF.CompileQuery((OrdersContext db, ComposableExpression<OrderRow, bool> predicate) =>
             db.Orders.Count(x => predicate.Invoke(x)));
-        var error = Assert.Throws<InvalidOperationException>(() => compiled(fixture.Db, Condition<OrderRow>.True));
+        var error = Assert.Throws<InvalidOperationException>(() => compiled(fixture.Db, ComposableExpression<OrderRow>.True));
         Assert.Contains("Unable to resolve expression instance", error.Message);
         Assert.Empty(fixture.Commands.Executed);
     }
@@ -47,10 +47,10 @@ public class CompiledQueryTests
     public async Task CompiledQueriesFixClosedWrappersAtCompilationAsDocumented()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.Id == 2);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == 2);
         var compiled = EF.CompileQuery((OrdersContext db) => db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id));
         Assert.Equal([2], compiled(fixture.Db));
-        condition = Condition<OrderRow>.Create(x => x.Id == 4);
+        condition = ComposableExpression<OrderRow>.Create(x => x.Id == 4);
         // EF's compiled delegate fixes its captured expression at compilation. Use ordinary LINQ for wrapper changes.
         Assert.Equal([2], compiled(fixture.Db));
         Assert.Equal(new[] { 4 }, await fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id).ToArrayAsync());

@@ -14,7 +14,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableSensitiveDataLogging(false));
         var marker = "synthetic-private-value-efcore";
-        var condition = Condition<OrderRow>.Create(x => x.Name == marker);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == marker);
         Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         var embedded = Assert.Single(fixture.Commands.Executed);
         Assert.DoesNotContain(marker, embedded.Sql);
@@ -33,7 +33,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var holder = new ScalarHolder { Value = 2 };
-        var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == holder.Current);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id);
         Task<int[]> Execute() => async ? query.ToArrayAsync() : Task.FromResult(query.ToArray());
         Assert.Equal(new[] { 2 }, await Execute());
@@ -58,7 +58,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var holder = new ScalarHolder { Value = 2 };
-        var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == holder.Current);
         condition.GetExpandedExpression();
         holder.Reads.Clear();
         holder.Sequence = new Queue<int>(new[] { 2, 4, 2 });
@@ -92,14 +92,14 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     public async Task DeferredQueriesExecuteInReverseOrderAndEnumerateSequentially()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var active = Condition<OrderRow>.Create(x => x.Active);
-        var hidden = Condition<OrderRow>.Create(x => !x.Active);
+        var active = ComposableExpression<OrderRow>.Create(x => x.Active);
+        var hidden = ComposableExpression<OrderRow>.Create(x => !x.Active);
         var queryA = fixture.Db.Orders.Where(x => active.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         var queryB = fixture.Db.Orders.Where(x => hidden.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Empty(fixture.Commands.Executed);
         Assert.Equal(new[] { 3, 4 }, await queryB.ToArrayAsync());
         Assert.Equal(new[] { 1, 2 }, await queryA.ToArrayAsync());
-        active = Condition<OrderRow>.Create(x => x.Id == 4);
+        active = ComposableExpression<OrderRow>.Create(x => x.Id == 4);
         var ids = new List<int>();
         await foreach (var id in queryA.AsAsyncEnumerable()) ids.Add(id);
         Assert.Equal(new[] { 4 }, ids);
@@ -120,7 +120,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var holder = new ScalarHolder { Throw = true };
-        var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == holder.Current);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         Assert.NotNull(error.InnerException); // Native EF preserves getter exceptions after expansion.
@@ -132,7 +132,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync(cancellation.Token));
         fixture.Commands.Clear();
-        condition = Condition<OrderRow>.Create(x => x.Id == 4 && !x.Active);
+        condition = ComposableExpression<OrderRow>.Create(x => x.Id == 4 && !x.Active);
         Assert.Equal(new[] { 4 }, await fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id).ToArrayAsync());
         Assert.Contains("= 4", Assert.Single(fixture.Commands.Executed).Sql);
     }
@@ -142,10 +142,10 @@ public class ExecutionAuditTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync(false,
             b => b.AddInterceptors(RaffinertExpressionInterceptor.Instance));
-        var condition = Condition<OrderRow>.Create(x => x.Id == 4);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == 4);
         var row = Expression.Parameter(typeof(OrderRow), "row");
         var predicate = Expression.Lambda<Func<OrderRow, bool>>(
-            Expression.Call(Expression.Constant(condition, typeof(Condition<OrderRow>)),
+            Expression.Call(Expression.Constant(condition, typeof(ComposableExpression<OrderRow, bool>)),
                 typeof(ComposableExpression<OrderRow, bool>).GetMethod(nameof(condition.Invoke))!, row), row);
         Assert.Equal(new[] { 4 }, await fixture.Db.Orders.Where(predicate).Select(x => x.Id).ToArrayAsync());
         Assert.Equal(2, await fixture.Db.Orders.CountAsync(x => x.Active));
@@ -161,7 +161,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
         var nativeReads = holder.Reads;
         var nativeCommands = fixture.Commands.Executed.Count;
         fixture.Commands.Clear();
-        var condition = Condition<OrderRow>.Create(x => x.Id == holder.Current);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == holder.Current);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         Assert.NotNull(error.InnerException);
@@ -170,7 +170,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
         Assert.Equal(4, holder.NestedCount);
         Assert.Equal(nativeCommands, fixture.Commands.Executed.Count);
         fixture.Commands.Clear();
-        var valid = Condition<OrderRow>.Create(x => x.Id == 2);
+        var valid = ComposableExpression<OrderRow>.Create(x => x.Id == 2);
         Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => valid.Invoke(x)).Select(x => x.Id).ToArrayAsync());
         Assert.Single(fixture.Commands.Executed);
     }
@@ -185,7 +185,7 @@ public class ExecutionAuditTests(ITestOutputHelper output)
         ((IDbContextOptionsBuilderInfrastructure)builder).AddOrUpdateExtension(
             new MissingStateExtension(fixture.Db.GetService<IQueryContextFactory>()));
         await using var broken = new OrdersContext(builder.Options);
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Active);
         Assert.Equal(2, (await broken.Orders.Where(x => condition.Invoke(x)).ToArrayAsync()).Length);
         Assert.Equal(4, await broken.Orders.CountAsync());
         Assert.Equal(2, await broken.Orders.CountAsync(condition));

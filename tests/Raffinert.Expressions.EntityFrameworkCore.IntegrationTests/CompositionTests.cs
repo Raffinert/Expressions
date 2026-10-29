@@ -9,8 +9,8 @@ public class CompositionTests
     public async Task EfAdapterExpandsPlainQuerySyntaxWithoutAsRaffinertQuery()
     {
         await using var fixture = await SqliteFixture.CreateAsync(intercept: true);
-        var active = Condition<OrderRow>.Create(x => x.Active);
-        var name = Projection<OrderRow>.Create(x => x.Name);
+        var active = ComposableExpression<OrderRow>.Create(x => x.Active);
+        var name = ComposableExpression<OrderRow>.Create(x => x.Name);
 
         // Intentionally use ordinary C# query syntax without AsRaffinertQuery().
         var query =
@@ -38,7 +38,7 @@ public class CompositionTests
     public async Task PlainQuerySyntaxWithInvokeRequiresRegisteredEfAdapter()
     {
         await using var fixture = await SqliteFixture.CreateAsync(intercept: false);
-        var active = Condition<OrderRow>.Create(x => x.Active);
+        var active = ComposableExpression<OrderRow>.Create(x => x.Active);
 
         var query =
             from order in fixture.Db.Orders
@@ -54,7 +54,7 @@ public class CompositionTests
     public async Task AsyncTerminalWithEmbeddedMarkerExecutesSql()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > 1000);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.TotalCents > 1000);
         Assert.True(await fixture.Db.Orders.AnyAsync(x => condition.Invoke(x)));
         Assert.Contains("WHERE", Assert.Single(fixture.Commands.Executed).Sql);
     }
@@ -63,9 +63,9 @@ public class CompositionTests
     public async Task NestedProjectionAndCrossCompositionTranslateSelection()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var amount = Projection<OrderRow>.Create(x => x.TotalCents);
-        var expensive = Condition<OrderRow>.Create(x => amount.Invoke(x) > 1000);
-        var label = Projection<OrderRow>.Create(x => expensive.Invoke(x) ? x.Name : "cheap");
+        var amount = ComposableExpression<OrderRow>.Create(x => x.TotalCents);
+        var expensive = ComposableExpression<OrderRow>.Create(x => amount.Invoke(x) > 1000);
+        var label = ComposableExpression<OrderRow>.Create(x => expensive.Invoke(x) ? x.Name : "cheap");
         var query = fixture.Db.Orders.OrderBy(x => x.Id).Select(x => new ResultRow
         {
             Name = label.Invoke(x),
@@ -84,9 +84,9 @@ public class CompositionTests
     public async Task ChainedOperatorsExpandEveryMarkerAndRetainOrdering()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var amount = Projection<OrderRow>.Create(x => x.TotalCents);
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > 1000);
-        var name = Projection<OrderRow>.Create(x => x.Name);
+        var amount = ComposableExpression<OrderRow>.Create(x => x.TotalCents);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.TotalCents > 1000);
+        var name = ComposableExpression<OrderRow>.Create(x => x.Name);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x))
             .OrderByDescending(x => amount.Invoke(x)).Select(x => name.Invoke(x));
         Assert.Equal(new[] { "Desk", "Hidden", "Uncategorized" }, await query.ToArrayAsync());
@@ -99,7 +99,7 @@ public class CompositionTests
     public async Task NestedAnyAndCountExecuteCorrelatedSql()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var line = Condition<LineRow>.Create(x => x.AmountCents >= 150);
+        var line = ComposableExpression<LineRow>.Create(x => x.AmountCents >= 150);
         var query = fixture.Db.Orders
             .Where(x => x.Lines.Any(y => line.Invoke(y)))
             .Select(x => new { x.Id, Count = x.Lines.Count(y => line.Invoke(y)) });
@@ -115,7 +115,7 @@ public class CompositionTests
     public async Task NestedMethodGroupsAndCapturedDelegatesExpandBeforeTranslation()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var positive = Condition<LineRow>.Create(x => x.AmountCents >= 150);
+        var positive = ComposableExpression<LineRow>.Create(x => x.AmountCents >= 150);
         Func<LineRow, bool> predicate = positive.Invoke;
         var query = fixture.Db.Orders.Where(x => x.Lines.Any(positive.Invoke) && x.Lines.Any(predicate));
         Assert.Equal(new[] { 2 }, await query.Select(x => x.Id).ToArrayAsync());
@@ -126,9 +126,9 @@ public class CompositionTests
     public async Task NullableNavigationReturnsCorrectNullAndValueTypeDefaults()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var name = Projection<CustomerRow>.Create(x => x.Name);
-        var length = Projection<CustomerRow>.Create(x => x.Name.Length);
-        var active = Condition<CustomerRow>.Create(x => x.Active);
+        var name = ComposableExpression<CustomerRow>.Create(x => x.Name);
+        var length = ComposableExpression<CustomerRow>.Create(x => x.Name.Length);
+        var active = ComposableExpression<CustomerRow>.Create(x => x.Active);
         var query = fixture.Db.Orders.OrderBy(x => x.Id).Select(x => new
         {
             Name = name.InvokeOrDefault(x.Customer),
@@ -148,8 +148,8 @@ public class CompositionTests
     public async Task NullableValueAndNonNullableValueInvocationRetainDefaultSemantics()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var nullable = Projection<int?, int>.Create(x => x!.Value + 1);
-        var number = Projection<int, int>.Create(x => x + 1);
+        var nullable = ComposableExpression<int?, int>.Create(x => x!.Value + 1);
+        var number = ComposableExpression<int, int>.Create(x => x + 1);
         var query = fixture.Db.Orders.OrderBy(x => x.Id).Select(x => new
         {
             CustomerNumber = nullable.InvokeOrDefault(x.CustomerId),
@@ -165,16 +165,16 @@ public class CompositionTests
     public async Task RepeatedExecutionAndSharedOptionsDoNotMutateOrLeakWrapperState()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.Id == 2);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == 2);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         var original = query.Expression;
         for (var i = 0; i < 3; i++) Assert.Equal(2, (await query.SingleAsync()).Id);
         Assert.Same(original, query.Expression);
 
         await using var second = new OrdersContext(fixture.Options);
-        condition = Condition<OrderRow>.Create(x => x.Id == 4);
+        condition = ComposableExpression<OrderRow>.Create(x => x.Id == 4);
         Assert.Equal(4, (await second.Orders.Where(x => condition.Invoke(x)).SingleAsync()).Id);
-        condition = Condition<OrderRow>.Create(x => x.Id == 1);
+        condition = ComposableExpression<OrderRow>.Create(x => x.Id == 1);
         Assert.Equal(1, (await query.SingleAsync()).Id);
         Assert.Equal(5, fixture.Commands.Executed.Count);
     }
@@ -185,7 +185,7 @@ public class CompositionTests
         await using var fixture = await SqliteFixture.CreateAsync();
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Active);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             fixture.Db.Orders.AnyAsync(x => condition.Invoke(x), cancellation.Token));
     }
@@ -231,8 +231,8 @@ public class CompositionTests
     public async Task QuerySyntaxRemainsIndependentAndPreservesProvider(bool intercept)
     {
         await using var fixture = await SqliteFixture.CreateAsync(intercept);
-        var condition = Condition<OrderRow>.Create(x => x.Active);
-        var name = Projection<OrderRow>.Create(x => x.Name);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Active);
+        var name = ComposableExpression<OrderRow>.Create(x => x.Name);
         var query = from row in fixture.Db.Orders.AsRaffinertQuery()
                     where condition.Invoke(row)
                     orderby row.Id
@@ -250,7 +250,7 @@ public class CompositionTests
         var builder = new DbContextOptionsBuilder<OrdersContext>(fixture.Options);
         Assert.Same(builder, builder.UseRaffinertExpressions().UseRaffinertExpressions());
         await using var context = new OrdersContext(builder.Options);
-        var condition = Condition<OrderRow>.Create(x => x.Id == 2);
+        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == 2);
         Assert.Equal(2, (await context.Orders.Where(x => condition.Invoke(x)).SingleAsync()).Id);
 
         await using var unregistered = await SqliteFixture.CreateAsync(false);
@@ -283,14 +283,14 @@ public class CompositionTests
     public async Task InlinedProviderDateTimeFunctionRetainsServerTranslation()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var timestamp = Projection<OrderRow>.Create(x => DateTime.UtcNow);
+        var timestamp = ComposableExpression<OrderRow>.Create(x => DateTime.UtcNow);
         var rows = await fixture.Db.Orders.Select(x => timestamp.Invoke(x)).ToArrayAsync();
         Assert.Equal(4, rows.Length);
         Assert.All(rows, x => Assert.True(x.Year >= 2000));
         Assert.Contains("'now'", Assert.Single(fixture.Commands.Executed).Sql);
     }
 
-    private static Condition<OrderRow> GetCondition(OrderRow row) => Condition<OrderRow>.Create(x => x.Id == row.Id);
+    private static ComposableExpression<OrderRow, bool> GetCondition(OrderRow row) => ComposableExpression<OrderRow>.Create(x => x.Id == row.Id);
 
     private sealed class ResultRow
     {
@@ -298,9 +298,9 @@ public class CompositionTests
         public bool Valid { get; set; }
     }
 
-    private sealed class LinkedCondition : Condition<OrderRow>
+    private sealed class LinkedCondition : ComposableExpression<OrderRow, bool>
     {
-        public Condition<OrderRow> Next { get; set; } = null!;
+        public ComposableExpression<OrderRow, bool> Next { get; set; } = null!;
         public override Expression<Func<OrderRow, bool>> GetExpression() => x => Next.Invoke(x);
     }
 

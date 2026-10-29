@@ -52,7 +52,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             "literal-constant" => x => x.TotalCents > EF.Constant(1000),
             _ => x => x.TotalCents > threshold
         };
-        var condition = Condition<Row>.Create(predicate);
+        var condition = ComposableExpression<Row>.Create(predicate);
         var native = f.Db.Orders.Where(predicate).OrderBy(x => x.Id).Select(x => x.Id);
         var direct = f.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id);
         var embedded = f.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
@@ -92,7 +92,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             ("parameter", true) => x => Enumerable.Contains(EF.Parameter(items), x.Id),
             _ => x => Enumerable.Contains(EF.MultipleParameters(items), x.Id)
         };
-        var condition = Condition<Row>.Create(predicate);
+        var condition = ComposableExpression<Row>.Create(predicate);
         var native = f.Db.Orders.Where(predicate).OrderBy(x => x.Id).Select(x => x.Id);
         var direct = f.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id);
         var embedded = f.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
@@ -143,7 +143,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             "collate-literal" => x => EF.Functions.Collate(x.Name, literalCollation) == "Desk",
             _ => x => EF.Functions.Collate(x.Name, collation) == "Desk"
         };
-        var condition = Condition<Row>.Create(predicate);
+        var condition = ComposableExpression<Row>.Create(predicate);
         var expected = await f.Db.Orders.Where(predicate).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
         var command = f.Commands.Executed.Last();
         Assert.Equal(expected, await f.Db.Orders.Where(condition).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
@@ -166,7 +166,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
         })
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() => f.Db.Orders.Where(predicate).ToArrayAsync());
-            var condition = Condition<Row>.Create(predicate);
+            var condition = ComposableExpression<Row>.Create(predicate);
             await Assert.ThrowsAsync<InvalidOperationException>(() => f.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
             Assert.Empty(f.Commands.Executed);
         }
@@ -178,9 +178,9 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
         await using var f = await CreateAsync();
         var threshold = 1000;
         var upper = 30000;
-        var inner = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
-        var outer = Condition<Row>.Create(x => inner.Invoke(x) && x.TotalCents < EF.Constant(upper * 2));
-        var projection = Projection<Row, int>.Create(x => EF.Parameter(threshold + 100) + x.Id);
+        var inner = ComposableExpression<Row>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
+        var outer = ComposableExpression<Row>.Create(x => inner.Invoke(x) && x.TotalCents < EF.Constant(upper * 2));
+        var projection = ComposableExpression<Row, int>.Create(x => EF.Parameter(threshold + 100) + x.Id);
         var query = f.Db.Orders.Where(x => outer.Invoke(x)).OrderBy(x => x.Id).Select(x => projection.Invoke(x));
         foreach (var value in new[] { 1000, 10000, 1000 })
         {
@@ -189,7 +189,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
                 .OrderBy(x => x.Id).Select(x => EF.Parameter(threshold + 100) + x.Id).ToArrayAsync();
             Assert.Equal(expected, await query.ToArrayAsync());
         }
-        outer = Condition<Row>.Create(x => x.Id == 1);
+        outer = ComposableExpression<Row>.Create(x => x.Id == 1);
         Assert.Equal(new[] { 1101 }, await query.ToArrayAsync());
     }
 
@@ -198,7 +198,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
     {
         await using var f = await CreateAsync();
         var secret = "synthetic-native-extraction-private@example.invalid";
-        var condition = Condition<Row>.Create(x => x.Name == EF.Parameter(secret));
+        var condition = ComposableExpression<Row>.Create(x => x.Name == EF.Parameter(secret));
         var query = f.Db.Orders.Where(x => condition.Invoke(x));
         for (var i = 0; i < 2; i++)
         {
@@ -209,7 +209,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             Assert.True(query.ToQueryString().Contains(secret, StringComparison.Ordinal), "Native diagnostic rendering includes parameter values; values omitted.");
         }
         Assert.True(f.Db.Orders.Where(x => x.Name == secret).ToQueryString().Length > 0);
-        var constant = Condition<Row>.Create(x => x.Id == EF.Constant(1));
+        var constant = ComposableExpression<Row>.Create(x => x.Id == EF.Constant(1));
         Assert.True(f.Db.Orders.Where(x => constant.Invoke(x)).ToQueryString().Length > 0);
     }
 
@@ -234,7 +234,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             "parameter" => x => Enumerable.Contains(EF.Parameter(ids)!, x.CustomerId),
             _ => x => Enumerable.Contains(EF.MultipleParameters(ids)!, x.CustomerId)
         };
-        var condition = Condition<Row>.Create(predicate);
+        var condition = ComposableExpression<Row>.Create(predicate);
         foreach (var values in new int?[]?[] { [1, null], [2], [], null, [1, null] })
         {
             ids = values;
@@ -256,7 +256,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
 #else
         Expression<Func<Row, bool>> predicate = x => EF.Functions.Glob(x.Name, "D*");
 #endif
-        var condition = Condition<Row>.Create(predicate);
+        var condition = ComposableExpression<Row>.Create(predicate);
         var expected = await f.Db.Orders.Where(predicate).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
         var command = f.Commands.Executed.Last();
         Assert.NotEmpty(expected);
@@ -270,7 +270,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
     {
         await using var f = await CreateAsync();
         var threshold = 100;
-        var condition = Condition<Row>.Create(x => x.TotalCents > threshold);
+        var condition = ComposableExpression<Row>.Create(x => x.TotalCents > threshold);
         var embedded = f.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         var before = f.QueryCompilations;
         foreach (var value in Enumerable.Range(100, 25).Append(124))
@@ -289,7 +289,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
     {
         await using var f = await CreateAsync();
         var holder = new FailingHolder();
-        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(holder.GetThreshold()));
+        var condition = ComposableExpression<Row>.Create(x => x.TotalCents > EF.Parameter(holder.GetThreshold()));
         var query = f.Db.Orders.Where(x => condition.Invoke(x));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
         Assert.NotNull(error.InnerException); // EF preserves the user exception; no adapter exception policy after expansion.
@@ -315,10 +315,10 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
         await using var f = await CreateAsync();
         var secret = "synthetic-native-diagnostics@example.invalid";
         var suffix = "-computed";
-        var ordinary = Condition<Row>.Create(x => x.Name == secret);
-        var parameter = Condition<Row>.Create(x => x.Name == EF.Parameter(secret));
-        var computed = Condition<Row>.Create(x => x.Name == EF.Parameter(secret + suffix));
-        var projection = Projection<Row, bool>.Create(x => x.Name == EF.Parameter(secret) || x.Id == EF.Constant(1));
+        var ordinary = ComposableExpression<Row>.Create(x => x.Name == secret);
+        var parameter = ComposableExpression<Row>.Create(x => x.Name == EF.Parameter(secret));
+        var computed = ComposableExpression<Row>.Create(x => x.Name == EF.Parameter(secret + suffix));
+        var projection = ComposableExpression<Row, bool>.Create(x => x.Name == EF.Parameter(secret) || x.Id == EF.Constant(1));
         for (var i = 0; i < 2; i++)
         {
             if (mode == "mixed-projection")
@@ -370,11 +370,11 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             if (first == null) first = db;
             else Assert.Same(first, db);
             var threshold = lease % 2 == 0 ? 1000 : 10000;
-            var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
+            var condition = ComposableExpression<Row>.Create(x => x.TotalCents > EF.Parameter(threshold + 100));
             var query = db.Orders.Where(x => condition.Invoke(x));
             Assert.Equal(lease % 2 == 0 ? 3 : 1, await query.CountAsync());
             Assert.Equal(threshold + 100, Assert.Single(f.Commands.Executed.Last().Values));
-            var invalid = Condition<Row>.Create(x => UnmappedRowMethod(x.Id));
+            var invalid = ComposableExpression<Row>.Create(x => UnmappedRowMethod(x.Id));
             var before = f.Commands.Executed.Count;
             await Assert.ThrowsAsync<InvalidOperationException>(() => db.Orders.Where(x => invalid.Invoke(x)).ToArrayAsync());
             Assert.Equal(before, f.Commands.Executed.Count);
@@ -581,7 +581,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
     {
         await using var f = await CreateAsync();
         var threshold = 1000;
-        var condition = Condition<Row>.Create(x => x.TotalCents > threshold);
+        var condition = ComposableExpression<Row>.Create(x => x.TotalCents > threshold);
         Func<Row, bool> callback = condition.Invoke;
         var holder = new MarkerCallbackHolder(callback);
         var query = mode switch
@@ -600,7 +600,7 @@ public class NativeExtractionAcceptanceTests(ITestOutputHelper output)
             Assert.Contains("EXISTS", f.Commands.Executed.Last().Sql);
             if (mode is "opaque-property" or "property-backed-field") Assert.Equal(1, holder.Reads);
         }
-        condition = Condition<Row>.Create(x => x.Id == 1);
+        condition = ComposableExpression<Row>.Create(x => x.Id == 1);
         callback = condition.Invoke;
         holder.Value = callback;
         Assert.Equal(new[] { 1 }, await query.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
