@@ -5,6 +5,7 @@ namespace Raffinert.Expressions;
 /// <summary>Boolean composition for any Boolean-valued composable expression.</summary>
 public static class BooleanExpressionExtensions
 {
+    /// <summary>Combines two Boolean expressions using short-circuiting AND.</summary>
     public static ComposableExpression<T, bool> And<T>(
         this ComposableExpression<T, bool> left, ComposableExpression<T, bool> right)
     {
@@ -15,6 +16,7 @@ public static class BooleanExpressionExtensions
             : ComposableExpression<T, bool>.Create(BooleanExpressionComposer.And(left.GetExpression(), right.GetExpression()));
     }
 
+    /// <summary>Combines a Boolean expression and a lambda using short-circuiting AND.</summary>
     public static ComposableExpression<T, bool> And<T>(
         this ComposableExpression<T, bool> left, Expression<Func<T, bool>> right)
     {
@@ -22,6 +24,7 @@ public static class BooleanExpressionExtensions
         return left.And(ComposableExpression<T, bool>.Create(right));
     }
 
+    /// <summary>Combines two Boolean expressions using short-circuiting OR.</summary>
     public static ComposableExpression<T, bool> Or<T>(
         this ComposableExpression<T, bool> left, ComposableExpression<T, bool> right)
     {
@@ -32,6 +35,7 @@ public static class BooleanExpressionExtensions
             : ComposableExpression<T, bool>.Create(BooleanExpressionComposer.Or(left.GetExpression(), right.GetExpression()));
     }
 
+    /// <summary>Combines a Boolean expression and a lambda using short-circuiting OR.</summary>
     public static ComposableExpression<T, bool> Or<T>(
         this ComposableExpression<T, bool> left, Expression<Func<T, bool>> right)
     {
@@ -39,6 +43,7 @@ public static class BooleanExpressionExtensions
         return left.Or(ComposableExpression<T, bool>.Create(right));
     }
 
+    /// <summary>Negates a Boolean-valued composable expression.</summary>
     public static ComposableExpression<T, bool> Not<T>(this ComposableExpression<T, bool> expression)
     {
         if (expression == null) throw new ArgumentNullException(nameof(expression));
