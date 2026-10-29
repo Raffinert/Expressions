@@ -10,19 +10,19 @@ public class ConditionTests
     {
         var product = new Product();
 
-        Assert.Equal("value => true", ComposableExpression<Product>.True.GetExpandedExpression().ToReadableString());
-        Assert.Equal("value => false", ComposableExpression<Product>.False.GetExpandedExpression().ToReadableString());
-        Assert.True(ComposableExpression<Product>.True.Invoke(product));
-        Assert.False(ComposableExpression<Product>.False.Invoke(product));
-        Assert.Same(ComposableExpression<Product>.True, ComposableExpression<Product>.True);
-        Assert.Same(ComposableExpression<Product>.False, ComposableExpression<Product>.False);
+        Assert.Equal("value => true", Expr<Product>.True.GetExpandedExpression().ToReadableString());
+        Assert.Equal("value => false", Expr<Product>.False.GetExpandedExpression().ToReadableString());
+        Assert.True(Expr<Product>.True.Invoke(product));
+        Assert.False(Expr<Product>.False.Invoke(product));
+        Assert.Same(Expr<Product>.True, Expr<Product>.True);
+        Assert.Same(Expr<Product>.False, Expr<Product>.False);
     }
 
     [Fact]
     public void StartDefaultsToFalseWhenEmpty()
     {
         var product = new Product();
-        var start = ComposableExpression<Product>.Start();
+        var start = Expr<Product>.Start();
 
         Assert.False(start.Invoke(product));
         Assert.Equal("value => false", start.GetExpandedExpression().ToReadableString());
@@ -32,8 +32,8 @@ public class ConditionTests
     public void StartCanReturnTrueWhenEmpty()
     {
         var product = new Product();
-        var start = ComposableExpression<Product>.Start(defaultWhenEmpty: true);
-        var named = ComposableExpression<Product>.Create(value => value.Name == "Apple");
+        var start = Expr<Product>.Start(defaultWhenEmpty: true);
+        var named = Expr<Product>.Create(value => value.Name == "Apple");
 
         Assert.True(start.Invoke(product));
         Assert.Equal("value => true", start.GetExpandedExpression().ToReadableString());
@@ -43,9 +43,9 @@ public class ConditionTests
     [Fact]
     public void StartDropsTheSeedForEitherFirstOperatorAndRemainsImmutable()
     {
-        var start = ComposableExpression<Product>.Start();
-        var named = ComposableExpression<Product>.Create(product => product.Name == "Apple");
-        var cheap = ComposableExpression<Product>.Create(product => product.Price < 10m);
+        var start = Expr<Product>.Start();
+        var named = Expr<Product>.Create(product => product.Name == "Apple");
+        var cheap = Expr<Product>.Create(product => product.Price < 10m);
 
         Assert.Same(named, start.And(named));
         Assert.Same(named, start.Or(named));
@@ -64,12 +64,12 @@ public class ConditionTests
     [Fact]
     public void BooleanCompositionProducesReadableExpandedConditions()
     {
-        ComposableExpression<Product, bool> named = ComposableExpression<Product>.Create(product => product.Name == "Apple");
-        ComposableExpression<Product, bool> cheap = new CheapProductCondition(10m);
+        Expr<Product, bool> named = Expr<Product>.Create(product => product.Name == "Apple");
+        Expr<Product, bool> cheap = new CheapProductCondition(10m);
         var product = new Product { Name = "Apple", Price = 5m };
         var namedAndCheap = named.And(cheap);
         var namedAndFive = named.And(value => value.Price == 5m);
-        var namedOrFalse = named.Or(ComposableExpression<Product>.False);
+        var namedOrFalse = named.Or(Expr<Product>.False);
         var notNamed = named.Not();
 
         Assert.Equal(
@@ -88,10 +88,10 @@ public class ConditionTests
         Assert.True(namedAndFive.Invoke(product));
         Assert.True(namedOrFalse.Invoke(product));
         Assert.True(named.And(cheap).Invoke(product));
-        Assert.True(named.Or(ComposableExpression<Product>.False).Invoke(product));
+        Assert.True(named.Or(Expr<Product>.False).Invoke(product));
         Assert.False(notNamed.Invoke(product));
         Assert.True(named.And(cheap).Invoke(product));
-        Assert.True(named.Or(ComposableExpression<Product>.False).Invoke(product));
+        Assert.True(named.Or(Expr<Product>.False).Invoke(product));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class ConditionTests
             new Product { Name = "A", Price = 1m },
             new Product { Name = "B", Price = 20m }
         };
-        var condition = ComposableExpression<Product>.Create(product => product.Price > 10m);
+        var condition = Expr<Product>.Create(product => product.Price > 10m);
 
         var enumerable = source.Where(condition).Single();
         var queryable = source.AsQueryable().Where(condition).Single();
@@ -111,7 +111,7 @@ public class ConditionTests
         Assert.Equal("B", queryable.Name);
     }
 
-    private sealed class CheapProductCondition(decimal threshold) : ComposableExpression<Product, bool>
+    private sealed class CheapProductCondition(decimal threshold) : Expr<Product, bool>
     {
         public override Expression<Func<Product, bool>> GetExpression() => product => product.Price < threshold;
     }

@@ -22,10 +22,10 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task NestedConditionAndProjectionTranslate()
     {
-        var expensive = ComposableExpression<DbProduct>.Create(product => product.PriceCents > 1000);
-        var named = ComposableExpression<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
-        var category = ComposableExpression<DbCategory>.Create(value => new CategoryRow { Name = value.Name });
-        var product = ComposableExpression<DbProduct>.Create(value => new ProductRow
+        var expensive = Expr<DbProduct>.Create(product => product.PriceCents > 1000);
+        var named = Expr<DbProduct>.Create(product => expensive.Invoke(product) && product.Name != "Hidden");
+        var category = Expr<DbCategory>.Create(value => new CategoryRow { Name = value.Name });
+        var product = Expr<DbProduct>.Create(value => new ProductRow
         {
             Id = value.Id,
             Name = value.Name,
@@ -69,13 +69,13 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task StartedConditionTranslatesWithoutBooleanSeed()
     {
-        ComposableExpression<DbProduct, bool>[] filters =
+        Expr<DbProduct, bool>[] filters =
         [
-            ComposableExpression<DbProduct>.Create(product => product.PriceCents > 1000),
-            ComposableExpression<DbProduct>.Create(product => product.Name != "Hidden")
+            Expr<DbProduct>.Create(product => product.PriceCents > 1000),
+            Expr<DbProduct>.Create(product => product.Name != "Hidden")
         ];
 
-        var condition = ComposableExpression<DbProduct>.Start();
+        var condition = Expr<DbProduct>.Start();
         foreach (var filter in filters)
         {
             condition = condition.And(filter);
@@ -100,9 +100,9 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ConditionInsideProjectionAndProjectionInsideConditionTranslate()
     {
-        var price = ComposableExpression<DbProduct>.Create(product => product.PriceCents);
-        var expensive = ComposableExpression<DbProduct>.Create(product => price.Invoke(product) > 1000);
-        var row = ComposableExpression<DbProduct>.Create(product => new ProductRow
+        var price = Expr<DbProduct>.Create(product => product.PriceCents);
+        var expensive = Expr<DbProduct>.Create(product => price.Invoke(product) > 1000);
+        var row = Expr<DbProduct>.Create(product => new ProductRow
         {
             Id = product.Id,
             Name = product.Name,
@@ -138,12 +138,12 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ThenAndDeepMixedCompositionTranslate()
     {
-        var price = ComposableExpression<DbProduct>.Create(product => product.PriceCents);
-        var doubled = ComposableExpression<int>.Create(value => value * 2);
-        var threshold = ComposableExpression<int>.Create(value => value >= 3000);
+        var price = Expr<DbProduct>.Create(product => product.PriceCents);
+        var doubled = Expr<int>.Create(value => value * 2);
+        var threshold = Expr<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
         var composedCondition = composedScalar.Then(threshold);
-        var mixed = ComposableExpression<DbProduct>.Create(product => composedCondition.Invoke(product));
+        var mixed = Expr<DbProduct>.Create(product => composedCondition.Invoke(product));
 
         var values = await _db.Products
             .Where(composedCondition)
@@ -160,12 +160,12 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ThenAndDeepMixedCompositionTranslateProjectionAsConditionAndConditionAsProjection()
     {
-        var price = ComposableExpression<DbProduct>.Create(product => product.PriceCents);
-        var doubled = ComposableExpression<int>.Create(value => value * 2);
-        var threshold = ComposableExpression<int>.Create(value => value >= 3000);
+        var price = Expr<DbProduct>.Create(product => product.PriceCents);
+        var doubled = Expr<int>.Create(value => value * 2);
+        var threshold = Expr<int>.Create(value => value >= 3000);
         var composedScalar = price.Then(doubled);
         var composedCondition = composedScalar.Then(threshold);
-        var mixed = ComposableExpression<DbProduct>.Create(product => composedCondition.Invoke(product));
+        var mixed = Expr<DbProduct>.Create(product => composedCondition.Invoke(product));
 
         var query = _db.Products
             .Where(mixed)
@@ -183,12 +183,12 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task MergedProjectionTranslatesWithOverlaySemantics()
     {
-        var basis = ComposableExpression<DbProduct>.Create(product => new ProductRow
+        var basis = Expr<DbProduct>.Create(product => new ProductRow
         {
             Id = product.Id,
             Name = product.Name
         });
-        var overlay = ComposableExpression<DbProduct>.Create(product => new ProductRow
+        var overlay = Expr<DbProduct>.Create(product => new ProductRow
         {
             Name = product.Name + "!",
             IsExpensive = product.PriceCents > 1000
@@ -213,9 +213,9 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task StructuralAdaptationTranslates()
     {
-        var condition = ComposableExpression<StructuralDbProduct>.Create(product =>
+        var condition = Expr<StructuralDbProduct>.Create(product =>
             product.PriceCents > 1000 && product.Name != "Hidden");
-        var projection = ComposableExpression<StructuralDbProduct>.Create(product =>
+        var projection = Expr<StructuralDbProduct>.Create(product =>
             new StructuralDbProductRow
             {
                 Id = product.Id,
@@ -250,9 +250,9 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ComposableOrderingSelectorsExpandAndTranslate()
     {
-        var price = ComposableExpression<DbProduct>.Create(product => product.PriceCents);
-        var adjustedPrice = ComposableExpression<DbProduct>.Create(product => price.Invoke(product) + 1);
-        var name = ComposableExpression<DbProduct>.Create(product => product.Name);
+        var price = Expr<DbProduct>.Create(product => product.PriceCents);
+        var adjustedPrice = Expr<DbProduct>.Create(product => price.Invoke(product) + 1);
+        var name = Expr<DbProduct>.Create(product => product.Name);
 
         var query = _db.Products
             .OrderByDescending(adjustedPrice)
@@ -268,23 +268,23 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public void ComposableConditionConsumersExpandAndTranslate()
     {
-        var price = ComposableExpression<DbProduct>.Create(product => product.PriceCents);
-        var expensive = ComposableExpression<DbProduct>.Create(product => price.Invoke(product) > 1000);
+        var price = Expr<DbProduct>.Create(product => product.PriceCents);
+        var expensive = Expr<DbProduct>.Create(product => price.Invoke(product) > 1000);
 
         Assert.True(_db.Products.Any(expensive));
         Assert.False(_db.Products.All(expensive));
         Assert.Equal(3, _db.Products.Count(expensive));
         Assert.Equal(3L, _db.Products.LongCount(expensive));
         Assert.True(_db.Products.OrderBy(product => product.Id).First(expensive).PriceCents > 1000);
-        Assert.Null(_db.Products.FirstOrDefault(ComposableExpression<DbProduct>.False));
+        Assert.Null(_db.Products.FirstOrDefault(Expr<DbProduct>.False));
     }
 
     [Fact]
     public async Task ComposableGroupingSelectorsExpandAndTranslate()
     {
-        var categoryId = ComposableExpression<DbProduct>.Create(product => product.CategoryId);
-        var price = ComposableExpression<DbProduct>.Create(product => product.PriceCents);
-        var adjustedPrice = ComposableExpression<DbProduct>.Create(product => price.Invoke(product) + 1);
+        var categoryId = Expr<DbProduct>.Create(product => product.CategoryId);
+        var price = Expr<DbProduct>.Create(product => product.PriceCents);
+        var adjustedPrice = Expr<DbProduct>.Create(product => price.Invoke(product) + 1);
 
         var query = _db.Products
             .GroupBy(categoryId, adjustedPrice)
@@ -313,8 +313,8 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task ComposableSelectManySelectorExpandsAndTranslates()
     {
-        var products = ComposableExpression<DbCategory>.Create(category => category.Products);
-        var name = ComposableExpression<DbProduct>.Create(product => product.Name);
+        var products = Expr<DbCategory>.Create(category => category.Products);
+        var name = Expr<DbProduct>.Create(product => product.Name);
 
         var query = _db.Categories
             .SelectMany(products)
@@ -331,10 +331,10 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     public async Task QuerySyntaxFacadeExpandsMarkersAndPreservesAsyncProviderExecution()
     {
         var source = _db.Products;
-        var price = ComposableExpression<DbProduct>.Create(product => product.PriceCents);
-        var expensive = ComposableExpression<DbProduct>.Create(product => price.Invoke(product) > 1000);
-        var name = ComposableExpression<DbProduct>.Create(product => product.Name);
-        var row = ComposableExpression<DbProduct>.Create(product => new ProductRow
+        var price = Expr<DbProduct>.Create(product => product.PriceCents);
+        var expensive = Expr<DbProduct>.Create(product => price.Invoke(product) > 1000);
+        var name = Expr<DbProduct>.Create(product => product.Name);
+        var row = Expr<DbProduct>.Create(product => new ProductRow
         {
             Id = product.Id,
             Name = name.Invoke(product),
@@ -352,7 +352,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
 
         Assert.Same(((IQueryable<DbProduct>)source).Provider, query.Provider);
         Assert.Same(query.UnderlyingQuery.Provider, query.Provider);
-        Assert.DoesNotContain(nameof(ComposableExpression<,>.Invoke), query.Expression.ToString());
+        Assert.DoesNotContain(nameof(Expr<,>.Invoke), query.Expression.ToString());
         Assert.Contains("WHERE \"p\".\"PriceCents\" > 1000", sql);
         Assert.Contains("ORDER BY \"p\".\"PriceCents\" DESC, \"p\".\"Name\"", sql);
         Assert.Equal(["Desk", "Hidden", "Uncategorized"], rows.Select(product => product.Name));
@@ -362,10 +362,10 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
     [Fact]
     public async Task QuerySyntaxFacadeExpandsMultipleFromJoinAndGrouping()
     {
-        var productName = ComposableExpression<DbProduct>.Create(product => product.Name);
-        var productCategoryId = ComposableExpression<DbProduct>.Create(product => product.CategoryId);
-        var categoryId = ComposableExpression<DbCategory>.Create(category => (int?)category.Id);
-        var categoryProducts = ComposableExpression<DbCategory>.Create(category => category.Products);
+        var productName = Expr<DbProduct>.Create(product => product.Name);
+        var productCategoryId = Expr<DbProduct>.Create(product => product.CategoryId);
+        var categoryId = Expr<DbCategory>.Create(category => (int?)category.Id);
+        var categoryProducts = Expr<DbCategory>.Create(category => category.Products);
 
         var flattened =
             from category in _db.Categories.AsRaffinertQuery()
@@ -385,8 +385,8 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         var flattenedNames = await flattened.ToArrayAsync();
         var groups = await joined.ToListAsync();
 
-        Assert.DoesNotContain(nameof(ComposableExpression<,>.Invoke), flattened.Expression.ToString());
-        Assert.DoesNotContain(nameof(ComposableExpression<,>.Invoke), joined.Expression.ToString());
+        Assert.DoesNotContain(nameof(Expr<,>.Invoke), flattened.Expression.ToString());
+        Assert.DoesNotContain(nameof(Expr<,>.Invoke), joined.Expression.ToString());
         Assert.Contains("INNER JOIN \"Products\"", flattenedSql);
         Assert.Contains("INNER JOIN \"Categories\"", joinedSql);
         Assert.Contains("GROUP BY \"c\".\"Name\"", joinedSql);
@@ -405,7 +405,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         var retainedProduct = category.Products.Single(product => product.Name == "Desk");
         var removedProduct = category.Products.Single(product => product.Name == "Pencil");
         var originalCollection = category.Products;
-        var projection = ComposableExpression<CategoryCollectionUpdate, DbCategory>.Create(update => new DbCategory
+        var projection = Expr<CategoryCollectionUpdate, DbCategory>.Create(update => new DbCategory
         {
             Products = { update.RetainedProduct }
         });

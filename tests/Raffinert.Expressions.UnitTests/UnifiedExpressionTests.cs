@@ -7,11 +7,11 @@ public class UnifiedExpressionTests
     [Fact]
     public void BooleanAndValueExpressionsHaveTheSameConcretePublicType()
     {
-        var isActive = ComposableExpression<Product>.Create(p => p.Price > 0m);
-        var name = ComposableExpression<Product>.Create(p => p.Name);
+        var isActive = Expr<Product>.Create(p => p.Price > 0m);
+        var name = Expr<Product>.Create(p => p.Name);
 
-        Assert.IsAssignableFrom<ComposableExpression<Product, bool>>(isActive);
-        Assert.IsAssignableFrom<ComposableExpression<Product, string>>(name);
+        Assert.IsAssignableFrom<Expr<Product, bool>>(isActive);
+        Assert.IsAssignableFrom<Expr<Product, string>>(name);
 
         var result = isActive.And(p => p.Name.Length > 0).Not();
         Assert.False(result.Invoke(new Product { Price = 1m, Name = "A" }));
@@ -21,9 +21,9 @@ public class UnifiedExpressionTests
     [Fact]
     public void MixedForwardCompositionProducesBooleanExpressionUsableByWhere()
     {
-        var price = ComposableExpression<Product>.Create(p => p.Price);
-        var positive = ComposableExpression<decimal>.Create(value => value > 0);
-        ComposableExpression<Product, bool> predicate = price.Then(positive);
+        var price = Expr<Product>.Create(p => p.Price);
+        var positive = Expr<decimal>.Create(value => value > 0);
+        Expr<Product, bool> predicate = price.Then(positive);
 
         var query = new[]
         {
@@ -38,18 +38,18 @@ public class UnifiedExpressionTests
     [Fact]
     public void StartAndTrueHaveDifferentFirstCompositionSemantics()
     {
-        var p = ComposableExpression<Product>.Create(x => x.Price > 10m);
-        Assert.Same(p, ComposableExpression<Product>.Start().And(p));
-        Assert.Same(p, ComposableExpression<Product>.Start().Or(p));
-        Assert.NotSame(p, ComposableExpression<Product>.True.And(p));
+        var p = Expr<Product>.Create(x => x.Price > 10m);
+        Assert.Same(p, Expr<Product>.Start().And(p));
+        Assert.Same(p, Expr<Product>.Start().Or(p));
+        Assert.NotSame(p, Expr<Product>.True.And(p));
     }
 
     [Fact]
     public void ExplicitlyTypedAndInferredFactoriesAgreeOnExpandedTree()
     {
         Expression<Func<Product, bool>> lambda = product => product.Price > 10m;
-        var inferred = ComposableExpression<Product>.Create(lambda);
-        var typed = ComposableExpression<Product, bool>.Create(lambda);
+        var inferred = Expr<Product>.Create(lambda);
+        var typed = Expr<Product, bool>.Create(lambda);
 
         Assert.Equal(inferred.GetExpandedExpression().ToString(), typed.GetExpandedExpression().ToString());
     }
