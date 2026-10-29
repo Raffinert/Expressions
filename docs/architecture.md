@@ -4,10 +4,10 @@
 
 `IExpr<TSource,out TResult>` is the covariant public consumption contract used by the LINQ extensions.
 `Expr<TSource,TResult>` is the **single public representation** for reusable predicates and value/result expressions.
-It owns expansion, compiled-delegate caching, forward composition, structural adaptation and member-initializer transformations.
+It owns expansion and compiled-delegate caching. Forward composition and Boolean combinators accept the covariant `IExpr<TSource,out TResult>` contract; source/result structural adaptation remains on the concrete type, while member-initializer binding and mapping operations live in `MemberInitializationExtensions`.
 `Expr<TSource>.Create(...)` infers the result type; `Expr<TSource,TResult>.Create(...)` is explicitly typed.
 Boolean composition (`And`, `Or`, `Not`) is exposed only for `Expr<TSource,bool>` through extensions.
-The engine continues to use the internal `IExpressionExpansionSource` contract.
+Mapping-only caches are attached on demand through a `ConditionalWeakTable`, so ordinary predicates do not allocate mapping state. The mapping APIs require a reference-type destination; other expression-shape requirements (such as member-initializer roots for merging or result adaptation) are checked at runtime. The engine continues to use the internal `IExpressionExpansionSource` contract.
 
 Custom semantic wrappers should inherit `Expr<TSource,TResult>` rather than implementing
 `IExpr<TSource,TResult>` directly. This preserves invocation-marker expansion, cycle detection, and

@@ -1,12 +1,12 @@
 # Implementation report
 
 > [!NOTE]
-> This is a historical delivery record from the initial implementation. It is retained for design archaeology, is not maintained as product documentation, and may not describe the current API or verification counts. In particular, it uses the former `Specification<T>` name; the current API is `Condition<T>`. See the [README](../../README.md), [changelog](../../CHANGELOG.md), [migration guide](../migration.md), and [architecture document](../architecture.md) for current behavior.
+> This is a historical delivery record from the initial implementation. It is retained for design archaeology, is not maintained as product documentation, and may not describe the current API or verification counts. In particular, it uses the former `Specification<T>` name; the current API uses `Expr<TSource, TResult>` (with `TResult = bool` for predicates). See the [README](../../README.md), [changelog](../../CHANGELOG.md), [migration guide](../migration.md), and [architecture document](../architecture.md) for current behavior.
 
 ## Delivered
 
 - `Raffinert.Expressions.slnx` with a `netstandard2.0` runtime package.
-- One shared `Expr<TSource,TResult>` core, invocation expansion engine, safe closure/member target resolution, scoped parameter substitution, cycle detection, and per-instance caches.
+- One shared `ComposableExpression<TSource,TResult>` core, invocation expansion engine, safe closure/member target resolution, scoped parameter substitution, cycle detection, and per-instance caches.
 - Complete semantic `Specification<T>` and `Projection<TSource,TResult>` APIs, canonical `Invoke`/`InvokeOrDefault`, LINQ extensions, mixed cross-composition, method-group expansion, null-safe/default invocation, and `Then`.
 - Deterministic `MergeBindings`, safer `MapToExisting`, and direct structural adaptation APIs.
 - Unit and EF Core SQLite integration test projects.
@@ -46,7 +46,7 @@ Documentation:
 
 ## Deliberate API/design choices
 
-- `Expr<TSource,TResult>` is public because it is a useful supported base for new semantic expression wrappers, while ordinary `Specification`/`Projection` users do not need to reference it.
+- `ComposableExpression<TSource,TResult>` is public because it is a useful supported base for new semantic expression wrappers, while ordinary `Specification`/`Projection` users do not need to reference it.
 - Compatibility aliases `IsSatisfiedBy`, `Map`, and `MapIfNotNull` are deliberately omitted. `Invoke` is the sole normal invocation API and `InvokeOrDefault` is the explicit null-input/default-output API.
 - Existing specifications and projections serve as their own structural definitions; no separate template abstraction is exposed.
 - Legacy binary compatibility packages were not created; they are explicitly outside the MVP.

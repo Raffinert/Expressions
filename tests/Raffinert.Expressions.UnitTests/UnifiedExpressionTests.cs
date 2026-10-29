@@ -53,4 +53,79 @@ public class UnifiedExpressionTests
 
         Assert.Equal(inferred.GetExpandedExpression().ToString(), typed.GetExpandedExpression().ToString());
     }
+
+    [Fact]
+    public void InterfaceTypedExpressionsCanComposeWithCustomImplementations()
+    {
+        IExpr<Product, bool> positive = new ExternalExpr<Product, bool>(p => p.Price > 0m);
+        IExpr<Product, bool> named = Expr<Product>.Create(p => p.Name == "A");
+
+        var predicate = positive.And(named).Not();
+        Assert.False(predicate.Invoke(new Product { Price = 10m, Name = "A" }));
+        Assert.True(predicate.Invoke(new Product { Price = 10m, Name = "B" }));
+
+        IExpr<Product, decimal> price = Expr<Product>.Create(p => p.Price);
+        IExpr<decimal, bool> threshold = new ExternalExpr<decimal, bool>(value => value >= 10m);
+        var forward = price.Then(threshold);
+        Assert.True(forward.Invoke(new Product { Price = 10m }));
+        Assert.False(forward.Invoke(new Product { Price = 9m }));
+    }
+
+    [Fact]
+    public void BooleanStarterPreservesInterfaceOperands()
+    {
+        IExpr<Product, bool> custom = new ExternalExpr<Product, bool>(p => p.Price > 10m);
+        var predicate = Expr<Product>.Start().And(custom);
+        Assert.True(predicate.Invoke(new Product { Price = 11m }));
+        Assert.False(predicate.Invoke(new Product { Price = 9m }));
+    }
+
+    [Fact]
+    public void MappingUsesLazyCacheWithoutPerExpressionMappingState()
+    {
+        var projection = Expr<Product>.Create(p => new ProductDto { Name = p.Name });
+        var fields = typeof(Expr<Product, ProductDto>).GetFields(
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        Assert.DoesNotContain(fields, f => f.Name.Contains("mapToExisting", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(fields, f => f.Name.Contains("projectionCache", StringComparison.OrdinalIgnoreCase));
+
+        var expression = projection.GetMapToExistingExpression();
+        Assert.Same(expression, projection.GetMapToExistingExpression());
+
+        var actions = Enumerable.Range(0, 32).AsParallel()
+            .Select(_ => projection.GetMapToExistingAction()).ToArray();
+        Assert.All(actions, action => Assert.Same(actions[0], action));
+
+        ProductDto? existing = new() { Name = "old" };
+        projection.MapToExisting(new Product { Name = "updated" }, ref existing);
+        Assert.Equal("updated", existing!.Name);
+    }
+
+    [Fact]
+    public void InterfaceTypedMemberInitializerSupportsMappingAndMerging()
+    {
+        IExpr<Product, ProductDto> first = new ExternalExpr<Product, ProductDto>(
+            p => new ProductDto { Id = p.Id });
+        IExpr<Product, ProductDto> second = Expr<Product>.Create(
+            p => new ProductDto { Name = p.Name });
+        var merged = first.MergeBindings(second);
+        var result = merged.Invoke(new Product { Id = 7, Name = "Desk" });
+        Assert.Equal(7, result.Id);
+        Assert.Equal("Desk", result.Name);
+
+        ProductDto? destination = new() { Name = "before" };
+        first.MapToExisting(new Product { Id = 11 }, ref destination);
+        Assert.Equal(11, destination!.Id);
+        Assert.Equal("before", destination.Name);
+    }
+
+    private sealed class ExternalExpr<TSource, TResult>(Expression<Func<TSource, TResult>> lambda)
+        : IExpr<TSource, TResult>
+    {
+        public TResult Invoke(TSource value) => lambda.Compile()(value);
+
+        public LambdaExpression GetExpandedLambdaExpression() => lambda;
+    }
+
 }

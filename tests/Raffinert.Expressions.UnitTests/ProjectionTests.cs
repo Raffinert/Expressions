@@ -384,7 +384,7 @@ public class ProjectionTests
     {
         var projection = Expr<Product, string>.Create(product => product.Name);
 
-        var exception = Assert.Throws<NotSupportedException>(projection.GetMapToExistingExpression);
+        var exception = Assert.Throws<NotSupportedException>(() => projection.GetMapToExistingExpression());
 
         Assert.Contains("member initializer", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
