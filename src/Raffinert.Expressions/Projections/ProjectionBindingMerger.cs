@@ -5,9 +5,9 @@ namespace Raffinert.Expressions;
 
 internal static class ProjectionBindingMerger
 {
-    public static ComposableExpression<TIn, TOut> Merge<TIn, TOut>(
-        ComposableExpression<TIn, TOut> first,
-        ComposableExpression<TIn, TOut> second,
+    public static Expr<TIn, TOut> Merge<TIn, TOut>(
+        Expr<TIn, TOut> first,
+        Expr<TIn, TOut> second,
         BindingConflictBehavior conflictBehavior)
     {
         if (conflictBehavior != BindingConflictBehavior.UseLast &&
@@ -60,7 +60,7 @@ internal static class ProjectionBindingMerger
         var bindings = ordered.ConvertAll(MemberBinding (member) =>
             Expression.Bind(member, expressions[member]));
         var body = Expression.MemberInit(firstShape.Creation, bindings);
-        return ComposableExpression<TIn, TOut>.Create(
+        return Expr<TIn, TOut>.Create(
             Expression.Lambda<Func<TIn, TOut>>(body, firstExpression.Parameters));
     }
 
