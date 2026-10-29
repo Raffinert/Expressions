@@ -1,6 +1,6 @@
 # EF Core adapter architecture
 
-Internal technical reference for `Raffinert.Expressions.EntityFrameworkCore` 1.2.0.
+Internal technical reference for `Raffinert.Expressions.EntityFrameworkCore` 2.0.0.
 Consumer setup and supported behavior are documented in the
 [EF integration guide](../efcore-integration.md).
 

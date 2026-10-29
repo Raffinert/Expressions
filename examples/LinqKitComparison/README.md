@@ -6,7 +6,7 @@ This .NET 10 console app runs equivalent EF Core 10 SQLite queries three ways:
    custom expression visitor, parameter rebinder, or home-grown expansion helper.
 2. **LINQKit** — `AsExpandable`, `Invoke`, `Expand`, and `PredicateBuilder`, following the patterns in the
    [LINQKit README](https://github.com/scottksmith95/LINQKit/blob/master/README.md).
-3. **Raffinert.Expressions** — `Condition<T>`, `Projection<TSource, TResult>`, direct composable LINQ overloads,
+3. **Raffinert.Expressions** — `ComposableExpression<T, bool>`, `ComposableExpression<TSource, TResult>`, direct composable LINQ overloads,
    and `AsRaffinertQuery()` for query syntax.
 
 The runner executes every query against the same in-memory database and fails if the three result sets differ.
@@ -34,8 +34,8 @@ dotnet run --project examples/LinqKitComparison -- --sql
 | Dynamic any-keyword predicate | Spell out the OR terms (two in this example) | `PredicateBuilder.Or` | Fold conditions from `Condition.Start()` with `Or` |
 | Nested predicates | Write the parenthesized lambda inline | Nested `PredicateBuilder` instances | Compose inner and outer `Condition` instances |
 | Reusable predicate library | Duplicate the complete rule inline | Reusable expressions composed with `And`/`Or` | Reusable conditions composed with `And`/`Or` |
-| Generic validity predicate | Duplicate the validity clauses in the provider lambda | Generic expression + `And` | Generic `Condition<TEntity>` + `And` |
-| Reusable aggregate | Put `Average` directly in the group projection | Invoked aggregate expression + `AsExpandable()` | Invoked `Projection<IQueryable<Order>, double?>` + `AsRaffinertQuery()` |
+| Generic validity predicate | Duplicate the validity clauses in the provider lambda | Generic expression + `And` | Generic `ComposableExpression<TEntity, bool>` + `And` |
+| Reusable aggregate | Put `Average` directly in the group projection | Invoked aggregate expression + `AsExpandable()` | Invoked `ComposableExpression<IQueryable<Order>, double?>` + `AsRaffinertQuery()` |
 
 The pure .NET implementations are deliberately the baseline, not an expression-composition library hidden inside
 the example. They show that EF Core can solve every concrete query when the logic is placed directly in the

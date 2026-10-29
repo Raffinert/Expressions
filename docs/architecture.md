@@ -4,7 +4,7 @@
 
 `IComposableExpression<TSource,out TResult>` is the covariant public consumption contract used by the LINQ
 extensions. `ComposableExpression<TSource,TResult>` is the supported public implementation base for custom semantic
-wrappers and owns expansion and compiled-delegate caching. `Condition<T>` and `Projection<TSource,TResult>` add domain
+wrappers and owns expansion and compiled-delegate caching. `ComposableExpression<T, bool>` and `ComposableExpression<TSource,TResult>` add domain
 vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
 
 Custom semantic wrappers should inherit `ComposableExpression<TSource,TResult>` rather than implementing
@@ -13,7 +13,7 @@ per-instance caching while allowing consumer APIs to benefit from result covaria
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
-`Condition<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
+`ComposableExpression<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
 condition without composing a Boolean seed. An unchanged starter uses its configured result when empty,
 which defaults to `false`. Ordinary `True` and `False` conditions retain standard Boolean composition.
 
@@ -37,7 +37,7 @@ The engine never introduces `Expression.Invoke`.
 
 Because all semantic wrappers implement the same internal contract, nested expansion does not distinguish between conditions and projections. A Boolean output can be inserted into a member initializer, and a scalar/object projection can be inserted into a condition.
 
-`Then` composes already-expanded typed lambdas with direct substitution. `Projection<A,B>.Then(Projection<B,C>)` yields `Projection<A,C>`; `Projection<A,B>.Then(Condition<B>)` yields `Condition<A>`.
+`Then` composes already-expanded typed lambdas with direct substitution. `ComposableExpression<A,B>.Then(ComposableExpression<B,C>)` yields `ComposableExpression<A,C>`; `ComposableExpression<A,B>.Then(ComposableExpression<B, bool>)` yields `ComposableExpression<A, bool>`.
 
 ## Null-safe invocation
 
