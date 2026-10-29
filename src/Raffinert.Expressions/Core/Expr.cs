@@ -19,9 +19,6 @@ public abstract class Expr<TSource, TResult> :
     private readonly object _cacheLock = new();
     private Expression<Func<TSource, TResult>>? _expandedExpression;
     private Func<TSource, TResult>? _compiledExpression;
-    private readonly object _projectionCacheLock = new();
-    private Expression<Action<TSource, TResult>>? _mapToExistingExpression;
-    private Action<TSource, TResult>? _mapToExistingAction;
 
     /// <summary>Wraps a typed lambda in a reusable composable expression.</summary>
     public static Expr<TSource, TResult> Create(Expression<Func<TSource, TResult>> expression) =>
@@ -164,110 +161,8 @@ public abstract class Expr<TSource, TResult> :
     /// <param name="next">The projection to apply to the result of this expression.</param>
     /// <returns>A projection that applies this expression followed by <paramref name="next"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="next"/> is null.</exception>
-    public Expr<TSource, TNext> Then<TNext>(Expr<TResult, TNext> next)
-    {
-        if (next == null) throw new ArgumentNullException(nameof(next));
-
-        var firstExpression = GetExpandedExpression();
-        var nextExpression = next.GetExpandedExpression();
-        var body = new ReplaceExpressionVisitor(nextExpression.Parameters[0], firstExpression.Body)
-            .Visit(nextExpression.Body)!;
-        return Expr<TSource, TNext>.Create(
-            Expression.Lambda<Func<TSource, TNext>>(body, firstExpression.Parameters));
-    }
-
-    /// <summary>Combines the member bindings from this expression and another projection.</summary>
-    /// <param name="other">The projection whose member bindings are added to this expression.</param>
-    /// <returns>A projection containing bindings from both projections; bindings from <paramref name="other"/> take precedence.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
-    /// <exception cref="NotSupportedException">Either projection does not use a supported member-initializer shape.</exception>
-    /// <exception cref="InvalidOperationException">The projections cannot be combined into a compatible result.</exception>
-    public Expr<TSource, TResult> MergeBindings(Expr<TSource, TResult> other) =>
-        MergeBindings(other, BindingConflictBehavior.UseLast);
-
-    /// <summary>Combines member bindings using the specified behavior for duplicate members.</summary>
-    /// <param name="other">The projection whose member bindings are added to this expression.</param>
-    /// <param name="conflictBehavior">The behavior to use when both projections bind the same member.</param>
-    /// <returns>A projection containing the selected bindings from both projections.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="conflictBehavior"/> is not a defined value.</exception>
-    /// <exception cref="NotSupportedException">Either projection does not use a supported member-initializer shape.</exception>
-    /// <exception cref="InvalidOperationException">The projections cannot be combined using the selected behavior.</exception>
-    public Expr<TSource, TResult> MergeBindings(
-        Expr<TSource, TResult> other,
-        BindingConflictBehavior conflictBehavior)
-    {
-        return other == null
-            ? throw new ArgumentNullException(nameof(other))
-            : ProjectionBindingMerger.Merge(this, other, conflictBehavior);
-    }
-
-    /// <summary>Combines this expression's member bindings with those from another expression.</summary>
-    /// <param name="other">The expression whose member bindings are added to this expression.</param>
-    /// <returns>A projection containing bindings from both expressions; bindings from <paramref name="other"/> take precedence.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
-    /// <exception cref="NotSupportedException">Either expression does not use a supported member-initializer shape.</exception>
-    /// <exception cref="InvalidOperationException">The expressions cannot be combined into a compatible result.</exception>
-    public Expr<TSource, TResult> MergeBindings(Expression<Func<TSource, TResult>> other) =>
-        MergeBindings(Create(other), BindingConflictBehavior.UseLast);
-
-    /// <summary>Combines member bindings from another expression using the specified behavior for duplicate members.</summary>
-    /// <param name="other">The expression whose member bindings are added to this expression.</param>
-    /// <param name="conflictBehavior">The behavior to use when both expressions bind the same member.</param>
-    /// <returns>A projection containing the selected bindings from both expressions.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="conflictBehavior"/> is not a defined value.</exception>
-    /// <exception cref="NotSupportedException">Either expression does not use a supported member-initializer shape.</exception>
-    /// <exception cref="InvalidOperationException">The expressions cannot be combined using the selected behavior.</exception>
-    public Expr<TSource, TResult> MergeBindings(
-        Expression<Func<TSource, TResult>> other,
-        BindingConflictBehavior conflictBehavior) =>
-        MergeBindings(Create(other), conflictBehavior);
-
-    /// <summary>Returns an expression that applies this expression's member assignments to an existing result.</summary>
-    /// <returns>An expression that accepts a source value and the result instance to update.</returns>
-    /// <exception cref="NotSupportedException">The projection does not use a supported member-initializer shape.</exception>
-    public Expression<Action<TSource, TResult>> GetMapToExistingExpression()
-    {
-        if (_mapToExistingExpression != null) return _mapToExistingExpression;
-
-        lock (_projectionCacheLock)
-        {
-            return _mapToExistingExpression ??= MapToExistingBuilder.Build(GetExpandedExpression());
-        }
-    }
-
-    /// <summary>Returns a compiled action that applies this expression's member assignments to an existing result.</summary>
-    /// <returns>An action that accepts a source value and the result instance to update.</returns>
-    /// <remarks>The action is compiled once and cached for the lifetime of this expression.</remarks>
-    /// <exception cref="NotSupportedException">The projection does not use a supported member-initializer shape.</exception>
-    public Action<TSource, TResult> GetMapToExistingAction()
-    {
-        if (_mapToExistingAction != null) return _mapToExistingAction;
-
-        lock (_projectionCacheLock)
-        {
-            return _mapToExistingAction ??= GetMapToExistingExpression().Compile();
-        }
-    }
-
-    /// <summary>Projects a new result when it is null; otherwise updates it using this expression's member assignments.</summary>
-    /// <param name="source">The source value to project.</param>
-    /// <param name="destination">The result to create or update.</param>
-    /// <exception cref="NotSupportedException">An existing result cannot be updated from this expression's shape.</exception>
-    /// <exception cref="InvalidOperationException">A nested read-only result member that must be created is null.</exception>
-    /// <remarks>Existing mutable collections are cleared and refilled; their elements are not matched by key.</remarks>
-    public void MapToExisting(TSource source, ref TResult? destination)
-    {
-        if (destination is null)
-        {
-            destination = Invoke(source);
-            return;
-        }
-
-        GetMapToExistingAction()(source, destination);
-    }
-
+    public Expr<TSource, TNext> Then<TNext>(IExpr<TResult, TNext> next) =>
+        ExprCompositionExtensions.Then(this, next);
 
     private string DebuggerDisplay => GetExpandedExpression().ToString();
 }

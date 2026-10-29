@@ -7,18 +7,19 @@ public static class BooleanExpressionExtensions
 {
     /// <summary>Combines two Boolean expressions using short-circuiting AND.</summary>
     public static Expr<T, bool> And<T>(
-        this Expr<T, bool> left, Expr<T, bool> right)
+        this IExpr<T, bool> left, IExpr<T, bool> right)
     {
         if (left == null) throw new ArgumentNullException(nameof(left));
         if (right == null) throw new ArgumentNullException(nameof(right));
         return left is BooleanStartExpression<T>
-            ? right
-            : Expr<T, bool>.Create(BooleanExpressionComposer.And(left.GetExpression(), right.GetExpression()));
+            ? right as Expr<T, bool> ?? Expr<T, bool>.Create(ExprAdapter.GetExpandedExpression(right))
+            : Expr<T, bool>.Create(BooleanExpressionComposer.And(
+                ExprAdapter.GetExpandedExpression(left), ExprAdapter.GetExpandedExpression(right)));
     }
 
     /// <summary>Combines a Boolean expression and a lambda using short-circuiting AND.</summary>
     public static Expr<T, bool> And<T>(
-        this Expr<T, bool> left, Expression<Func<T, bool>> right)
+        this IExpr<T, bool> left, Expression<Func<T, bool>> right)
     {
         if (right == null) throw new ArgumentNullException(nameof(right));
         return left.And(Expr<T, bool>.Create(right));
@@ -26,28 +27,29 @@ public static class BooleanExpressionExtensions
 
     /// <summary>Combines two Boolean expressions using short-circuiting OR.</summary>
     public static Expr<T, bool> Or<T>(
-        this Expr<T, bool> left, Expr<T, bool> right)
+        this IExpr<T, bool> left, IExpr<T, bool> right)
     {
         if (left == null) throw new ArgumentNullException(nameof(left));
         if (right == null) throw new ArgumentNullException(nameof(right));
         return left is BooleanStartExpression<T>
-            ? right
-            : Expr<T, bool>.Create(BooleanExpressionComposer.Or(left.GetExpression(), right.GetExpression()));
+            ? right as Expr<T, bool> ?? Expr<T, bool>.Create(ExprAdapter.GetExpandedExpression(right))
+            : Expr<T, bool>.Create(BooleanExpressionComposer.Or(
+                ExprAdapter.GetExpandedExpression(left), ExprAdapter.GetExpandedExpression(right)));
     }
 
     /// <summary>Combines a Boolean expression and a lambda using short-circuiting OR.</summary>
     public static Expr<T, bool> Or<T>(
-        this Expr<T, bool> left, Expression<Func<T, bool>> right)
+        this IExpr<T, bool> left, Expression<Func<T, bool>> right)
     {
         if (right == null) throw new ArgumentNullException(nameof(right));
         return left.Or(Expr<T, bool>.Create(right));
     }
 
     /// <summary>Negates a Boolean-valued composable expression.</summary>
-    public static Expr<T, bool> Not<T>(this Expr<T, bool> expression)
+    public static Expr<T, bool> Not<T>(this IExpr<T, bool> expression)
     {
         if (expression == null) throw new ArgumentNullException(nameof(expression));
-        var lambda = expression.GetExpression();
+        var lambda = ExprAdapter.GetExpandedExpression(expression);
         return Expr<T, bool>.Create(
             Expression.Lambda<Func<T, bool>>(Expression.Not(lambda.Body), lambda.Parameters));
     }

@@ -6,8 +6,8 @@ namespace Raffinert.Expressions;
 internal static class ProjectionBindingMerger
 {
     public static Expr<TIn, TOut> Merge<TIn, TOut>(
-        Expr<TIn, TOut> first,
-        Expr<TIn, TOut> second,
+        IExpr<TIn, TOut> first,
+        IExpr<TIn, TOut> second,
         BindingConflictBehavior conflictBehavior)
     {
         if (conflictBehavior != BindingConflictBehavior.UseLast &&
@@ -17,8 +17,8 @@ internal static class ProjectionBindingMerger
             throw new ArgumentOutOfRangeException(nameof(conflictBehavior));
         }
 
-        var firstExpression = first.GetExpandedExpression();
-        var secondExpression = second.GetExpandedExpression();
+        var firstExpression = ExprAdapter.GetExpandedExpression(first);
+        var secondExpression = ExprAdapter.GetExpandedExpression(second);
         var secondBody = new ReplaceExpressionVisitor(
                 secondExpression.Parameters[0],
                 firstExpression.Parameters[0])
