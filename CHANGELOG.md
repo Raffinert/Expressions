@@ -6,8 +6,8 @@
 - Added `Expr<TSource>.Create(...)` with inferred result types and `Expr<TSource,TResult>.Create(...)` for explicitly typed expressions.
 - Boolean-valued expressions now support fluent `.And(...)`, `.Or(...)`, and `.Not()`; removed the `&`, `|`, `!`, `&&` and `||` operators.
 - Moved Boolean `True`, `False` and seed-free `Start(...)` to the source-type factory.
-- Unified `Then`, structural adaptation, `MergeBindings` and `MapToExisting` on the common composable-expression type.
-- Updated LINQ, EF Core, QuerySyntax, docs, examples and tests for the new API; no legacy wrapper compatibility is provided.
+- Unified forward composition and structural adaptation. `IExpr<TSource, out TResult>` supports Boolean combinators and `Then` directly; member-initializer merging and mapping moved into extensions with lazily allocated, weak-keyed per-expression mapping caches.
+- Updated LINQ, EF Core, QuerySyntax, docs, examples and tests for the new API; no legacy wrapper compatibility is provided. Mapping to existing objects requires a reference-type result; unsupported shapes continue to fail descriptively.
 
 
 ## 1.2.0

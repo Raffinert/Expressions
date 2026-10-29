@@ -30,7 +30,7 @@ var query = db.Invoices.Where(overdue);
 
 ## Shared capabilities
 
-`Invoke`, `InvokeOrDefault`, `GetExpression`, `GetExpandedExpression`, `AdaptSource`, `AdaptResult`, `Adapt`, `Then`, `MergeBindings` and `MapToExisting` are available on the unified abstraction. Member-initializer-specific features still require compatible expression shapes and throw for unsupported shapes; Boolean composition is statically limited to Boolean outputs.
+`Invoke`, `InvokeOrDefault`, `GetExpression`, `GetExpandedExpression`, `AdaptSource`, `AdaptResult`, and `Adapt` are available on the unified concrete type. `Then` also accepts `IExpr` operands. `MergeBindings`, `GetMapToExistingExpression`, `GetMapToExistingAction`, and `MapToExisting` are now extension methods; their mapping state is allocated lazily. `MapToExisting` requires a reference-type destination. Member-initializer-specific features still require compatible expression shapes and throw for unsupported shapes; Boolean composition is statically limited to Boolean outputs.
 
 Subclass `Expr<TSource,TResult>` and override `GetExpression()` for custom wrappers. `IExpr<TSource,out TResult>` remains the covariant LINQ consumer interface.
 

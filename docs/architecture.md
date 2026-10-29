@@ -6,12 +6,10 @@
 `Expr<TSource,TResult>` is the **single public representation** for reusable predicates and value/result expressions.
 It owns expansion and compiled-delegate caching. Forward composition and Boolean combinators accept the covariant `IExpr<TSource,out TResult>` contract; source/result structural adaptation remains on the concrete type, while member-initializer binding and mapping operations live in `MemberInitializationExtensions`.
 `Expr<TSource>.Create(...)` infers the result type; `Expr<TSource,TResult>.Create(...)` is explicitly typed.
-Boolean composition (`And`, `Or`, `Not`) is exposed only for `Expr<TSource,bool>` through extensions.
+Boolean composition (`And`, `Or`, `Not`) is exposed for `IExpr<TSource,bool>` through extensions.
 Mapping-only caches are attached on demand through a `ConditionalWeakTable`, so ordinary predicates do not allocate mapping state. The mapping APIs require a reference-type destination; other expression-shape requirements (such as member-initializer roots for merging or result adaptation) are checked at runtime. The engine continues to use the internal `IExpressionExpansionSource` contract.
 
-Custom semantic wrappers should inherit `Expr<TSource,TResult>` rather than implementing
-`IExpr<TSource,TResult>` directly. This preserves invocation-marker expansion, cycle detection, and
-per-instance caching while allowing consumer APIs to benefit from result covariance.
+Custom semantic wrappers should normally inherit `Expr<TSource,TResult>`, which provides invocation-marker expansion, cycle detection, and per-instance caching. Implementing `IExpr<TSource,TResult>` directly supports LINQ consumption and direct Boolean/forward composition, but does not enable the engine to recognize those external implementations as nested `Invoke` markers.
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 

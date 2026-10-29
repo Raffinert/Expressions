@@ -172,7 +172,7 @@ Expr<Order, string> orderCustomerName = customer.Then(customerName);
 Expr<Order, bool> activeCustomerOrder = customer.Then(active);
 ```
 
-`Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes.
+`Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes. Boolean combinators and forward composition also accept interface-typed `IExpr<TSource, TResult>` operands, including custom implementations that supply an expanded lambda.
 
 ## Structural adaptation
 
@@ -454,7 +454,7 @@ LINQ provider needs to translate the expression.
 
 ### Relationship to LINQKit
 
-LINQKit already supports `PredicateBuilder`, `Invoke`, expansion and reusable expressions. Raffinert's distinction is its unified programming model: `Boolean and result-valued expressions are independently composable objects with consistent execution, expansion and LINQ consumption capabilities. Core expands at direct operator boundaries, QuerySyntax expands facade clauses, and the registered EF adapter expands ordinary EF queries.
+LINQKit already supports `PredicateBuilder`, `Invoke`, expansion and reusable expressions. Raffinert's distinction is its unified programming model: Boolean and result-valued expressions are independently composable objects with consistent execution, expansion and LINQ consumption capabilities. Core expands at direct operator boundaries, QuerySyntax expands facade clauses, and the registered EF adapter expands ordinary EF queries.
 
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
 supported by the selected LINQ provider.
@@ -465,7 +465,7 @@ adaptation, null-safe mapping, and merged member initializers.
 
 ## Runtime execution
 
-`Invoke` and `InvokeOrDefault` execute a lazily compiled expanded expression. Expanded expressions, compiled delegates, and map-to-existing actions are cached per immutable wrapper instance. `GetExpression()` implementations are expected to remain stable after expansion or compilation is first requested.
+`Invoke` and `InvokeOrDefault` execute a lazily compiled expanded expression. Expanded expressions and compiled delegates are cached per immutable wrapper instance. Map-to-existing expressions and actions are cached separately, on demand, using weak keys; plain predicates allocate no mapping cache. Member-initializer operations are extensions and validate supported expression shapes at runtime. `GetExpression()` implementations are expected to remain stable after expansion or compilation is first requested.
 
 Use `MapToExisting` to apply a member-initializer projection to an existing destination:
 
@@ -495,7 +495,7 @@ Use Raffinert.Expressions in your own project with a portable [Agent Skill](http
 npx skills add Raffinert/Expressions
 ```
 
-The `raffinert-expressions` skill teaches coding agents package selection, reusable `Condition`/`Projection` composition, LINQ and EF Core expansion boundaries, query syntax without unnecessary packages, and common mistakes. It is stored in [`.agents/skills/raffinert-expressions/`](.agents/skills/raffinert-expressions/) and can also be read directly as a `SKILL.md` file. This skill helps **consumers** of the library; it does not require AI to participate in your build or runtime.
+The `raffinert-expressions` skill teaches coding agents package selection, reusable `Expr<TSource, TResult>` composition, LINQ and EF Core expansion boundaries, query syntax without unnecessary packages, and common mistakes. It is stored in [`.agents/skills/raffinert-expressions/`](.agents/skills/raffinert-expressions/) and can also be read directly as a `SKILL.md` file. This skill helps **consumers** of the library; it does not require AI to participate in your build or runtime.
 
 ## Useful reading
 
