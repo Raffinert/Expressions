@@ -15,8 +15,8 @@ public class CachePolicyTests(ITestOutputHelper output)
         // A private EF service cache makes the compilation count independent of other tests.
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var threshold = 100;
-        var snapshot = ComposableExpression<OrderRow>.Create(x => x.TotalCents > threshold);
-        var active = ComposableExpression<OrderRow>.Create(x => x.Active);
+        var snapshot = Expr<OrderRow>.Create(x => x.TotalCents > threshold);
+        var active = Expr<OrderRow>.Create(x => x.Active);
         var query = mode switch
         {
             "lifted" => fixture.Db.Orders.Where(x => snapshot.Invoke(x)),
@@ -56,10 +56,10 @@ public class CachePolicyTests(ITestOutputHelper output)
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var threshold = 1000;
-        var condition = ComposableExpression<OrderRow>.Create(x => x.TotalCents > threshold);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > threshold);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 2, 3, 4 }, await query.ToArrayAsync());
-        condition = ComposableExpression<OrderRow>.Create(x => x.TotalCents < threshold);
+        condition = Expr<OrderRow>.Create(x => x.TotalCents < threshold);
         Assert.Equal(new[] { 1 }, await query.ToArrayAsync());
         Assert.Equal(2, fixture.Commands.Executed.Count);
         Assert.NotEqual(fixture.Commands.Executed[0].Sql, fixture.Commands.Executed[1].Sql);
