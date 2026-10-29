@@ -128,4 +128,30 @@ public class UnifiedExpressionTests
         public LambdaExpression GetExpandedLambdaExpression() => lambda;
     }
 
+
+    [Fact]
+    public void BooleanCompositionDoesNotEagerlyExpandNestedExpressions()
+    {
+        var nested = new CountingBoolExpression();
+        IExpr<Product, bool> outer = Expr<Product>.Create(p => nested.Invoke(p));
+        var combined = outer.And(p => p.Name.Length > 0).Or(p => p.Price == 0m).Not();
+
+        Assert.Equal(0, nested.ExpressionRequests);
+        var expanded = combined.GetExpandedExpression();
+        Assert.Equal(1, nested.ExpressionRequests);
+        Assert.True(combined.Invoke(new Product { Price = 3m, Name = "A" }) == false);
+        Assert.DoesNotContain(nameof(Expr<Product, bool>.Invoke), expanded.Body.ToString());
+    }
+
+    private sealed class CountingBoolExpression : Expr<Product, bool>
+    {
+        public int ExpressionRequests { get; private set; }
+
+        public override Expression<Func<Product, bool>> GetExpression()
+        {
+            ExpressionRequests++;
+            return p => p.Price > 0m;
+        }
+    }
+
 }

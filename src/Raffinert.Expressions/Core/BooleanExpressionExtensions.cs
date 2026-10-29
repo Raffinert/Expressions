@@ -14,7 +14,7 @@ public static class BooleanExpressionExtensions
         return left is BooleanStartExpression<T>
             ? right as Expr<T, bool> ?? Expr<T, bool>.Create(ExprAdapter.GetExpandedExpression(right))
             : Expr<T, bool>.Create(BooleanExpressionComposer.And(
-                ExprAdapter.GetExpandedExpression(left), ExprAdapter.GetExpandedExpression(right)));
+                GetComposableExpression(left), GetComposableExpression(right)));
     }
 
     /// <summary>Combines a Boolean expression and a lambda using short-circuiting AND.</summary>
@@ -34,7 +34,7 @@ public static class BooleanExpressionExtensions
         return left is BooleanStartExpression<T>
             ? right as Expr<T, bool> ?? Expr<T, bool>.Create(ExprAdapter.GetExpandedExpression(right))
             : Expr<T, bool>.Create(BooleanExpressionComposer.Or(
-                ExprAdapter.GetExpandedExpression(left), ExprAdapter.GetExpandedExpression(right)));
+                GetComposableExpression(left), GetComposableExpression(right)));
     }
 
     /// <summary>Combines a Boolean expression and a lambda using short-circuiting OR.</summary>
@@ -49,10 +49,19 @@ public static class BooleanExpressionExtensions
     public static Expr<T, bool> Not<T>(this IExpr<T, bool> expression)
     {
         if (expression == null) throw new ArgumentNullException(nameof(expression));
-        var lambda = ExprAdapter.GetExpandedExpression(expression);
+        var lambda = GetComposableExpression(expression);
         return Expr<T, bool>.Create(
             Expression.Lambda<Func<T, bool>>(Expression.Not(lambda.Body), lambda.Parameters));
     }
+
+    // Keep native Expr composition lazy: expanding each growing prefix makes dynamic
+    // chains quadratic in traversal work. External IExpr implementations already expose
+    // an expanded lambda and need the adapter.
+    private static Expression<Func<T, bool>> GetComposableExpression<T>(IExpr<T, bool> expression) =>
+        expression is Expr<T, bool> native
+            ? native.GetExpression()
+            : ExprAdapter.GetExpandedExpression(expression);
+
 }
 
 internal static class BooleanExpressionComposer
