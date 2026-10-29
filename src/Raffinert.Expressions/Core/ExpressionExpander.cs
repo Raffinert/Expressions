@@ -51,8 +51,8 @@ internal static class ExpressionExpander
             if (value is not IExpressionExpansionSource expansionSource)
             {
                 throw new NotSupportedException(
-                    "Invocation marker expansion requires a wrapper derived from ComposableExpression<TSource, TResult>. " +
-                    "For external IComposableExpression implementations, pass the wrapper directly to an operator.");
+                    "Invocation marker expansion requires a wrapper derived from Expr<TSource, TResult>. " +
+                    "For external IExpr implementations, pass the wrapper directly to an operator.");
             }
 
             if (node.Arguments.Count != 1)
@@ -71,7 +71,7 @@ internal static class ExpressionExpander
 
             var body = new ReplaceExpressionVisitor(inner.Parameters[0], argument).Visit(inner.Body)!;
 
-            if (node.Method.Name == nameof(ComposableExpression<,>.InvokeOrDefault) && CanBeNull(argument.Type))
+            if (node.Method.Name == nameof(Expr<,>.InvokeOrDefault) && CanBeNull(argument.Type))
             {
                 body = Expression.Condition(
                     Expression.Equal(argument, Expression.Default(argument.Type)),
@@ -189,9 +189,9 @@ internal static class ExpressionExpander
             var declaringType = method.DeclaringType;
             if (declaringType == null || !declaringType.IsGenericType) return false;
             var contract = declaringType.GetGenericTypeDefinition();
-            return (contract == typeof(ComposableExpression<,>) || contract == typeof(IComposableExpression<,>)) &&
-                (method.Name == nameof(ComposableExpression<,>.Invoke) ||
-                 method.Name == nameof(ComposableExpression<,>.InvokeOrDefault)) &&
+            return (contract == typeof(Expr<,>) || contract == typeof(IExpr<,>)) &&
+                (method.Name == nameof(Expr<,>.Invoke) ||
+                 method.Name == nameof(Expr<,>.InvokeOrDefault)) &&
                 method == declaringType.GetMethod(method.Name);
         }
 

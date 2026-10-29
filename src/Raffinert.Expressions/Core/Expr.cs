@@ -12,8 +12,8 @@ namespace Raffinert.Expressions;
 /// </remarks>
 [DebuggerDisplay("{DebuggerDisplay,nq}")]
 [DebuggerTypeProxy(typeof(ExpressionDebugView))]
-public abstract class ComposableExpression<TSource, TResult> :
-    IComposableExpression<TSource, TResult>,
+public abstract class Expr<TSource, TResult> :
+    IExpr<TSource, TResult>,
     IExpressionExpansionSource
 {
     private readonly object _cacheLock = new();
@@ -24,11 +24,11 @@ public abstract class ComposableExpression<TSource, TResult> :
     private Action<TSource, TResult>? _mapToExistingAction;
 
     /// <summary>Wraps a typed lambda in a reusable composable expression.</summary>
-    public static ComposableExpression<TSource, TResult> Create(Expression<Func<TSource, TResult>> expression) =>
+    public static Expr<TSource, TResult> Create(Expression<Func<TSource, TResult>> expression) =>
         expression == null ? throw new ArgumentNullException(nameof(expression)) : new InlineExpression(expression);
 
     private sealed class InlineExpression(Expression<Func<TSource, TResult>> expression)
-        : ComposableExpression<TSource, TResult>
+        : Expr<TSource, TResult>
     {
         public override Expression<Func<TSource, TResult>> GetExpression() => expression;
     }
@@ -98,7 +98,7 @@ public abstract class ComposableExpression<TSource, TResult> :
 
     LambdaExpression IExpressionExpansionSource.GetExpression() => GetExpression();
 
-    LambdaExpression IComposableExpression<TSource, TResult>.GetExpandedLambdaExpression() =>
+    LambdaExpression IExpr<TSource, TResult>.GetExpandedLambdaExpression() =>
         GetExpandedExpression();
 
     LambdaExpression? IExpressionExpansionSource.GetCachedExpandedExpression() => _expandedExpression;
@@ -119,11 +119,11 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <exception cref="NotSupportedException">
     /// The expression uses its source parameter in a way that cannot be structurally adapted.
     /// </exception>
-    public ComposableExpression<TNewSource, TResult> AdaptSource<TNewSource>()
+    public Expr<TNewSource, TResult> AdaptSource<TNewSource>()
     {
         var expression = StructuralExpressionAdapter.AdaptSource<TSource, TResult, TNewSource>(
             GetExpandedExpression());
-        return ComposableExpression<TNewSource, TResult>.Create(expression);
+        return Expr<TNewSource, TResult>.Create(expression);
     }
 
     /// <summary>Adapts this expression to a result type with compatible public members.</summary>
@@ -135,11 +135,11 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <exception cref="NotSupportedException">
     /// The projection does not use a supported parameterless member-initializer shape.
     /// </exception>
-    public ComposableExpression<TSource, TNewResult> AdaptResult<TNewResult>()
+    public Expr<TSource, TNewResult> AdaptResult<TNewResult>()
     {
         var expression = StructuralExpressionAdapter.AdaptResult<TSource, TResult, TNewResult>(
             GetExpandedExpression());
-        return ComposableExpression<TSource, TNewResult>.Create(expression);
+        return Expr<TSource, TNewResult>.Create(expression);
     }
 
     /// <summary>Adapts this expression to compatible source and result types.</summary>
@@ -152,11 +152,11 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <exception cref="NotSupportedException">
     /// The source expression or result construction uses an unsupported shape.
     /// </exception>
-    public ComposableExpression<TNewSource, TNewResult> Adapt<TNewSource, TNewResult>()
+    public Expr<TNewSource, TNewResult> Adapt<TNewSource, TNewResult>()
     {
         var expression = StructuralExpressionAdapter.Adapt<TSource, TResult, TNewSource, TNewResult>(
             GetExpandedExpression());
-        return ComposableExpression<TNewSource, TNewResult>.Create(expression);
+        return Expr<TNewSource, TNewResult>.Create(expression);
     }
 
     /// <summary>Composes this expression with an expression applied to its result.</summary>
@@ -164,7 +164,7 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <param name="next">The projection to apply to the result of this expression.</param>
     /// <returns>A projection that applies this expression followed by <paramref name="next"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="next"/> is null.</exception>
-    public ComposableExpression<TSource, TNext> Then<TNext>(ComposableExpression<TResult, TNext> next)
+    public Expr<TSource, TNext> Then<TNext>(Expr<TResult, TNext> next)
     {
         if (next == null) throw new ArgumentNullException(nameof(next));
 
@@ -172,7 +172,7 @@ public abstract class ComposableExpression<TSource, TResult> :
         var nextExpression = next.GetExpandedExpression();
         var body = new ReplaceExpressionVisitor(nextExpression.Parameters[0], firstExpression.Body)
             .Visit(nextExpression.Body)!;
-        return ComposableExpression<TSource, TNext>.Create(
+        return Expr<TSource, TNext>.Create(
             Expression.Lambda<Func<TSource, TNext>>(body, firstExpression.Parameters));
     }
 
@@ -182,7 +182,7 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
     /// <exception cref="NotSupportedException">Either projection does not use a supported member-initializer shape.</exception>
     /// <exception cref="InvalidOperationException">The projections cannot be combined into a compatible result.</exception>
-    public ComposableExpression<TSource, TResult> MergeBindings(ComposableExpression<TSource, TResult> other) =>
+    public Expr<TSource, TResult> MergeBindings(Expr<TSource, TResult> other) =>
         MergeBindings(other, BindingConflictBehavior.UseLast);
 
     /// <summary>Combines member bindings using the specified behavior for duplicate members.</summary>
@@ -193,8 +193,8 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="conflictBehavior"/> is not a defined value.</exception>
     /// <exception cref="NotSupportedException">Either projection does not use a supported member-initializer shape.</exception>
     /// <exception cref="InvalidOperationException">The projections cannot be combined using the selected behavior.</exception>
-    public ComposableExpression<TSource, TResult> MergeBindings(
-        ComposableExpression<TSource, TResult> other,
+    public Expr<TSource, TResult> MergeBindings(
+        Expr<TSource, TResult> other,
         BindingConflictBehavior conflictBehavior)
     {
         return other == null
@@ -208,7 +208,7 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <exception cref="ArgumentNullException"><paramref name="other"/> is null.</exception>
     /// <exception cref="NotSupportedException">Either expression does not use a supported member-initializer shape.</exception>
     /// <exception cref="InvalidOperationException">The expressions cannot be combined into a compatible result.</exception>
-    public ComposableExpression<TSource, TResult> MergeBindings(Expression<Func<TSource, TResult>> other) =>
+    public Expr<TSource, TResult> MergeBindings(Expression<Func<TSource, TResult>> other) =>
         MergeBindings(Create(other), BindingConflictBehavior.UseLast);
 
     /// <summary>Combines member bindings from another expression using the specified behavior for duplicate members.</summary>
@@ -219,7 +219,7 @@ public abstract class ComposableExpression<TSource, TResult> :
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="conflictBehavior"/> is not a defined value.</exception>
     /// <exception cref="NotSupportedException">Either expression does not use a supported member-initializer shape.</exception>
     /// <exception cref="InvalidOperationException">The expressions cannot be combined using the selected behavior.</exception>
-    public ComposableExpression<TSource, TResult> MergeBindings(
+    public Expr<TSource, TResult> MergeBindings(
         Expression<Func<TSource, TResult>> other,
         BindingConflictBehavior conflictBehavior) =>
         MergeBindings(Create(other), conflictBehavior);

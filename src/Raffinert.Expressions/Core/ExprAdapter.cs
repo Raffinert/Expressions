@@ -2,10 +2,10 @@ using System.Linq.Expressions;
 
 namespace Raffinert.Expressions;
 
-internal static class ComposableExpressionAdapter
+internal static class ExprAdapter
 {
     public static Expression<Func<TSource, TResult>> GetExpandedExpression<TSource, TResult>(
-        IComposableExpression<TSource, TResult> expression)
+        IExpr<TSource, TResult> expression)
     {
         var expanded = expression.GetExpandedLambdaExpression();
 

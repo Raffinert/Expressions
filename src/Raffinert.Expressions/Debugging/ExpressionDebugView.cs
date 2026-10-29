@@ -10,7 +10,7 @@ internal sealed class ExpressionDebugView(IExpressionExpansionSource source)
     {
         get
         {
-            var method = source.GetType().GetMethod(nameof(ComposableExpression<,>.GetExpandedExpression));
+            var method = source.GetType().GetMethod(nameof(Expr<,>.GetExpandedExpression));
             return (LambdaExpression)method!.Invoke(source, null)!;
         }
     }
