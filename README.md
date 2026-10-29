@@ -20,7 +20,7 @@ It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Ra
 
 | Package | Purpose |
 |---|---|
-| [Raffinert.Expressions](https://www.nuget.org/packages/Raffinert.Expressions) | Core conditions, projections, composition, expansion and direct LINQ operators. |
+| [Raffinert.Expressions](https://www.nuget.org/packages/Raffinert.Expressions) | Unified Boolean/value expressions, composition, expansion and direct LINQ operators. |
 | [Raffinert.Expressions.EntityFrameworkCore](https://www.nuget.org/packages/Raffinert.Expressions.EntityFrameworkCore) | EF Core 10 async condition operators and opt-in expansion throughout ordinary EF queries. |
 | [Raffinert.Expressions.QuerySyntax](https://www.nuget.org/packages/Raffinert.Expressions.QuerySyntax) | Independent query-syntax facade via the explicit `AsRaffinertQuery()` call. |
 
@@ -146,7 +146,7 @@ var summary = ComposableExpression<Product, ProductSummary>.Create(product => ne
 ProductSummary one = summary.Invoke(product);
 ```
 
-Both wrappers work directly with in-memory and queryable sequences:
+The same expression abstraction works directly with in-memory and queryable sequences:
 
 ```csharp
 var memoryRows = products.Where(inStock).Select(summary).ToArray();
@@ -155,9 +155,9 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 
 ## Cross-composition with `Invoke`
 
-`Invoke` is the common composition marker. A `Condition` can be embedded in a `Projection`, a `Projection` can be embedded in a `Condition`, and mixed chains can be nested to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
+`Invoke` is the common composition marker. Boolean and value-valued composable expressions can be embedded in one another to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
 
-`Invoke` is the only execution and composition primitive. Method groups such as `items.Any(condition.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
+`Invoke` is the shared invocation and inlining primitive. Method groups such as `items.Any(condition.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
 
 ## `Then` composition
 
@@ -478,7 +478,7 @@ Existing nested destinations are updated in place; missing writable destinations
 
 ## Migration
 
-The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Use the single `ComposableExpression<TSource,TResult>` type for both predicates (`TResult = bool`) and projections; the `ComposableExpression<TSource>.Create(...)` factory infers the result type.
+Version 2 removes `Condition<T>` and `Projection<TSource,TResult>` in favor of a single `ComposableExpression<TSource,TResult>` type, with `ComposableExpression<TSource>.Create(...)` inferring the result type. Replace condition operators with `.And()`, `.Or()` and `.Not()`. The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Use the single `ComposableExpression<TSource,TResult>` type for both predicates (`TResult = bool`) and projections; the `ComposableExpression<TSource>.Create(...)` factory infers the result type.
 
 See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blob/main/docs/migration.md) for details.
 

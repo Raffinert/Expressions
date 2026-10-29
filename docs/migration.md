@@ -1,86 +1,43 @@
-# Migration from Raffinert.Spec and Raffinert.Proj
+# Migration to Raffinert.Expressions 2.0
 
-## Packages and namespace
+Version 2 intentionally removes the previous public `Condition<T>` and `Projection<TSource,TResult>` wrapper types. They are both now `ComposableExpression<TSource,TResult>`. This is a **source- and binary-breaking** change and no compatibility aliases are provided.
 
-Replace references to `Raffinert.Spec` and `Raffinert.Proj` with `Raffinert.Expressions`. Change both old namespaces to:
+## Package upgrade
 
-```csharp
-using Raffinert.Expressions;
-```
+Upgrade all Raffinert packages together to `2.0.0` (Core, EntityFrameworkCore and QuerySyntax as applicable). Core continues to target `netstandard2.0`; QuerySyntax targets `netstandard2.1`, and the optional EF Core adapter targets `net10.0` with EF Core 10.
 
-The runtime remains `netstandard2.0` and has no EF Core dependency.
+## Creation and composition
 
-The optional `Raffinert.Expressions.QuerySyntax` package targets `netstandard2.1`, depends on the core package,
-and adds `AsRaffinertQuery()` plus provider-independent `ToListAsync()` and `ToArrayAsync()` instance methods in
-the same `Raffinert.Expressions` namespace.
+| In version 1 | In version 2 |
+|---|---|
+| `Condition<Order>.Create(o => o.IsActive)` | `ComposableExpression<Order>.Create(o => o.IsActive)` |
+| `Projection<Order>.Create(o => o.Total)` | `ComposableExpression<Order>.Create(o => o.Total)` |
+| `Projection<Order, decimal>.Create(...)` | `ComposableExpression<Order, decimal>.Create(...)` |
+| `Condition<Order>.True` / `False` | `ComposableExpression<Order>.True` / `False` |
+| `Condition<Order>.Start()` | `ComposableExpression<Order>.Start()` |
+| `condition1 && condition2` | `condition1.And(condition2)` |
+| `condition1 || condition2` | `condition1.Or(condition2)` |
+| `!condition` | `condition.Not()` |
 
-## Renamed semantic types
-
-The aggregate package uses full names for its public semantic types:
-
-- `Spec<T>` becomes `ComposableExpression<T, bool>`;
-- `Proj<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>`;
-- `Expr<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>` for custom semantic wrappers.
-
-`IComposableExpression<TSource,out TResult>` is the covariant consumption contract used by LINQ extensions.
-Continue to inherit `ComposableExpression<TSource,TResult>` when implementing a custom semantic wrapper; the base
-provides invocation expansion and caching that direct interface implementations do not provide.
-
-The aggregate package otherwise preserves the structural capabilities:
-
-- `Create`, subclassing, `GetExpression`, `True`, `False`, Boolean combinators and operators;
-- direct `Where(condition)` use;
-- projection creation, subclassing, `GetExpression`, and direct `Select(projection)` use;
-- `MergeBindings`, `MapToExisting`, and debugger expression views;
-- nested method-group forms through the canonical `Invoke` method.
-
-The old structural template types are not included. Instead, an existing condition can be adapted directly with
-`AdaptSource<TNewSource>()`. Projections provide `AdaptSource<TNewSource>()`, `AdaptResult<TNewResult>()`, and
-`Adapt<TNewSource,TNewResult>()`.
-
-## Canonical invocation API
-
-Use `Invoke` when composing either semantic type into another expression:
+Boolean-specific fluent composition is available for `ComposableExpression<T,bool>` only; it does not require a second wrapper type. `Start()` retains the seed-free first `And` or `Or` operation, and an unchanged starter evaluates to false by default.
 
 ```csharp
-var amount = ComposableExpression<Invoice, decimal>.Create(invoice => invoice.Amount);
-var overdue = ComposableExpression<Invoice>.Create(invoice =>
-    amount.Invoke(invoice) > 0m && invoice.DueDate < today);
+var amount = ComposableExpression<Invoice>.Create(invoice => invoice.Amount);
+var overdue = ComposableExpression<Invoice>.Create(invoice => invoice.DueDate < today)
+    .And(invoice => amount.Invoke(invoice) > 0m);
+var query = db.Invoices.Where(overdue);
 ```
 
-The aggregate API deliberately removes the old execution aliases:
+## Shared capabilities
 
-| Previous call | Replacement |
-| --- | --- |
-| `spec.IsSatisfiedBy(value)` | `spec.Invoke(value)` |
-| `projection.Map(value)` | `projection.Invoke(value)` |
-| `projection.MapIfNotNull(value)` | `projection.InvokeOrDefault(value)` |
-| `Spec<T>.True()` | `ComposableExpression<T>.True` |
-| `Spec<T>.False()` | `ComposableExpression<T>.False` |
+`Invoke`, `InvokeOrDefault`, `GetExpression`, `GetExpandedExpression`, `AdaptSource`, `AdaptResult`, `Adapt`, `Then`, `MergeBindings` and `MapToExisting` are available on the unified abstraction. Member-initializer-specific features still require compatible expression shapes and throw for unsupported shapes; Boolean composition is statically limited to Boolean outputs.
 
-`InvokeOrDefault` is available on the shared expression base. A null input returns `default(TResult)`, which means `false` for a condition and values such as `0` for value-type projections.
+Subclass `ComposableExpression<TSource,TResult>` and override `GetExpression()` for custom wrappers. `IComposableExpression<TSource,out TResult>` remains the covariant LINQ consumer interface.
 
-Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(condition)` for `A -> B -> bool`.
+## EF Core and QuerySyntax
 
-## Deliberate safety changes
+Existing `Where(expression)`, `Select(expression)`, `AnyAsync(expression)` and similar direct overloads consume the shared `IComposableExpression` contract and need no special migration except for wrapper creation/type names. Nested invocations continue to expand as before. `UseRaffinertExpressions()` and `AsRaffinertQuery()` retain their behavior.
 
-- `MergeBindings` removes duplicate destination bindings deterministically. The default is `UseLast`; choose `UseFirst` or `Throw` when appropriate.
-- Conditional merge branches are matched by destination member, not binding order.
-- `MapToExisting` updates existing nested destination objects in place and automatically constructs missing writable nested objects. Mutable collection members preserve their instance but are cleared and refilled, matching AutoMapper's default collection-update behavior; arrays and writable `IEnumerable<T>` members are replaced. Existing collection items are not matched by key. A missing read-only nested object or collection produces a descriptive exception.
-- Unsupported map-to-existing and merge shapes throw `NotSupportedException` instead of producing malformed trees.
-- Structural source adaptation requires compatible public property or field paths. Projection result adaptation
-  requires parameterless member initializers.
+## Earlier Spec / Proj migrations
 
-## Query behavior
-
-`IQueryable` extensions always submit expanded expressions. `IEnumerable` extensions use the cached compiled expanded delegate. This applies to filtering and projection, condition terminal operations, ordering, grouping, and flattening. No `AsExpandable()` call or provider wrapper is needed.
-
-For C# query syntax, install `Raffinert.Expressions.QuerySyntax` and opt in at the source with
-`AsRaffinertQuery()`. The returned facade expands each query clause before forwarding it to the original provider
-and supports direct `ToListAsync()` and `ToArrayAsync()` materialization. Apply provider-specific query-shaping
-methods before entering the facade, or call `AsRaffinertQuery()` again after an operation returns an ordinary
-`IQueryable<T>`.
-
-.NET Framework 4.7.2 consumers remain on the core package. Use method-style calls such as
-`query.Where(condition).Select(projection)` and materialize with the provider's async extension, such as EF Core
-3.1's `ToListAsync()`.
+If moving from pre-aggregate `Raffinert.Spec` or `Raffinert.Proj`, map `Spec<T>` to `ComposableExpression<T,bool>` and `Proj<TIn,TOut>` to `ComposableExpression<TIn,TOut>`. Use `Invoke` instead of legacy `IsSatisfiedBy`, `Map` or `MapIfNotNull` (the latter becomes `InvokeOrDefault`).

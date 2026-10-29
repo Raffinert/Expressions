@@ -27,12 +27,12 @@ dotnet run --project examples/LinqKitComparison -- --sql
 
 | LINQKit README scenario | Pure .NET / EF Core | LINQKit | Raffinert.Expressions |
 |---|---|---|---|
-| Predicate in a navigation collection | Inline the purchase predicate | `AsExpandable()` + `Compile()` | Nested `Condition.Invoke` method group, expanded before `Where` |
-| Expression variable in a correlated subquery | Inline the predicate | `AsExpandable()` + an expression passed to subquery `Any` | `AsRaffinertQuery()` + `Condition.Invoke` |
+| Predicate in a navigation collection | Inline the purchase predicate | `AsExpandable()` + `Compile()` | Nested the unified expression's `Invoke` method group, expanded before `Where` |
+| Expression variable in a correlated subquery | Inline the predicate | `AsExpandable()` + an expression passed to subquery `Any` | `AsRaffinertQuery()` + the unified expression's `Invoke` |
 | Combining expressions | Write the combined lambda inline | `Invoke()` + `Expand()` | A condition containing another condition's `Invoke()` |
-| Dynamic all-keyword predicate | Chain ordinary `Where` calls | `PredicateBuilder.And` | Fold conditions from `Condition.Start()` with `And`; use `Condition.True` when empty |
-| Dynamic any-keyword predicate | Spell out the OR terms (two in this example) | `PredicateBuilder.Or` | Fold conditions from `Condition.Start()` with `Or` |
-| Nested predicates | Write the parenthesized lambda inline | Nested `PredicateBuilder` instances | Compose inner and outer `Condition` instances |
+| Dynamic all-keyword predicate | Chain ordinary `Where` calls | `PredicateBuilder.And` | Fold conditions from `ComposableExpression<T>.Start()` with `And`; use `ComposableExpression<T>.True` when empty |
+| Dynamic any-keyword predicate | Spell out the OR terms (two in this example) | `PredicateBuilder.Or` | Fold conditions from `ComposableExpression<T>.Start()` with `Or` |
+| Nested predicates | Write the parenthesized lambda inline | Nested `PredicateBuilder` instances | Compose inner and outer Boolean-valued `ComposableExpression` instances |
 | Reusable predicate library | Duplicate the complete rule inline | Reusable expressions composed with `And`/`Or` | Reusable conditions composed with `And`/`Or` |
 | Generic validity predicate | Duplicate the validity clauses in the provider lambda | Generic expression + `And` | Generic `ComposableExpression<TEntity, bool>` + `And` |
 | Reusable aggregate | Put `Average` directly in the group projection | Invoked aggregate expression + `AsExpandable()` | Invoked `ComposableExpression<IQueryable<Order>, double?>` + `AsRaffinertQuery()` |
@@ -56,7 +56,7 @@ APIs and LINQKit does not expose directly:
 | Raffinert.Expressions API | What the runnable example does | LINQKit comparison |
 |---|---|---|
 | `AdaptSource` / `Adapt` | Reuses a condition and projection with structurally compatible source and result types | No structural source/result adaptation API |
-| `Projection.Then` | Type-safely chains projections and then a condition | Possible with `Invoke`/`Expand`, but no typed forward-composition abstraction |
+| `ComposableExpression.Then` | Type-safely chains projections and then a condition | Possible with `Invoke`/`Expand`, but no typed forward-composition abstraction |
 | `MergeBindings` | Combines two member-initializer projections, with defined conflict behavior | No projection-binding merge API |
 | `InvokeOrDefault` | Inlines a nested projection with built-in null-to-default behavior | Requires an explicit conditional around a LINQKit invocation |
 | `MapToExisting` | Compiles a projection into an updater and preserves an existing destination instance | Outside LINQKit's expression-expansion scope |

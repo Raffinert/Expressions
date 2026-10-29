@@ -9,14 +9,14 @@ metadata:
 
 # Raffinert.Expressions — application integration
 
-Use this skill to implement **consumer code** with Raffinert.Expressions. Model conditions and projections as reusable, composable objects, not as a set of unrelated expression-tree helpers. Do not introduce the library into an application merely to replace a simple inline lambda used once.
+Use this skill to implement **consumer code** with Raffinert.Expressions. Model Boolean rules and value projections using the same reusable, composable expression type, not as a set of unrelated expression-tree helpers. Do not introduce the library into an application merely to replace a simple inline lambda used once.
 
 ## Workflow
 
 1. Identify the target framework, query provider (if any), EF Core version, and whether the code runs in memory or in an `IQueryable` pipeline.
 2. Select **only the package(s) needed** from the table below; inspect the installed version and adapt examples to its actual API. Do not blindly upgrade EF or add optional packages.
 3. Express reusable Boolean rules as `ComposableExpression<T, bool>` and reusable value/DTO transformations as `ComposableExpression<TSource, TResult>` (or `ComposableExpression<T>.Create(...)` with inferred result type).
-4. Compose independent rules before consumption (`And`/`Or`/`Not`, `&`/`|`/`!`, `Then`, or nested `Invoke`). Keep compositions immutable: assign the returned wrapper rather than expecting in-place mutation.
+4. Compose independent rules before consumption (`And`/`Or`/`Not`, `Then`, or nested `Invoke`). Keep compositions immutable: assign the returned wrapper rather than expecting in-place mutation.
 5. Choose the correct expansion boundary for the **specific** query form. Do not leave an unexpanded Raffinert invocation for a provider to translate.
 6. Test observable results. For `IQueryable`, execute against the actual provider (SQLite/SQL Server as appropriate) and inspect SQL/parameters where material. Do not mistake passing `IEnumerable` tests for proof of database translation.
 
@@ -28,7 +28,7 @@ Use this skill to implement **consumer code** with Raffinert.Expressions. Model 
 | EF Core 10 query lambdas, ordinary C# `from` syntax, or async condition overloads | `Raffinert.Expressions.EntityFrameworkCore` (`net10.0`) | Configure `UseRaffinertExpressions()` after the EF provider for invocation inside **ordinary EF-facing lambdas**. The adapter brings Core transitively and does **not** need QuerySyntax. Direct wrapper operators and adapter async condition overloads do not need registration. |
 | Provider-independent C# query-syntax facade without the EF adapter | `Raffinert.Expressions.QuerySyntax` (`netstandard2.1`) | Opt in explicitly with `source.AsRaffinertQuery()`. Simply referencing the package does nothing. The package brings Core transitively. |
 
-EF adapter compatibility for the documented 1.2.0 release: .NET 10 and EF Core/EF Core Relational `>= 10.0.11` and `< 11.0.0`. Check the installed package's dependency range rather than assuming support for EF Core 7–9 or 11.
+EF adapter compatibility for the documented 2.0.0 release: .NET 10 and EF Core/EF Core Relational `>= 10.0.11` and `< 11.0.0`. Check the installed package's dependency range rather than assuming support for EF Core 7–9 or 11.
 
 Read [the usage patterns](references/patterns.md) for composition and structural mapping. Read [EF Core boundaries](references/ef-core.md) for database integration, parameterization, and tests. Do not load extra references for tasks that do not need them.
 

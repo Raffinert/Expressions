@@ -2,10 +2,12 @@
 
 ## Shared expression abstraction
 
-`IComposableExpression<TSource,out TResult>` is the covariant public consumption contract used by the LINQ
-extensions. `ComposableExpression<TSource,TResult>` is the supported public implementation base for custom semantic
-wrappers and owns expansion and compiled-delegate caching. `ComposableExpression<T, bool>` and `ComposableExpression<TSource,TResult>` add domain
-vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
+`IComposableExpression<TSource,out TResult>` is the covariant public consumption contract used by the LINQ extensions.
+`ComposableExpression<TSource,TResult>` is the **single public representation** for reusable predicates and value/result expressions.
+It owns expansion, compiled-delegate caching, forward composition, structural adaptation and member-initializer transformations.
+`ComposableExpression<TSource>.Create(...)` infers the result type; `ComposableExpression<TSource,TResult>.Create(...)` is explicitly typed.
+Boolean composition (`And`, `Or`, `Not`) is exposed only for `ComposableExpression<TSource,bool>` through extensions.
+The engine continues to use the internal `IExpressionExpansionSource` contract.
 
 Custom semantic wrappers should inherit `ComposableExpression<TSource,TResult>` rather than implementing
 `IComposableExpression<TSource,TResult>` directly. This preserves invocation-marker expansion, cycle detection, and
