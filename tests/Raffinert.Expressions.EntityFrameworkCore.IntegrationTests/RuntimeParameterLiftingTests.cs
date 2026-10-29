@@ -15,7 +15,7 @@ public class RuntimeParameterLiftingTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableSensitiveDataLogging(false));
         var marker = "synthetic-confidential-8c7a@example.invalid";
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == marker);
+        var condition = Expr<OrderRow>.Create(x => x.Name == marker);
         Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.DoesNotContain(marker, command.Sql);
@@ -28,7 +28,7 @@ public class RuntimeParameterLiftingTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var threshold = 100;
-        var condition = ComposableExpression<OrderRow>.Create(x => x.TotalCents > threshold);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > threshold);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         for (var i = 0; i < 25; i++)
         {
@@ -52,18 +52,18 @@ public class RuntimeParameterLiftingTests
             b.EnableSensitiveDataLogging(false).LogTo(messages.Add));
         messages.Clear();
         var marker = "synthetic-confidential-diagnostic@example.invalid";
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == marker);
+        var condition = Expr<OrderRow>.Create(x => x.Name == marker);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         await query.ToArrayAsync();
         Assert.DoesNotContain(messages, message => message.Contains(marker, StringComparison.Ordinal));
         Assert.True(query.ToQueryString().Contains(marker, StringComparison.Ordinal));
         fixture.Commands.Clear();
         var holder = new ThrowingHolder(marker);
-        condition = ComposableExpression<OrderRow>.Create(x => x.Name == holder.Value);
+        condition = Expr<OrderRow>.Create(x => x.Name == holder.Value);
         var getter = await Assert.ThrowsAsync<InvalidOperationException>(() => query.ToArrayAsync());
         Assert.NotNull(getter.InnerException);
         Assert.Empty(fixture.Commands.Executed);
-        condition = ComposableExpression<OrderRow>.Create(x => x.Id == 4);
+        condition = Expr<OrderRow>.Create(x => x.Id == 4);
         Assert.Equal(new[] { 4 }, (await query.ToArrayAsync()).Select(x => x.Id));
     }
 
@@ -89,11 +89,11 @@ public class RuntimeParameterLiftingTests
             if (firstFactory == null) firstFactory = db.GetService<IQueryContextFactory>();
             else Assert.Same(firstFactory, db.GetService<IQueryContextFactory>());
             var threshold = i % 2 == 0 ? 1000 : 10000;
-            var condition = ComposableExpression<OrderRow>.Create(x => x.TotalCents > threshold);
+            var condition = Expr<OrderRow>.Create(x => x.TotalCents > threshold);
             Assert.Equal(i % 2 == 0 ? new[] { 2, 3, 4 } : new[] { 2 },
                 await db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
             Assert.Equal(threshold, Assert.Single(commands.Executed.Last().Values));
-            condition = ComposableExpression<OrderRow>.Create(x => x.Id == 4);
+            condition = Expr<OrderRow>.Create(x => x.Id == 4);
             Assert.Equal(new[] { 4 }, await db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id).ToArrayAsync());
         }
         Assert.Equal(12, commands.Executed.Count);
@@ -114,7 +114,7 @@ public class RuntimeParameterLiftingTests
             if (!first) b.AddInterceptors(interceptor);
         });
         var id = 0;
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Id > id);
+        var condition = Expr<OrderRow>.Create(x => x.Id > id);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         Assert.Single(await query.ToArrayAsync());
         id = 2;
@@ -130,12 +130,12 @@ public class RuntimeParameterLiftingTests
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var marker = "synthetic-compiled@example.invalid";
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == marker);
+        var condition = Expr<OrderRow>.Create(x => x.Name == marker);
         var compiled = EF.CompileQuery((OrdersContext db) => db.Orders.Count(x => condition.Invoke(x)));
         var error = Assert.Throws<NotSupportedException>(() => compiled(fixture.Db));
         Assert.DoesNotContain(marker, error.ToString());
         Assert.Empty(fixture.Commands.Executed);
-        var stable = ComposableExpression<OrderRow>.Create(x => x.Active);
+        var stable = Expr<OrderRow>.Create(x => x.Active);
         var supported = EF.CompileQuery((OrdersContext db, string name) => db.Orders.Count(x => stable.Invoke(x) && x.Name == name));
         Assert.Equal(1, supported(fixture.Db, "Desk"));
         Assert.Equal(0, supported(fixture.Db, marker));
@@ -148,14 +148,14 @@ public class RuntimeParameterLiftingTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var id = 2;
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == id);
+        var condition = Expr<OrderRow>.Create(x => x.Id == id);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 2 }, await query.ToArrayAsync());
         id = 4;
-        condition = ComposableExpression<OrderRow>.Create(x => x.Id == id);
+        condition = Expr<OrderRow>.Create(x => x.Id == id);
         Assert.Equal(new[] { 4 }, await query.ToArrayAsync());
         Assert.Equal(1, fixture.QueryCompilations);
-        condition = ComposableExpression<OrderRow>.Create(x => x.Id != id);
+        condition = Expr<OrderRow>.Create(x => x.Id != id);
         Assert.Equal(new[] { 1, 2, 3 }, await query.ToArrayAsync());
         Assert.Equal(2, fixture.QueryCompilations);
     }
@@ -166,7 +166,7 @@ public class RuntimeParameterLiftingTests
         await using var fixture = await SqliteFixture.CreateAsync();
         var __raffinert_id_0 = 1000;
         var id = 2;
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Id == id);
+        var condition = Expr<OrderRow>.Create(x => x.Id == id);
         Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x) && x.TotalCents > __raffinert_id_0)
             .Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
@@ -182,7 +182,7 @@ public class RuntimeParameterLiftingTests
     public async Task ServerMemberChainsKeepProviderTranslation()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = ComposableExpression<OrderRow>.Create(x => DateTime.UtcNow.Year > 2000 && x.Active);
+        var condition = Expr<OrderRow>.Create(x => DateTime.UtcNow.Year > 2000 && x.Active);
         Assert.Equal(2, await fixture.Db.Orders.CountAsync(x => condition.Invoke(x)));
         Assert.Empty(Assert.Single(fixture.Commands.Executed).Values);
         Assert.Contains("strftime", fixture.Commands.Executed[0].Sql);
@@ -199,7 +199,7 @@ public class RuntimeParameterLiftingTests
             b.UseRaffinertExpressions().AddInterceptors(observer);
         });
         var marker = "synthetic-shape@example.invalid";
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == marker);
+        var condition = Expr<OrderRow>.Create(x => x.Name == marker);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         await query.ToArrayAsync();
         Assert.Same(Assert.Single(observer.Keys), Assert.Single(observer.Compiled));
@@ -216,7 +216,7 @@ public class RuntimeParameterLiftingTests
             var constants = new ConstantObserver();
             constants.Visit(expression);
             Assert.DoesNotContain(constants.Values, value => value is string text && text.Contains("synthetic-shape", StringComparison.Ordinal));
-            Assert.DoesNotContain(constants.Values, value => value is ComposableExpression<OrderRow, bool>);
+            Assert.DoesNotContain(constants.Values, value => value is Expr<OrderRow, bool>);
         });
     }
 
@@ -235,22 +235,22 @@ public class RuntimeParameterLiftingTests
         switch (kind)
         {
             case "bool":
-                var condition = ComposableExpression<OrderRow>.Create(x => x.Active == flag);
+                var condition = Expr<OrderRow>.Create(x => x.Active == flag);
                 Assert.Equal(2, await fixture.Db.Orders.CountAsync(x => condition.Invoke(x)));
                 Assert.NotNull(Assert.Single(fixture.Commands.Executed[0].Values));
                 break;
             case "DateTime":
-                var dateProjection = ComposableExpression<OrderRow>.Create(x => date);
+                var dateProjection = Expr<OrderRow>.Create(x => date);
                 Assert.All(await fixture.Db.Orders.Select(x => dateProjection.Invoke(x)).ToArrayAsync(), value => Assert.Equal(date, value));
                 Assert.NotNull(Assert.Single(fixture.Commands.Executed[0].Values));
                 break;
             case "TimeSpan":
-                var timeProjection = ComposableExpression<OrderRow>.Create(x => duration);
+                var timeProjection = Expr<OrderRow>.Create(x => duration);
                 Assert.All(await fixture.Db.Orders.Select(x => timeProjection.Invoke(x)).ToArrayAsync(), value => Assert.Equal(duration, value));
                 Assert.NotNull(Assert.Single(fixture.Commands.Executed[0].Values));
                 break;
             default:
-                var numberProjection = ComposableExpression<OrderRow>.Create(x => number);
+                var numberProjection = Expr<OrderRow>.Create(x => number);
                 Assert.All(await fixture.Db.Orders.Select(x => numberProjection.Invoke(x)).ToArrayAsync(), value => Assert.Equal(number, value));
                 Assert.Equal(number, Assert.Single(fixture.Commands.Executed[0].Values));
                 break;
@@ -262,7 +262,7 @@ public class RuntimeParameterLiftingTests
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var secret = new Uri("https://synthetic-secret.example.invalid/path");
-        var projection = ComposableExpression<OrderRow>.Create(x => secret);
+        var projection = Expr<OrderRow>.Create(x => secret);
         var expected = await fixture.Db.Orders.Select(x => secret).ToArrayAsync();
         Assert.Equal(expected, await fixture.Db.Orders.Select(x => projection.Invoke(x)).ToArrayAsync());
     }
@@ -273,7 +273,7 @@ public class RuntimeParameterLiftingTests
         await using var fixture = await SqliteFixture.CreateAsync(false, b =>
             b.EnableServiceProviderCaching(false).AddInterceptors(new RebuildWhereInterceptor()).UseRaffinertExpressions());
         var marker = "synthetic-rewrite@example.invalid";
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == marker);
+        var condition = Expr<OrderRow>.Create(x => x.Name == marker);
         Assert.Empty(await fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         Assert.Equal(marker, Assert.Single(fixture.Commands.Executed.Last().Values));
         Assert.Equal(2, (await fixture.Db.Orders.Where(x => x.Active).ToArrayAsync()).Length);
@@ -284,7 +284,7 @@ public class RuntimeParameterLiftingTests
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var marker = "synthetic-compiled-async@example.invalid";
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == marker);
+        var condition = Expr<OrderRow>.Create(x => x.Name == marker);
         var compiled = EF.CompileAsyncQuery((OrdersContext db) => db.Orders.Where(x => condition.Invoke(x)));
         var error = await Assert.ThrowsAsync<NotSupportedException>(async () =>
         {
@@ -299,7 +299,7 @@ public class RuntimeParameterLiftingTests
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var holder = new ThrowingHolder("synthetic-unread@example.invalid");
-        var condition = ComposableExpression<OrderRow>.Create(x => x.Name == holder.Value);
+        var condition = Expr<OrderRow>.Create(x => x.Name == holder.Value);
         var compiled = EF.CompileQuery((OrdersContext db) => db.Orders.Count(x => condition.Invoke(x)));
         Assert.Throws<NotSupportedException>(() => compiled(fixture.Db));
         Assert.Equal(0, holder.Reads);
@@ -406,9 +406,9 @@ public class RuntimeParameterLiftingTests
         var name = "Desk";
         var id = 2;
         int? customer = 1;
-        var condition = text ? ComposableExpression<OrderRow>.Create(x => x.Name == name)
-            : kind == "int" ? ComposableExpression<OrderRow>.Create(x => x.Id == id)
-            : ComposableExpression<OrderRow>.Create(x => x.CustomerId == customer);
+        var condition = text ? Expr<OrderRow>.Create(x => x.Name == name)
+            : kind == "int" ? Expr<OrderRow>.Create(x => x.Id == id)
+            : Expr<OrderRow>.Create(x => x.CustomerId == customer);
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         Assert.Equal(text || kind == "int" ? new[] { 2 } : new[] { 1, 2 }, (await query.ToArrayAsync()).Select(x => x.Id));
