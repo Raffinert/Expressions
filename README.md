@@ -172,7 +172,7 @@ Expr<Order, string> orderCustomerName = customer.Then(customerName);
 Expr<Order, bool> activeCustomerOrder = customer.Then(active);
 ```
 
-`Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes. Boolean combinators and forward composition also accept interface-typed `IExpr<TSource, TResult>` operands, including custom implementations that supply an expanded lambda.
+`Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes. Boolean combinators and forward composition also accept interface-typed `IExpr<TSource, TResult>` operands, including custom implementations that supply an expanded lambda. Custom `IExpr` implementations are also supported as nested `Invoke` targets; they must return a compatible one-parameter lambda from `GetExpandedLambdaExpression()`.
 
 ## Structural adaptation
 

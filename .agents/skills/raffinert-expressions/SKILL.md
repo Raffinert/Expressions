@@ -64,7 +64,7 @@ var rows = await db.Orders.Where(expensive).Select(summary).ToListAsync();
 var active = Expr<Order>.Create(o => o.IsActive);
 var expensive = Expr<Order>.Create(o => o.Total > 1000m);
 var urgent = Expr<Order>.Create(o => o.IsUrgent);
-var eligible = (active & expensive) | urgent;
+var eligible = active.And(expensive).Or(urgent);
 
 bool accepted = eligible.Invoke(order); // in-memory execution
 var query = db.Orders.Where(eligible); // Core direct operator expands

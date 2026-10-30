@@ -48,11 +48,9 @@ internal static class ExpressionExpander
                     "Only constant, closure-rooted member, static member, and direct constructor targets can be expanded.");
             }
 
-            if (value is not IExpressionExpansionSource expansionSource)
+            if (value is not IExpr expansionSource)
             {
-                throw new NotSupportedException(
-                    "Invocation marker expansion requires a wrapper derived from Expr<TSource, TResult>. " +
-                    "For external IExpr implementations, pass the wrapper directly to an operator.");
+                throw new NotSupportedException("Invocation marker target must implement IExpr.");
             }
 
             if (node.Arguments.Count != 1)
@@ -63,10 +61,13 @@ internal static class ExpressionExpander
 
             var argument = Visit(node.Arguments[0])!;
             var inner = ExpandNested(expansionSource);
-            if (inner.Parameters.Count != 1)
+            if (inner.Parameters.Count != 1 ||
+                !inner.Parameters[0].Type.IsAssignableFrom(argument.Type) ||
+                !node.Type.IsAssignableFrom(inner.ReturnType))
             {
                 throw new InvalidOperationException(
-                    $"Expression instance '{value.GetType().FullName}' must expose a one-parameter lambda.");
+                    $"Expression instance '{value.GetType().FullName}' returned an incompatible lambda for " +
+                    $"the '{node.Method.Name}' invocation marker.");
             }
 
             var body = new ReplaceExpressionVisitor(inner.Parameters[0], argument).Visit(inner.Body)!;
@@ -78,6 +79,9 @@ internal static class ExpressionExpander
                     Expression.Default(body.Type),
                     body);
             }
+
+            if (body.Type != node.Type)
+                body = Expression.Convert(body, node.Type);
 
             return Visit(body)!;
         }
@@ -138,7 +142,7 @@ internal static class ExpressionExpander
 
         private bool TryResolveMethodGroup(Expression targetExpression, out LambdaExpression expression)
         {
-            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpressionExpansionSource expansionSource)
+            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpr expansionSource)
             {
                 expression = ExpandNested(expansionSource);
                 return true;
@@ -151,7 +155,7 @@ internal static class ExpressionExpander
         private bool TryExpandDelegate(object? value, out LambdaExpression expression)
         {
             if (value is Delegate @delegate &&
-                @delegate.Target is IExpressionExpansionSource expansionSource &&
+                @delegate.Target is IExpr expansionSource &&
                 IsInvocationMarker(@delegate.Method))
             {
                 expression = ExpandNested(expansionSource);
@@ -162,25 +166,37 @@ internal static class ExpressionExpander
             return false;
         }
 
-        private LambdaExpression ExpandNested(IExpressionExpansionSource expansionSource)
+        private LambdaExpression ExpandNested(IExpr expression)
         {
-            var cached = expansionSource.GetCachedExpandedExpression();
+            // Native wrappers own their expanded-tree cache. External implementations expose
+            // an expanded lambda via IExpr but still need visiting and cycle detection.
+            var native = expression as IExpressionExpansionSource;
+            var cached = native?.GetCachedExpandedExpression();
             if (cached != null) return cached;
 
-            if (!expansionStack.Add(expansionSource))
+            if (!expansionStack.Add(expression))
             {
                 throw new InvalidOperationException(
-                    $"Expression composition cycle detected while expanding '{expansionSource.GetType().FullName}'.");
+                    $"Expression composition cycle detected while expanding '{expression.GetType().FullName}'.");
             }
 
             try
             {
-                var expanded = (LambdaExpression)Visit(expansionSource.GetExpression())!;
-                return expansionSource.CacheExpandedExpression(expanded);
+                var source = native is not null
+                    ? native.GetExpression()
+                    : expression.GetExpandedLambdaExpression();
+                if (source is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Expression instance '{expression.GetType().FullName}' returned a null lambda.");
+                }
+
+                var expanded = (LambdaExpression)Visit(source)!;
+                return native?.CacheExpandedExpression(expanded) ?? expanded;
             }
             finally
             {
-                expansionStack.Remove(expansionSource);
+                expansionStack.Remove(expression);
             }
         }
 

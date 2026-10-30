@@ -95,7 +95,7 @@ public abstract class Expr<TSource, TResult> :
 
     LambdaExpression IExpressionExpansionSource.GetExpression() => GetExpression();
 
-    LambdaExpression IExpr<TSource, TResult>.GetExpandedLambdaExpression() =>
+    LambdaExpression IExpr.GetExpandedLambdaExpression() =>
         GetExpandedExpression();
 
     LambdaExpression? IExpressionExpansionSource.GetCachedExpandedExpression() => _expandedExpression;

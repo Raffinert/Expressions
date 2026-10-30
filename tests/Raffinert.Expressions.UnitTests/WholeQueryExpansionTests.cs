@@ -178,12 +178,59 @@ public class WholeQueryExpansionTests
     }
 
     [Fact]
-    public void ExternalInterfaceImplementationHasADescriptiveRestriction()
+    public void ExternalInterfaceInvocationExpandsInsideQueryableAndWrapper()
     {
         IExpr<Row, bool> condition = new ExternalCondition();
         var query = Rows.Where(x => condition.Invoke(x));
-        var error = Assert.Throws<NotSupportedException>(() => Expand(query.Expression));
-        Assert.Contains("derived from Expr", error.Message);
+
+        var expanded = Expand(query.Expression);
+        Assert.DoesNotContain("Invoke", expanded.ToString());
+        Assert.Equal(new[] { 2 }, query.Provider.CreateQuery<Row>(expanded).Select(x => x.Id));
+
+        var wrapper = Expr<Row>.Create(x => condition.Invoke(x));
+        Assert.True(wrapper.Invoke(new Row { Value = 12 }));
+        Assert.False(wrapper.Invoke(new Row { Value = 2 }));
+    }
+
+    [Fact]
+    public void ExternalInterfaceMethodGroupExpandsInCallback()
+    {
+        IExpr<Row, bool> condition = new ExternalCondition();
+        var rows = new[]
+        {
+            new Row { Children = { new Row { Value = 12 } } },
+            new Row { Children = { new Row { Value = 2 } } }
+        }.AsQueryable();
+
+        var query = rows.Select(x => x.Children.Any(condition.Invoke));
+        var expanded = Expand(query.Expression);
+
+        Assert.DoesNotContain("Invoke", expanded.ToString());
+        Assert.Equal(new[] { true, false }, query.Provider.CreateQuery<bool>(expanded));
+    }
+
+    [Fact]
+    public void ExternalInterfaceCycleIsRejected()
+    {
+        var condition = new CyclicExternalCondition();
+        IExpr<Row, bool> reference = condition;
+        condition.Next = reference;
+        var wrapper = Expr<Row>.Create(x => reference.Invoke(x));
+
+        Assert.Contains("cycle",
+            Assert.Throws<InvalidOperationException>(() => wrapper.GetExpandedExpression()).Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExternalInterfaceReturningWrongLambdaShapeFailsDescriptively()
+    {
+        IExpr<Row, bool> condition = new InvalidExternalCondition();
+        var query = Rows.Where(x => condition.Invoke(x));
+
+        var error = Assert.Throws<InvalidOperationException>(() => Expand(query.Expression));
+        Assert.Contains("incompatible lambda", error.Message);
+        Assert.Throws<InvalidOperationException>(() => Rows.Where(condition));
     }
 
     [Fact]
@@ -346,6 +393,21 @@ public class WholeQueryExpansionTests
     {
         public bool Invoke(Row value) => value.Value > 10;
         public LambdaExpression GetExpandedLambdaExpression() => (Expression<Func<Row, bool>>)(x => x.Value > 10);
+    }
+
+    private sealed class CyclicExternalCondition : IExpr<Row, bool>
+    {
+        public IExpr<Row, bool> Next { get; set; } = null!;
+        public bool Invoke(Row value) => Next.Invoke(value);
+        public LambdaExpression GetExpandedLambdaExpression() =>
+            (Expression<Func<Row, bool>>)(x => Next.Invoke(x));
+    }
+
+    private sealed class InvalidExternalCondition : IExpr<Row, bool>
+    {
+        public bool Invoke(Row value) => true;
+        public LambdaExpression GetExpandedLambdaExpression() =>
+            (Expression<Func<int, bool>>)(value => value > 0);
     }
 
     private sealed class Factory

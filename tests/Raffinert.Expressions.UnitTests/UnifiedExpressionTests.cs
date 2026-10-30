@@ -80,6 +80,24 @@ public class UnifiedExpressionTests
         Assert.False(predicate.Invoke(new Product { Price = 9m }));
     }
 
+    [Theory]
+    [InlineData(128)]
+    [InlineData(1024)]
+    public void LongBooleanChainsRemainComposableAndExecutable(int count)
+    {
+        var chain = Expr<Product>.Start(defaultWhenEmpty: true);
+        for (var index = 0; index < count; index++)
+            chain = chain.And(product => product.Price >= 0m);
+
+        Assert.True(chain.Invoke(new Product { Price = 1m }));
+        Assert.False(chain.Invoke(new Product { Price = -1m }));
+        Assert.Single(new[]
+        {
+            new Product { Price = 1m },
+            new Product { Price = -1m }
+        }.AsQueryable().Where(chain));
+    }
+
     [Fact]
     public void MappingUsesLazyCacheWithoutPerExpressionMappingState()
     {

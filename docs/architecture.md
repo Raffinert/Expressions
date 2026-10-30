@@ -9,7 +9,7 @@ It owns expansion and compiled-delegate caching. Forward composition and Boolean
 Boolean composition (`And`, `Or`, `Not`) is exposed for `IExpr<TSource,bool>` through extensions.
 Mapping-only caches are attached on demand through a `ConditionalWeakTable`, so ordinary predicates do not allocate mapping state. The mapping APIs require a reference-type destination; other expression-shape requirements (such as member-initializer roots for merging or result adaptation) are checked at runtime. The engine continues to use the internal `IExpressionExpansionSource` contract.
 
-Custom semantic wrappers should normally inherit `Expr<TSource,TResult>`, which provides invocation-marker expansion, cycle detection, and per-instance caching. Implementing `IExpr<TSource,TResult>` directly supports LINQ consumption and direct Boolean/forward composition, but does not enable the engine to recognize those external implementations as nested `Invoke` markers.
+Custom semantic wrappers can inherit `Expr<TSource,TResult>` to get native expansion and compiled-delegate caching. External `IExpr<TSource,TResult>` implementations also support nested `Invoke` markers and method-group expansion through the non-generic `IExpr` expansion contract. They must supply a compatible, single-parameter lambda from `GetExpandedLambdaExpression()`; cycles are rejected. External implementations manage their own persistent caching, if needed.
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 

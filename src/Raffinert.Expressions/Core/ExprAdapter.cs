@@ -8,6 +8,15 @@ internal static class ExprAdapter
         IExpr<TSource, TResult> expression)
     {
         var expanded = expression.GetExpandedLambdaExpression();
+        if (expanded is null ||
+            expanded.Parameters.Count != 1 ||
+            expanded.Parameters[0].Type != typeof(TSource) ||
+            !typeof(TResult).IsAssignableFrom(expanded.ReturnType))
+        {
+            throw new InvalidOperationException(
+                $"IExpr<{typeof(TSource).Name}, {typeof(TResult).Name}> must return a compatible " +
+                "single-parameter lambda from GetExpandedLambdaExpression().");
+        }
 
         if (expanded is Expression<Func<TSource, TResult>> typedExpression)
             return typedExpression;
