@@ -33,7 +33,7 @@ internal static class ExpressionExpander
     {
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            if (!IsInvocationMarker(node.Method) || node.Object == null)
+            if (node.Object == null || !IsInvocationMarker(node.Method, node.Object.Type))
             {
                 // Resolve delegate-typed arguments to preserve callback expansion.
                 if (node.Arguments.Any(argument => typeof(Delegate).IsAssignableFrom(argument.Type)))
@@ -148,10 +148,7 @@ internal static class ExpressionExpander
         {
             // Identify the marker from static types BEFORE evaluating the receiver.
             // Ordinary method-group receivers may contain getters with side effects.
-            var receiverType = targetExpression.Type;
-            if (!IsInvocationMarker(method) &&
-                (receiverType.IsInterface || !typeof(IExpr).IsAssignableFrom(receiverType) ||
-                 !ImplementsInvocationMarker(method, receiverType)))
+            if (!IsInvocationMarker(method, targetExpression.Type))
             {
                 expression = null!;
                 return false;
@@ -238,6 +235,15 @@ internal static class ExpressionExpander
 
             return false;
         }
+
+        // Recognize concrete implementations without evaluating the receiver:
+        // non-marker methods (including ordinary Invoke methods) must retain their
+        // usual side effects and evaluation timing.
+        private static bool IsInvocationMarker(MethodInfo method, Type receiverType) =>
+            IsInvocationMarker(method) ||
+            (!receiverType.IsInterface &&
+             typeof(IExpr).IsAssignableFrom(receiverType) &&
+             ImplementsInvocationMarker(method, receiverType));
 
         private static bool IsInvocationMarker(MethodInfo method)
         {

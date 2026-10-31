@@ -155,6 +155,41 @@ public class CompositionTests
     }
 
     [Fact]
+    public async Task DirectConcreteExternalInvokeExpandsInSqliteQuery()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var external = new ExternalLineCondition();
+
+        var query = fixture.Db.Orders.Where(order =>
+                order.Lines.Any(line => external.Invoke(line)))
+            .OrderBy(order => order.Id).Select(order => order.Id);
+        var ids = await query.ToArrayAsync();
+
+        Assert.Equal([2], ids);
+        var command = Assert.Single(fixture.Commands.Executed);
+        Assert.Contains("EXISTS", command.Sql);
+        Assert.DoesNotContain("Invoke", command.Sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task NestedConcreteExternalInvokeExpandsInSqliteQuery()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var external = new ExternalLineCondition();
+        var nested = Expr<LineRow>.Create(line => external.Invoke(line));
+
+        var query = fixture.Db.Orders.Where(order =>
+                order.Lines.Any(line => nested.Invoke(line)))
+            .OrderBy(order => order.Id).Select(order => order.Id);
+        var ids = await query.ToArrayAsync();
+
+        Assert.Equal([2], ids);
+        var command = Assert.Single(fixture.Commands.Executed);
+        Assert.Contains("EXISTS", command.Sql);
+        Assert.DoesNotContain("Invoke", command.Sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task InlineConcreteExternalInvokeExpandsBeforeSqliteTranslation()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
