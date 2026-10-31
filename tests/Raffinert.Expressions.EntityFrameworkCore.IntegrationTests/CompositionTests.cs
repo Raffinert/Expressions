@@ -155,6 +155,23 @@ public class CompositionTests
     }
 
     [Fact]
+    public async Task CapturedExternalInvokeDelegateExpandsBeforeSqliteTranslation()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var external = new ExternalLineCondition();
+        Func<LineRow, bool> callback = external.Invoke;
+
+        var query = fixture.Db.Orders.Where(order => order.Lines.Any(callback))
+            .OrderBy(order => order.Id).Select(order => order.Id);
+        var ids = await query.ToArrayAsync();
+
+        Assert.Equal([2], ids);
+        var command = Assert.Single(fixture.Commands.Executed);
+        Assert.Contains("EXISTS", command.Sql);
+        Assert.DoesNotContain("Invoke", command.Sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task NullableNavigationReturnsCorrectNullAndValueTypeDefaults()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
@@ -334,6 +351,13 @@ public class CompositionTests
     {
         public Expr<OrderRow, bool> Next { get; set; } = null!;
         public override Expression<Func<OrderRow, bool>> GetExpression() => x => Next.Invoke(x);
+    }
+
+    private sealed class ExternalLineCondition : IExpr<LineRow, bool>
+    {
+        public bool Invoke(LineRow line) => line.AmountCents >= 150;
+        public LambdaExpression GetExpandedLambdaExpression() =>
+            (Expression<Func<LineRow, bool>>)(line => line.AmountCents >= 150);
     }
 
     private sealed class Unrelated
