@@ -123,6 +123,29 @@ Treat mixed `And/Or`, `Not`, and **opaque leaf** boundaries as barriers. Do not 
 
 For a homogeneous chain with N leaves, aim for output depth O(log N) with balancing versus O(N) without; no dependency on expression-tree string formatting. A balanced tree may improve expansion/visitor depth, **not necessarily EF SQL runtime**. Balance by default as a design choice for the builder; verify EF provider compatibility and performance, and retain `Build(balanced: false)` for an exact left-associative shape when consumers need it.
 
+### Reuse assessment: PR #15 (reviewed 2026-10-31)
+
+**Source:** [PR #15 — Add opt-in Condition<T>.Balance()](https://github.com/Raffinert/Expressions/pull/15), head `541feec50b55337bd7e51619c3b24cfa8e15ca5e` (open and not merged).
+- [`BooleanExpressionBalancer.cs`](https://github.com/Raffinert/Expressions/blob/541feec50b55337bd7e51619c3b24cfa8e15ca5e/src/Raffinert.Expressions/Conditions/BooleanExpressionBalancer.cs)
+- [`ConditionBalanceTests.cs`](https://github.com/Raffinert/Expressions/blob/541feec50b55337bd7e51619c3b24cfa8e15ca5e/tests/Raffinert.Expressions.UnitTests/ConditionBalanceTests.cs)
+
+**Reuse the algorithms, not the v1 API.** PR #15 already implements:
+- `Collect`: iterative in-order flattening of maximal homogeneous `AndAlso`/`OrElse` groups while preserving operand order;
+- `Build`: midpoint division to create a balanced tree with O(log N) Boolean depth; recursion here is shallow after collecting operands;
+- an iterative bottom-up traversal through alternating groups and built-in Boolean `Not`, without crossing `And`/`Or` boundaries;
+- `CanReassociate`'s safety restrictions: built-in `AndAlso`/`OrElse`, `Method == null`, non-lifted, Boolean operands and result. Treat other operators as opaque.
+
+**Required adaptation for `PredicateBuilder<T>`:**
+1. Prefer porting the ordered collect/rebuild and bottom-up stack approach to the builder's **private composition AST** before lowering to `System.Linq.Expressions`. A leaf containing an `IExpr<T,bool>` or a supplied lambda must be an **atomic, opaque boundary**, even if its body internally contains built-in `AndAlso`/`OrElse`. PR #15's expression-level `Balance(body)` would otherwise rebalance inside user-supplied leaves and violate the builder's stated scope.
+2. Preserve the PR #17 approach to native `Expr<T,bool>` leaf handling: use `GetExpression()` and avoid eager `GetExpandedExpression()` / `Compile()`. Use `ExprAdapter` for external and contravariant sources; keep all parameter rebinding scope-safe. Do **not** port the v1 `Condition<T>`, `Condition<T>.Balance()`, operators, or `BooleanExpressionComposer` duplicate.
+3. Keep `Build(balanced: false)` exactly left-associative, and make both `Build()` and `Build(balanced: true)` use the ported algorithm. An unbalanced mixed-operator chain may remain deep by design; iteration during lowering is required either way.
+4. Reuse PR #15 tests conceptually: 1,024 AND/OR clauses; mixed and nested groups; built-in `Not`; 2,048 alternating nodes; short-circuit order; identity/snapshot and repeat-build behavior; idempotent tree shape. Rebind them to `PredicateBuilder<T>` and compare balanced versus unbalanced `Build` results. Add **opaque-leaf**, external/variant `IExpr`, 4,096-node and EF Core integration regressions that PR #15 does not cover.
+5. Avoid copying two failing test assertions from PR #15 verbatim: `Assert.IsType<BinaryExpression>(...)` incorrectly demands that abstract `BinaryExpression` be the *exact* runtime type. On .NET the returned node is `LogicalBinaryExpression`. Use `Assert.IsAssignableFrom<BinaryExpression>(...)` or `Assert.IsType<BinaryExpression>` only if exact runtime type truly matches (it does not here).
+
+**Verification caveat:** PR #15's [last CI run](https://github.com/Raffinert/Expressions/actions/runs/39630538423) failed on both platforms in `ConditionBalanceTests.PreservesMixedGroupsAsOpaqueOperands` and `BalancesNestedGroupsWithoutCrossingAndOrOrNotBoundaries` because of the above exact-type assertions. Other integration tests passed; SQL Server LocalDB had a separate restore failure. Therefore PR #15 is a **source of reusable logic and test scenarios, not a CI-validated implementation ready for cherry-pick**.
+
+**Decision:** PB-03 should port and adapt PR #15's proven structure, with corrected tests and PR #17's stronger leaf/type boundaries; no dependency on merging PR #15 first.
+
 ## 6. Integration and compatibility
 
 - Existing immutable `IExpr<T,bool>.And/Or/Not` extension methods remain public and unchanged in behavior.
@@ -144,7 +167,7 @@ Create `src/Raffinert.Expressions/Predicates/PredicateBuilder.cs`; private AST m
 
 ### PB-03 — Default-on balancing
 
-Add the ordered associative-group flatten/rebuild algorithm, enabled by the default `Build()` / `Build(balanced: true)`, with `Build(balanced: false)` preserving the unbalanced shape. PB-02 may initially lower unbalanced trees internally, but PB-03 must be complete before declaring the public API done. Tests: N = 1, 2, 3, 127, 1,024, 4,096; equivalent in-memory results, identical exception/side-effect order, short-circuit skip counts, mixed operator groups and `Not` boundaries, structural depth reduction. Avoid recursion-based stack overflows for long chains.
+Port and adapt the iterative homogeneous-group collection, bottom-up traversal and ordered midpoint rebuild from [PR #15](https://github.com/Raffinert/Expressions/pull/15) **onto the private builder AST**. Keep opaque leaves opaque, and enable this behavior via the default `Build()` / `Build(balanced: true)`, with `Build(balanced: false)` preserving the unbalanced shape. PB-02 may initially lower unbalanced trees internally, but PB-03 must be complete before declaring the public API done. Tests: N = 1, 2, 3, 127, 1,024, 4,096; equivalent in-memory results, identical exception/side-effect order, short-circuit skip counts, mixed operator groups and `Not` boundaries, structural depth reduction. Avoid recursion-based stack overflows for long chains.
 
 ### PB-04 — Retire legacy Boolean factory and migrate consumers
 
@@ -176,6 +199,7 @@ Run the PR's existing Linux/Windows `dotnet format --verify-no-changes`, solutio
 - [ ] Native, external and contravariant `IExpr` accepted without unnecessary eager expansion.
 - [ ] Default `Build()` uses balancing; `Build(balanced: false)` preserves left-associative shape.
 - [ ] Balanced and unbalanced output semantically identical, with left-to-right short-circuit order.
+- [ ] PR #15's iterative balancing scenarios ported with corrected `BinaryExpression` assertions and opaque-leaf + EF regressions; no legacy `Condition<T>` API added.
 - [ ] No `Expression.Invoke` or compiled delegate inserted into EF-facing trees.
 - [ ] Old `Expr<T>` Boolean factory and sentinel special-case removed.
 - [ ] Examples, unit/integration tests, changelog, migration/architecture/README/skills updated.
