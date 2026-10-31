@@ -130,8 +130,8 @@ public class AsyncConditionTests
         var source = Array.Empty<OrderRow>().AsQueryable();
         var sourceError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, null!, Expr<OrderRow>.True));
         Assert.Equal("source", sourceError.ParamName);
-        var conditionError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, source, null!));
-        Assert.Equal("condition", conditionError.ParamName);
+        var predicateError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, source, null!));
+        Assert.Equal("predicate", predicateError.ParamName);
     }
 
     [Theory]
