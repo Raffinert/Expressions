@@ -225,9 +225,7 @@ public sealed class PredicateBuilder<T>
     private static Expression Rebind(Expression<Func<T, bool>> expression, ParameterExpression parameter) =>
         new ReplaceExpressionVisitor(expression.Parameters[0], parameter).Visit(expression.Body)!;
 
-    private abstract class Node
-    {
-    }
+    private abstract class Node;
 
     private sealed class LambdaNode(Expression<Func<T, bool>> expression) : Node
     {
