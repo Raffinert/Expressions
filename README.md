@@ -4,7 +4,7 @@
 
 **Raffinert.Expressions** turns reusable expression trees into first-class, composable building blocks. Define business logic once, combine it independently of LINQ, execute it in memory, or pass the resulting expression tree to your LINQ provider.
 
-One `Expr<TSource, TResult>` type supports both Boolean predicates and projections, with composition, nested reuse, in-memory execution, LINQ consumption and expression expansion.
+A single `Expr<TSource, TResult>` represents reusable expressions of any result type—from Boolean predicates to scalar selectors and object projections. It supports composition, nested reuse, in-memory execution, LINQ integration, and expression-tree expansion.
 
 It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec) and [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj) around one expression-expansion engine. The runtime package targets `netstandard2.0`, has no EF Core dependency, and requires neither a custom `IQueryProvider` nor `AsExpandable()`.
 
