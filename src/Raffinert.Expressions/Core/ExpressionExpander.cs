@@ -159,7 +159,8 @@ internal static class ExpressionExpander
         {
             if (value is Delegate @delegate &&
                 @delegate.Target is IExpr expansionSource &&
-                IsInvocationMarker(@delegate.Method))
+                (IsInvocationMarker(@delegate.Method) ||
+                 ImplementsInvocationMarker(@delegate.Method, expansionSource.GetType())))
             {
                 expression = ExprAdapter.AdaptToDelegate(ExpandNested(expansionSource), delegateType);
                 return true;
@@ -201,6 +202,29 @@ internal static class ExpressionExpander
             {
                 expansionStack.Remove(expression);
             }
+        }
+
+        // Captured method groups can point to the concrete external implementation
+        // rather than IExpr<TSource, TResult>.Invoke. Only expand methods actually
+        // mapped to that interface; unrelated delegates on the same object stay intact.
+        private static bool ImplementsInvocationMarker(MethodInfo method, Type implementationType)
+        {
+            foreach (var contract in implementationType.GetInterfaces())
+            {
+                if (!contract.IsGenericType ||
+                    contract.GetGenericTypeDefinition() != typeof(IExpr<,>))
+                    continue;
+
+                var mapping = implementationType.GetInterfaceMap(contract);
+                for (var i = 0; i < mapping.InterfaceMethods.Length; i++)
+                {
+                    if (IsInvocationMarker(mapping.InterfaceMethods[i]) &&
+                        mapping.TargetMethods[i].GetBaseDefinition() == method.GetBaseDefinition())
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsInvocationMarker(MethodInfo method)

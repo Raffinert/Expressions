@@ -156,6 +156,45 @@ public class VarianceExpressionTests
     }
 
     [Fact]
+    public void CapturedConcreteExternalInvokeExpandsBeforeQueryExecution()
+    {
+        var external = new ExternalDogExpression();
+        Func<Dog, bool> callback = external.Invoke;
+        Assert.Equal(typeof(ExternalDogExpression), callback.Method.DeclaringType);
+
+        var source = new[]
+        {
+            new Dog { Puppies = [new Dog { Active = true }] },
+            new Dog { Puppies = [new Dog { Active = false }] }
+        }.AsQueryable();
+        var query = source.Where(dog => dog.Puppies.Any(callback));
+
+        var expanded = ExpressionExpander.Expand(query.Expression);
+
+        Assert.Contains(".Active", expanded.ToString());
+        Assert.DoesNotContain("callback", expanded.ToString());
+        Assert.Single(query.Provider.CreateQuery<Dog>(expanded));
+    }
+
+    [Fact]
+    public void CapturedExplicitExternalInvokeExpandsThroughInterfaceMap()
+    {
+        IExpr<Dog, bool> external = new ExplicitDogExpression();
+        Func<Dog, bool> callback = external.Invoke;
+        var source = new[]
+        {
+            new Dog { Puppies = [new Dog { Active = true }] },
+            new Dog { Puppies = [new Dog { Active = false }] }
+        }.AsQueryable();
+        var query = source.Where(dog => dog.Puppies.Any(callback));
+
+        var expanded = ExpressionExpander.Expand(query.Expression);
+
+        Assert.Contains(".Active", expanded.ToString());
+        Assert.Single(query.Provider.CreateQuery<Dog>(expanded));
+    }
+
+    [Fact]
     public void ExternalInterfaceAndInvalidSourceShapesRespectVariance()
     {
         IExpr<Animal, bool> external = new ExternalAnimalExpression();
@@ -193,6 +232,20 @@ public class VarianceExpressionTests
         public bool Invoke(Animal value) => value.Active;
         public LambdaExpression GetExpandedLambdaExpression() =>
             (Expression<Func<Animal, bool>>)(animal => animal.Active);
+    }
+
+    private sealed class ExternalDogExpression : IExpr<Dog, bool>
+    {
+        public bool Invoke(Dog value) => value.Active;
+        public LambdaExpression GetExpandedLambdaExpression() =>
+            (Expression<Func<Dog, bool>>)(value => value.Active);
+    }
+
+    private sealed class ExplicitDogExpression : IExpr<Dog, bool>
+    {
+        bool IExpr<Dog, bool>.Invoke(Dog value) => value.Active;
+        public LambdaExpression GetExpandedLambdaExpression() =>
+            (Expression<Func<Dog, bool>>)(value => value.Active);
     }
 
     private sealed class InvalidDogExpression : IExpr<Dog, bool>
