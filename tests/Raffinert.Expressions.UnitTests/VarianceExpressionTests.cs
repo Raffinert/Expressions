@@ -39,7 +39,7 @@ public class VarianceExpressionTests
 
         var predicate = PredicateBuilder<Dog>.Create().And(shared).Build();
         Assert.True(predicate.Invoke(new Dog { Active = true }));
-        Assert.False(starter.Invoke(new Dog { Active = false }));
+        Assert.False(predicate.Invoke(new Dog { Active = false }));
     }
 
     [Fact]
