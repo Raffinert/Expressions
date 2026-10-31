@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 
 namespace Raffinert.Expressions;
 
-internal interface IExpressionExpansionSource: IExpr
+internal interface IExpressionExpansionSource : IExpr
 {
     LambdaExpression GetExpression();
 
