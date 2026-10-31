@@ -1,6 +1,6 @@
 # PredicateBuilder<T> implementation plan (PR #17, v2)
 
-**Status:** IMPLEMENTED — pending full CI verification. This document also records the implementation and acceptance checklist.
+**Status:** COMPLETED — implemented in PR #17 and validated by the [five-job CI run](https://github.com/Raffinert/Expressions/actions/runs/41186373590) (Linux/Windows Verify, EF10 package-smoke tests on both platforms, and SQL Server LocalDB). This document records the implementation contract and acceptance criteria.
 **Target:** the current PR #17 branch, `feat/unified-composable-expressions-v2`.
 **Constraint:** retain a single canonical result type: `Expr<T, bool>` implementing `IExpr<T, bool>`. Do **not** introduce a `Condition<T>`, `Predicate<T>`, or `BoolExpr<T>` runtime wrapper.
 
@@ -203,7 +203,7 @@ Run the PR's existing Linux/Windows `dotnet format --verify-no-changes`, solutio
 - [x] No `Expression.Invoke` or compiled delegate inserted into EF-facing trees.
 - [x] Old `Expr<T>` Boolean factory and sentinel special-case removed.
 - [x] Examples, unit/integration tests, changelog, migration/architecture/README/skills updated.
-- [ ] Entire CI suite green (including SQL Server LocalDB).
-- [ ] PR description matches implemented functionality; this planning document updated to COMPLETED.
+- [x] Entire CI suite green (including SQL Server LocalDB).
+- [x] PR description matches implemented functionality; this planning document updated to COMPLETED.
 
 **Important:** Do not tackle the speculative lock-free cache redesign, global expression optimizer registration, or builder-level concurrent mutation in this task. They are separate design decisions.
