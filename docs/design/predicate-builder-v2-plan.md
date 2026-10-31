@@ -14,7 +14,7 @@ var predicate = PredicateBuilder<Order>
     .And(o => o.IsActive)
     .And(o => o.Total > 1000m)
     .Or(o => o.IsPriority)
-    .Build(balance: true);
+    .Build(); // Balanced by default
 
 Expr<Order, bool> alwaysTrue = PredicateBuilder<Order>.True().Build();
 Expr<Order, bool> alwaysFalse = PredicateBuilder<Order>.False().Build();
@@ -23,7 +23,7 @@ var direct = Expr<Order>.Create(o => o.IsActive)
     .And(o => o.Total > 1000m); // This existing fluent API stays.
 ```
 
-**In scope:** builder factory and fluent API, defined empty-state semantics, opt-in associative balancing, interoperability with native/external/variant `IExpr`, tests and migration docs, retiring `Expr<T>.Start/True/False` and the old `BooleanStartExpression<T>` special case.
+**In scope:** builder factory and fluent API, defined empty-state semantics, default-enabled associative balancing with an explicit opt-out, interoperability with native/external/variant `IExpr`, tests and migration docs, retiring `Expr<T>.Start/True/False` and the old `BooleanStartExpression<T>` special case.
 
 **Out of scope:** changing `Expr<TSource,TResult>`, introducing structural global caches or new concurrency machinery, automatically balancing existing `IExpr.And/Or` calls, broad expression optimizers (EF-specific or otherwise), or changes to `MapToExisting`.
 
@@ -44,7 +44,7 @@ public sealed class PredicateBuilder<T>
     public PredicateBuilder<T> Or(Expression<Func<T, bool>> predicate);
     public PredicateBuilder<T> Not();
 
-    public Expr<T, bool> Build(bool balance = false);
+    public Expr<T, bool> Build(bool balanced = true);
 }
 ```
 
@@ -102,11 +102,11 @@ Keep AST traversal/build **linear** in node count; use an explicit stack where n
 
 Do not accidentally put a wrapper's private expression shape into a global cache, mutate stored leaf expressions, or eagerly rewrite a chain on every append.
 
-## 5. Optional balancing — included in this PR, opt-in only
+## 5. Default balancing — enabled unless explicitly disabled
 
-`Build(balance: false)` faithfully emits the left-associative AST.
+`Build()` is equivalent to `Build(balanced: true)` and emits a balanced tree wherever doing so is semantics-preserving. `Build(balanced: false)` faithfully emits the left-associative AST. The Boolean parameter is named `balanced` (not `balance`) and defaults to `true`.
 
-`Build(balance: true)` balances **only contiguous groups of builder-owned identical associative operators** (`AndAlso` with `AndAlso`; `OrElse` with `OrElse`). Flatten such a group into an ordered list of its operands and rebuild as a near-balanced binary tree, with no reordering, distribution, simplification, or duplication.
+`Build(balanced: true)` balances **only contiguous groups of builder-owned identical associative operators** (`AndAlso` with `AndAlso`; `OrElse` with `OrElse`). Flatten such a group into an ordered list of its operands and rebuild as a near-balanced binary tree, with no reordering, distribution, simplification, or duplication.
 
 For example:
 
@@ -121,7 +121,7 @@ Allowed:     rebalance the (A && B) subgroup only;
 
 Treat mixed `And/Or`, `Not`, and **opaque leaf** boundaries as barriers. Do not balance inside externally supplied expressions, nested lambda bodies or nested `Invoke` results. `Expression.AndAlso/OrElse` retain left-to-right short-circuit behavior for Boolean operands; test this with side-effect counting in in-memory delegates (while keeping production predicates pure).
 
-For a homogeneous chain with N leaves, aim for output depth O(log N) with balancing versus O(N) without; no dependency on expression-tree string formatting. A balanced tree may improve expansion/visitor depth, **not necessarily EF SQL runtime**. Keep default `balance: false` until measured benefits justify a different default.
+For a homogeneous chain with N leaves, aim for output depth O(log N) with balancing versus O(N) without; no dependency on expression-tree string formatting. A balanced tree may improve expansion/visitor depth, **not necessarily EF SQL runtime**. Balance by default as a design choice for the builder; verify EF provider compatibility and performance, and retain `Build(balanced: false)` for an exact left-associative shape when consumers need it.
 
 ## 6. Integration and compatibility
 
@@ -142,9 +142,9 @@ Add `tests/Raffinert.Expressions.UnitTests/PredicateBuilderTests.cs` with tests 
 
 Create `src/Raffinert.Expressions/Predicates/PredicateBuilder.cs`; private AST may be factored into `PredicateBuilderNodes.cs` if size warrants it. Implement O(1) appends and unbalanced `Build()`, parameter rebinding, safe contravariance and no eager `Invoke` expansion. Keep ordinary `Expr` caches unchanged. Pass PB-01 tests before moving on.
 
-### PB-03 — Opt-in balancing
+### PB-03 — Default-on balancing
 
-Add the ordered associative-group flatten/rebuild algorithm behind `Build(balance: true)`. Tests: N = 1, 2, 3, 127, 1,024, 4,096; equivalent in-memory results, identical exception/side-effect order, short-circuit skip counts, mixed operator groups and `Not` boundaries, structural depth reduction. Avoid recursion-based stack overflows for long chains.
+Add the ordered associative-group flatten/rebuild algorithm, enabled by the default `Build()` / `Build(balanced: true)`, with `Build(balanced: false)` preserving the unbalanced shape. PB-02 may initially lower unbalanced trees internally, but PB-03 must be complete before declaring the public API done. Tests: N = 1, 2, 3, 127, 1,024, 4,096; equivalent in-memory results, identical exception/side-effect order, short-circuit skip counts, mixed operator groups and `Not` boundaries, structural depth reduction. Avoid recursion-based stack overflows for long chains.
 
 ### PB-04 — Retire legacy Boolean factory and migrate consumers
 
@@ -174,6 +174,7 @@ Run the PR's existing Linux/Windows `dotnet format --verify-no-changes`, solutio
 - [ ] `Start/True/False/Not` edge semantics covered.
 - [ ] `Build()` produces an immutable, independent `Expr<T,bool>` snapshot.
 - [ ] Native, external and contravariant `IExpr` accepted without unnecessary eager expansion.
+- [ ] Default `Build()` uses balancing; `Build(balanced: false)` preserves left-associative shape.
 - [ ] Balanced and unbalanced output semantically identical, with left-to-right short-circuit order.
 - [ ] No `Expression.Invoke` or compiled delegate inserted into EF-facing trees.
 - [ ] Old `Expr<T>` Boolean factory and sentinel special-case removed.
