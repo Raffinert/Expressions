@@ -146,11 +146,18 @@ internal static class ExpressionExpander
         private bool TryResolveMethodGroup(
             Expression targetExpression, MethodInfo method, Type delegateType, out LambdaExpression expression)
         {
-            // Inline method groups can use the concrete IExpr implementation's MethodInfo.
-            // Verify the target and interface mapping before treating it as an invocation marker.
-            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) &&
-                target is IExpr expansionSource &&
-                (IsInvocationMarker(method) || ImplementsInvocationMarker(method, expansionSource.GetType())))
+            // Identify the marker from static types BEFORE evaluating the receiver.
+            // Ordinary method-group receivers may contain getters with side effects.
+            var receiverType = targetExpression.Type;
+            if (!IsInvocationMarker(method) &&
+                (receiverType.IsInterface || !typeof(IExpr).IsAssignableFrom(receiverType) ||
+                 !ImplementsInvocationMarker(method, receiverType)))
+            {
+                expression = null!;
+                return false;
+            }
+
+            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpr expansionSource)
             {
                 expression = ExprAdapter.AdaptToDelegate(ExpandNested(expansionSource), delegateType);
                 return true;
