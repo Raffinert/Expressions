@@ -13,7 +13,14 @@ public static class ExprCompositionExtensions
         if (next == null) throw new ArgumentNullException(nameof(next));
         var firstExpression = ExprAdapter.GetExpandedExpression(first);
         var nextExpression = ExprAdapter.GetExpandedExpression(next);
-        var body = new ReplaceExpressionVisitor(nextExpression.Parameters[0], firstExpression.Body)
+        // A covariant IExpr view may expose a narrower body type than TResult.
+        // Preserve the next expression's declared parameter type when substituting
+        // so operators such as reference equality retain their original semantics.
+        var nextParameter = nextExpression.Parameters[0];
+        var result = firstExpression.Body.Type == nextParameter.Type
+            ? firstExpression.Body
+            : Expression.Convert(firstExpression.Body, nextParameter.Type);
+        var body = new ReplaceExpressionVisitor(nextParameter, result)
             .Visit(nextExpression.Body)!;
         return Expr<TSource, TNext>.Create(
             Expression.Lambda<Func<TSource, TNext>>(body, firstExpression.Parameters));

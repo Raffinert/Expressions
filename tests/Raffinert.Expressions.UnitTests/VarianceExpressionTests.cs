@@ -65,6 +65,40 @@ public class VarianceExpressionTests
     }
 
     [Fact]
+    public void ThenPreservesIntermediateTypeWhenCovariantBodyIsNarrower()
+    {
+        IExpr<Dog, Animal> first = Expr<Dog>.Create(dog => dog);
+        var cat = new Cat();
+        var compareToCat = Expr<Animal>.Create(animal => animal == cat);
+
+        var composed = first.Then(compareToCat);
+        var body = Assert.IsAssignableFrom<BinaryExpression>(composed.GetExpression().Body);
+        var converted = Assert.IsAssignableFrom<UnaryExpression>(body.Left);
+
+        Assert.Equal(ExpressionType.Convert, converted.NodeType);
+        Assert.Equal(typeof(Animal), converted.Type);
+        Assert.Equal(typeof(Dog), converted.Operand.Type);
+
+        var dog = new Dog { Name = "Ada" };
+        Assert.False(composed.Invoke(dog));
+        Assert.Empty(new[] { dog }.AsQueryable().Where(composed));
+    }
+
+    [Fact]
+    public void ThenKeepsReferenceEqualityForCovariantViews()
+    {
+        var original = new Dog { Name = "Ada" };
+        IExpr<Dog, Animal> first = Expr<Dog>.Create(dog => dog);
+        var next = Expr<Animal>.Create(animal => animal == original);
+
+        var composed = first.Then(next);
+
+        Assert.True(composed.Invoke(original));
+        Assert.False(composed.Invoke(new Dog { Name = "Ada" }));
+        Assert.Single(new[] { original, new Dog { Name = "Ada" } }.AsQueryable().Where(composed));
+    }
+
+    [Fact]
     public void DirectProjectionAndOrderingAcceptContravariantSources()
     {
         IExpr<Animal, string> names = Expr<Animal>.Create(animal => animal.Name);
