@@ -6,14 +6,7 @@ internal sealed class ExpressionDebugView(IExpressionExpansionSource source)
 {
     public LambdaExpression OriginalExpression => source.GetExpression();
 
-    public LambdaExpression ExpandedExpression
-    {
-        get
-        {
-            var method = source.GetType().GetMethod(nameof(Expr<,>.GetExpandedExpression));
-            return (LambdaExpression)method!.Invoke(source, null)!;
-        }
-    }
+    public LambdaExpression ExpandedExpression => source.GetExpandedLambdaExpression();
 
     public string RuntimeRepresentation => ExpandedExpression.ToString();
 }

@@ -16,7 +16,7 @@ public interface IExpr
 /// <summary>A typed reusable expression that can be evaluated or expanded.</summary>
 /// <typeparam name="TSource">The type of value supplied to the expression.</typeparam>
 /// <typeparam name="TResult">The type of value produced by the expression.</typeparam>
-public interface IExpr<TSource, out TResult> : IExpr
+public interface IExpr<in TSource, out TResult> : IExpr
 {
     /// <summary>Evaluates the expression for the specified value.</summary>
     /// <param name="value">The source value to evaluate.</param>
