@@ -155,6 +155,22 @@ public class CompositionTests
     }
 
     [Fact]
+    public async Task InlineConcreteExternalInvokeExpandsBeforeSqliteTranslation()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+        var external = new ExternalLineCondition();
+
+        var query = fixture.Db.Orders.Where(order => order.Lines.Any(external.Invoke))
+            .OrderBy(order => order.Id).Select(order => order.Id);
+        var ids = await query.ToArrayAsync();
+
+        Assert.Equal([2], ids);
+        var command = Assert.Single(fixture.Commands.Executed);
+        Assert.Contains("EXISTS", command.Sql);
+        Assert.DoesNotContain("Invoke", command.Sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task CapturedExternalInvokeDelegateExpandsBeforeSqliteTranslation()
     {
         await using var fixture = await SqliteFixture.CreateAsync();

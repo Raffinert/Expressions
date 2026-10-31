@@ -156,6 +156,40 @@ public class VarianceExpressionTests
     }
 
     [Fact]
+    public void InlineConcreteExternalInvokeExpandsBeforeQueryExecution()
+    {
+        var external = new ExternalDogExpression();
+        var source = new[]
+        {
+            new Dog { Puppies = [new Dog { Active = true }] },
+            new Dog { Puppies = [new Dog { Active = false }] }
+        }.AsQueryable();
+        var query = source.Where(dog => dog.Puppies.Any(external.Invoke));
+
+        var expanded = ExpressionExpander.Expand(query.Expression);
+
+        Assert.DoesNotContain("CreateDelegate", expanded.ToString());
+        Assert.Contains(".Active", expanded.ToString());
+        Assert.Single(query.Provider.CreateQuery<Dog>(expanded));
+    }
+
+    [Fact]
+    public void InlineUnrelatedMethodOnExternalExpressionIsNotExpanded()
+    {
+        var external = new ExternalDogExpression();
+        var source = new[]
+        {
+            new Dog { Puppies = [new Dog { Active = true }] }
+        }.AsQueryable();
+        var query = source.Where(dog => dog.Puppies.Any(external.Unrelated));
+
+        var expanded = ExpressionExpander.Expand(query.Expression);
+
+        Assert.Empty(query.Provider.CreateQuery<Dog>(expanded));
+        Assert.DoesNotContain(".Active", expanded.ToString());
+    }
+
+    [Fact]
     public void CapturedConcreteExternalInvokeExpandsBeforeQueryExecution()
     {
         var external = new ExternalDogExpression();
@@ -237,6 +271,7 @@ public class VarianceExpressionTests
     private sealed class ExternalDogExpression : IExpr<Dog, bool>
     {
         public bool Invoke(Dog value) => value.Active;
+        public bool Unrelated(Dog value) => false;
         public LambdaExpression GetExpandedLambdaExpression() =>
             (Expression<Func<Dog, bool>>)(value => value.Active);
     }
