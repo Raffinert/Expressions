@@ -70,7 +70,10 @@ internal static class ExpressionExpander
                     $"the '{node.Method.Name}' invocation marker.");
             }
 
-            var body = new ReplaceExpressionVisitor(inner.Parameters[0], argument).Visit(inner.Body)!;
+            var boundArgument = inner.Parameters[0].Type == argument.Type
+                ? argument
+                : Expression.Convert(argument, inner.Parameters[0].Type);
+            var body = new ReplaceExpressionVisitor(inner.Parameters[0], boundArgument).Visit(inner.Body)!;
 
             if (node.Method.Name == nameof(Expr<,>.InvokeOrDefault) && CanBeNull(argument.Type))
             {
@@ -93,7 +96,7 @@ internal static class ExpressionExpander
                 call.Method.Name == nameof(Delegate.CreateDelegate) &&
                 call.Arguments.Count >= 2 &&
                 call.Object is ConstantExpression { Value: MethodInfo method } && IsInvocationMarker(method) &&
-                TryResolveMethodGroup(call.Arguments[1], out var lambda))
+                TryResolveMethodGroup(call.Arguments[1], node.Type, out var lambda))
             {
                 return lambda;
             }
@@ -103,14 +106,14 @@ internal static class ExpressionExpander
 
         protected override Expression VisitConstant(ConstantExpression node)
         {
-            return TryExpandDelegate(node.Value, out var expression) ? expression : base.VisitConstant(node);
+            return TryExpandDelegate(node.Value, node.Type, out var expression) ? expression : base.VisitConstant(node);
         }
 
         protected override Expression VisitMember(MemberExpression node)
         {
             // A final field can still have a getter/constructor in its receiver chain.
             if (IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
-                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
+                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, node.Type, out var expression))
             {
                 return expression;
             }
@@ -126,7 +129,7 @@ internal static class ExpressionExpander
             // Opaque receiver chains must be read to identify a marker only when used as callbacks.
             // Merely carrying one leaves its evaluation to the eventual execution provider.
             if (node is MemberExpression && !IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
-                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
+                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, node.Type, out var expression))
                 return expression;
             return Visit(node)!;
         }
@@ -140,11 +143,11 @@ internal static class ExpressionExpander
             _ => false
         };
 
-        private bool TryResolveMethodGroup(Expression targetExpression, out LambdaExpression expression)
+        private bool TryResolveMethodGroup(Expression targetExpression, Type delegateType, out LambdaExpression expression)
         {
             if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpr expansionSource)
             {
-                expression = ExpandNested(expansionSource);
+                expression = ExprAdapter.AdaptToDelegate(ExpandNested(expansionSource), delegateType);
                 return true;
             }
 
@@ -152,13 +155,13 @@ internal static class ExpressionExpander
             return false;
         }
 
-        private bool TryExpandDelegate(object? value, out LambdaExpression expression)
+        private bool TryExpandDelegate(object? value, Type delegateType, out LambdaExpression expression)
         {
             if (value is Delegate @delegate &&
                 @delegate.Target is IExpr expansionSource &&
                 IsInvocationMarker(@delegate.Method))
             {
-                expression = ExpandNested(expansionSource);
+                expression = ExprAdapter.AdaptToDelegate(ExpandNested(expansionSource), delegateType);
                 return true;
             }
 

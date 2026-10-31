@@ -14,6 +14,10 @@ public interface IExpr
 }
 
 /// <summary>A typed reusable expression that can be evaluated or expanded.</summary>
+/// <remarks>
+/// Source contravariance and result covariance allow a wrapper to be viewed through
+/// compatible types. LINQ consumers rebind expanded lambdas to the requested source type.
+/// </remarks>
 /// <typeparam name="TSource">The type of value supplied to the expression.</typeparam>
 /// <typeparam name="TResult">The type of value produced by the expression.</typeparam>
 public interface IExpr<in TSource, out TResult> : IExpr

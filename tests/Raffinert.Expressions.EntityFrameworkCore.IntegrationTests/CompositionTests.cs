@@ -5,6 +5,38 @@ namespace Raffinert.Expressions.EntityFrameworkCore.IntegrationTests;
 
 public class CompositionTests
 {
+
+    [Fact]
+    public async Task ContravariantInterfaceExpressionsTranslateInSqlite()
+    {
+        await using var fixture = await SqliteFixture.CreateAsync();
+
+        IExpr<OrderRowBase, bool> baseActive = Expr<OrderRowBase>.Create(row => row.Active);
+        IExpr<OrderRow, bool> active = baseActive;
+        IExpr<OrderRowBase, string> baseName = Expr<OrderRowBase>.Create(row => row.Name);
+        IExpr<OrderRow, string> name = baseName;
+
+        var filtered = await fixture.Db.Orders.Where(active)
+            .OrderBy(row => row.Id).Select(row => row.Id).ToArrayAsync();
+        Assert.Equal([1, 2], filtered);
+
+        var names = await fixture.Db.Orders.OrderBy(row => row.Id)
+            .Select(name).ToArrayAsync();
+        Assert.Equal(["Pencil", "Desk", "Uncategorized", "Hidden"], names);
+
+        var combined = active.And(Expr<OrderRow>.Create(row => row.TotalCents > 1000));
+        var combinedIds = await fixture.Db.Orders.Where(combined)
+            .Select(row => row.Id).ToArrayAsync();
+        Assert.Equal([2], combinedIds);
+
+        // Whole-query expansion must also support a contravariant invocation marker.
+        var invoked = await fixture.Db.Orders.Where(row => active.Invoke(row))
+            .OrderBy(row => row.Id).Select(row => row.Id).ToArrayAsync();
+        Assert.Equal([1, 2], invoked);
+        Assert.All(fixture.Commands.Executed,
+            command => Assert.DoesNotContain("Invoke", command.Sql, StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public async Task EfAdapterExpandsPlainQuerySyntaxWithoutAsRaffinertQuery()
     {
