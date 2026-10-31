@@ -38,7 +38,7 @@ public class CompiledQueryTests
         await using var fixture = await SqliteFixture.CreateAsync();
         var compiled = EF.CompileQuery((OrdersContext db, Expr<OrderRow, bool> predicate) =>
             db.Orders.Count(x => predicate.Invoke(x)));
-        var error = Assert.Throws<InvalidOperationException>(() => compiled(fixture.Db, Expr<OrderRow>.True));
+        var error = Assert.Throws<InvalidOperationException>(() => compiled(fixture.Db, PredicateBuilder<OrderRow>.True().Build()));
         Assert.Contains("Unable to resolve expression instance", error.Message);
         Assert.Empty(fixture.Commands.Executed);
     }

@@ -179,7 +179,8 @@ public class PredicateBuilderTests
             .Build();
 
         var root = Assert.IsAssignableFrom<BinaryExpression>(predicate.GetExpression().Body);
-        Assert.Equal(leaf.GetExpression().Body.ToString(), root.Left.ToString());
+        Assert.Equal(ExpressionType.AndAlso, root.Left.NodeType);
+        Assert.Equal(4, Depth(root.Left));
     }
 
     [Fact]

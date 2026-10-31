@@ -41,9 +41,11 @@ public class PredicateBuilderIntegrationTests
         var query = fixture.Db.Orders.Where(row => nested.Invoke(row))
             .OrderBy(row => row.Id).Select(row => row.Id);
 
-        Assert.Equal([2], await query.ToArrayAsync());
+        var before = await query.ToArrayAsync();
+        Assert.Equal([2], before);
         threshold = 30000;
-        Assert.Empty(await query.ToArrayAsync());
+        var after = await query.ToArrayAsync();
+        Assert.Empty(after);
         Assert.Contains(1000, fixture.Commands.Executed[0].Values);
         Assert.Contains(30000, fixture.Commands.Executed[1].Values);
         Assert.All(fixture.Commands.Executed,

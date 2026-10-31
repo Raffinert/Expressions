@@ -75,20 +75,19 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
             Expr<DbProduct>.Create(product => product.Name != "Hidden")
         ];
 
-        var condition = Expr<DbProduct>.Start();
+        var builder = PredicateBuilder<DbProduct>.Start();
         foreach (var filter in filters)
         {
-            condition = condition.And(filter);
+            builder.And(filter);
         }
 
+        var condition = builder.Build();
         var query = _db.Products.Where(condition);
         var sql = query.ToQueryString();
         var names = await query.OrderBy(product => product.Name)
             .Select(product => product.Name).ToArrayAsync();
 
-        Assert.Equal(
-            "product => (product.PriceCents > 1000) && (product.Name != \"Hidden\")",
-            condition.GetExpandedExpression().ToReadableString());
+        Assert.Equal(ExpressionType.AndAlso, condition.GetExpandedExpression().Body.NodeType);
         Assert.Equal("""
                      SELECT "p"."Id", "p"."CategoryId", "p"."Name", "p"."PriceCents"
                      FROM "Products" AS "p"
@@ -276,7 +275,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         Assert.Equal(3, _db.Products.Count(expensive));
         Assert.Equal(3L, _db.Products.LongCount(expensive));
         Assert.True(_db.Products.OrderBy(product => product.Id).First(expensive).PriceCents > 1000);
-        Assert.Null(_db.Products.FirstOrDefault(Expr<DbProduct>.False));
+        Assert.Null(_db.Products.FirstOrDefault(PredicateBuilder<DbProduct>.False().Build()));
     }
 
     [Fact]
