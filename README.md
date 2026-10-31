@@ -211,54 +211,9 @@ var product = Expr<Product>.Create(value => new ProductDto
 
 Expansion produces a normal conditional expression. Ordinary `Invoke` does not add an implicit null check. For value-type outputs the default is a value such as `0` or `false`, not null.
 
-## Configurable Order Export
+## Merging member-initializer projections
 
-`MergeBindings` overlays compatible member-initializer projections. Duplicate members use `BindingConflictBehavior.UseLast` by default; `UseFirst` and `Throw` are available explicitly. Conditional branch bindings are matched by member identity rather than position.
-
-An order export always includes the order number and customer name. Depending on the export configuration, it may also include the net or gross total. `MergeBindings()` adds the optional calculation without duplicating the base projection:
-
-<p align="right"><a href="https://dotnetfiddle.net/iucjOg">Run .NET fiddle</a></p>
-
-```csharp
-var netAmount = Expr<OrderLine>.Create(l =>
-    l.Quantity * l.UnitPrice);
-
-var grossAmount = Expr<OrderLine>.Create(l =>
-    netAmount.Invoke(l) * (1m + l.VatRate));
-
-var export = Expr<Order>.Create(o => new OrderExportRow
-{
-    Number = o.Number,
-    Customer = o.Customer.Name
-});
-
-if (includeAmounts)
-{
-    var lineAmount = includeVat ? grossAmount : netAmount;
-    var total = Expr<Order>.Create(o =>
-        o.Lines.Sum(l => lineAmount.Invoke(l)));
-
-    export = export.MergeBindings(
-        Expr<Order>.Create(o => new OrderExportRow
-        {
-            Total = total.Invoke(o)
-        }));
-}
-
-var rows = await db.Orders.Select(export).ToListAsync();
-```
-
-The line calculation is defined once in `netAmount` and reused by `grossAmount`. The selected line projection feeds a single order-level sum, so VAT remains specific to each line.
-
-Here `Order.Lines` contains `OrderLine` objects, `OrderExportRow` has a parameterless constructor and a `decimal? Total` property, and `VatRate` is a decimal fraction such as `0.25m` for 25%.
-
-| Configuration | Projection |
-|---|---|
-| `includeAmounts = false` | Common export fields only |
-| `includeAmounts = true`, `includeVat = false` | Common fields + net total |
-| `includeAmounts = true`, `includeVat = true` | Common fields + gross total |
-
-When `includeAmounts` is false, the `Total` member assignment is absent from the final expanded projection. This is structurally different from assigning `null` or `0`, or inserting a row-level conditional expression. The destination property retains its default value.
+`MergeBindings` combines compatible object projections, with configurable duplicate-member handling (`UseLast`, `UseFirst`, or `Throw`). For an end-to-end example, see [Configurable Order Export](#configurable-order-export).
 
 ## EF Core and provider compatibility
 
@@ -492,6 +447,55 @@ See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blo
 
 - [LINQKit comparison](examples/LinqKitComparison/README.md) — the LINQKit README scenarios implemented three
   ways in a .NET 10 / EF Core 10 console app: plain EF Core lambdas, LINQKit, and Raffinert.Expressions.
+
+### Configurable Order Export
+
+`MergeBindings` overlays compatible member-initializer projections. Duplicate members use `BindingConflictBehavior.UseLast` by default; `UseFirst` and `Throw` are available explicitly. Conditional branch bindings are matched by member identity rather than position.
+
+An order export always includes the order number and customer name. Depending on the export configuration, it may also include the net or gross total. `MergeBindings()` adds the optional calculation without duplicating the base projection:
+
+<p align="right"><a href="https://dotnetfiddle.net/iucjOg">Run .NET fiddle</a></p>
+
+```csharp
+var netAmount = Expr<OrderLine>.Create(l =>
+    l.Quantity * l.UnitPrice);
+
+var grossAmount = Expr<OrderLine>.Create(l =>
+    netAmount.Invoke(l) * (1m + l.VatRate));
+
+var export = Expr<Order>.Create(o => new OrderExportRow
+{
+    Number = o.Number,
+    Customer = o.Customer.Name
+});
+
+if (includeAmounts)
+{
+    var lineAmount = includeVat ? grossAmount : netAmount;
+    var total = Expr<Order>.Create(o =>
+        o.Lines.Sum(l => lineAmount.Invoke(l)));
+
+    export = export.MergeBindings(
+        Expr<Order>.Create(o => new OrderExportRow
+        {
+            Total = total.Invoke(o)
+        }));
+}
+
+var rows = await db.Orders.Select(export).ToListAsync();
+```
+
+The line calculation is defined once in `netAmount` and reused by `grossAmount`. The selected line projection feeds a single order-level sum, so VAT remains specific to each line.
+
+Here `Order.Lines` contains `OrderLine` objects, `OrderExportRow` has a parameterless constructor and a `decimal? Total` property, and `VatRate` is a decimal fraction such as `0.25m` for 25%.
+
+| Configuration | Projection |
+|---|---|
+| `includeAmounts = false` | Common export fields only |
+| `includeAmounts = true`, `includeVat = false` | Common fields + net total |
+| `includeAmounts = true`, `includeVat = true` | Common fields + gross total |
+
+When `includeAmounts` is false, the `Total` member assignment is absent from the final expanded projection. This is structurally different from assigning `null` or `0`, or inserting a row-level conditional expression. The destination property retains its default value.
 
 ## AI Agent Skill
 
