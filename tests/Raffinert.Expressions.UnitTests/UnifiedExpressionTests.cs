@@ -39,9 +39,13 @@ public class UnifiedExpressionTests
     public void StartAndTrueHaveDifferentFirstCompositionSemantics()
     {
         var p = Expr<Product>.Create(x => x.Price > 10m);
-        Assert.Same(p, Expr<Product>.Start().And(p));
-        Assert.Same(p, Expr<Product>.Start().Or(p));
-        Assert.NotSame(p, Expr<Product>.True.And(p));
+        var startAnd = PredicateBuilder<Product>.Start().And(p).Build();
+        var startOr = PredicateBuilder<Product>.Start().Or(p).Build();
+        var trueAnd = PredicateBuilder<Product>.True().And(p).Build();
+
+        Assert.Equal(p.Invoke(new Product { Price = 12m }), startAnd.Invoke(new Product { Price = 12m }));
+        Assert.Equal(p.Invoke(new Product { Price = 12m }), startOr.Invoke(new Product { Price = 12m }));
+        Assert.Equal(ExpressionType.AndAlso, trueAnd.GetExpression().Body.NodeType);
     }
 
     [Fact]
@@ -75,7 +79,7 @@ public class UnifiedExpressionTests
     public void BooleanStarterPreservesInterfaceOperands()
     {
         IExpr<Product, bool> custom = new ExternalExpr<Product, bool>(p => p.Price > 10m);
-        var predicate = Expr<Product>.Start().And(custom);
+        var predicate = PredicateBuilder<Product>.Start().And(custom).Build();
         Assert.True(predicate.Invoke(new Product { Price = 11m }));
         Assert.False(predicate.Invoke(new Product { Price = 9m }));
     }
@@ -85,10 +89,11 @@ public class UnifiedExpressionTests
     [InlineData(1024)]
     public void LongBooleanChainsRemainComposableAndExecutable(int count)
     {
-        var chain = Expr<Product>.Start(defaultWhenEmpty: true);
+        var builder = PredicateBuilder<Product>.Start(defaultWhenEmpty: true);
         for (var index = 0; index < count; index++)
-            chain = chain.And(product => product.Price >= 0m);
+            builder.And(product => product.Price >= 0m);
 
+        var chain = builder.Build();
         Assert.True(chain.Invoke(new Product { Price = 1m }));
         Assert.False(chain.Invoke(new Product { Price = -1m }));
         Assert.Single(new[]

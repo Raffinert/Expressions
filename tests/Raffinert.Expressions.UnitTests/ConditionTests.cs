@@ -6,59 +6,44 @@ namespace Raffinert.Expressions.UnitTests;
 public class ConditionTests
 {
     [Fact]
-    public void BooleanConstantsAreSingletonsAndExecutable()
+    public void BooleanConstantsAreExecutableAndBuilderFactoriesAreIndependent()
     {
         var product = new Product();
+        var yes = PredicateBuilder<Product>.True().Build();
+        var no = PredicateBuilder<Product>.False().Build();
 
-        Assert.Equal("value => true", Expr<Product>.True.GetExpandedExpression().ToReadableString());
-        Assert.Equal("value => false", Expr<Product>.False.GetExpandedExpression().ToReadableString());
-        Assert.True(Expr<Product>.True.Invoke(product));
-        Assert.False(Expr<Product>.False.Invoke(product));
-        Assert.Same(Expr<Product>.True, Expr<Product>.True);
-        Assert.Same(Expr<Product>.False, Expr<Product>.False);
+        Assert.True(yes.Invoke(product));
+        Assert.False(no.Invoke(product));
+        Assert.Equal("value => true", yes.GetExpandedExpression().ToReadableString());
+        Assert.Equal("value => false", no.GetExpandedExpression().ToReadableString());
+        Assert.NotSame(yes, PredicateBuilder<Product>.True().Build());
     }
 
     [Fact]
-    public void StartDefaultsToFalseWhenEmpty()
+    public void EmptyBuilderDefaultsToFalseOrConfiguredTrue()
     {
         var product = new Product();
-        var start = Expr<Product>.Start();
-
-        Assert.False(start.Invoke(product));
-        Assert.Equal("value => false", start.GetExpandedExpression().ToReadableString());
+        Assert.False(PredicateBuilder<Product>.Start().Build().Invoke(product));
+        Assert.True(PredicateBuilder<Product>.Start(defaultWhenEmpty: true).Build().Invoke(product));
     }
 
     [Fact]
-    public void StartCanReturnTrueWhenEmpty()
+    public void BuilderDropsSeedOnFirstAndAndOrAndSnapshotsAreIndependent()
     {
-        var product = new Product();
-        var start = Expr<Product>.Start(defaultWhenEmpty: true);
-        var named = Expr<Product>.Create(value => value.Name == "Apple");
-
-        Assert.True(start.Invoke(product));
-        Assert.Equal("value => true", start.GetExpandedExpression().ToReadableString());
-        Assert.Same(named, start.And(named));
-    }
-
-    [Fact]
-    public void StartDropsTheSeedForEitherFirstOperatorAndRemainsImmutable()
-    {
-        var start = Expr<Product>.Start();
         var named = Expr<Product>.Create(product => product.Name == "Apple");
         var cheap = Expr<Product>.Create(product => product.Price < 10m);
+        var builder = PredicateBuilder<Product>.Start();
+        var before = builder.Build();
+        var first = builder.Or(named).Build();
+        var mixed = builder.And(cheap).Build();
 
-        Assert.Same(named, start.And(named));
-        Assert.Same(named, start.Or(named));
-        Assert.Equal("product => product.Name == \"Apple\"",
-            start.And(product => product.Name == "Apple").GetExpandedExpression().ToReadableString());
-        Assert.Equal("product => product.Name == \"Apple\"",
-            start.Or(product => product.Name == "Apple").GetExpandedExpression().ToReadableString());
-
-        var mixed = start.Or(named).And(cheap);
-        Assert.Equal("product => (product.Name == \"Apple\") && (product.Price < 10m)",
-            mixed.GetExpandedExpression().ToReadableString());
-        Assert.False(start.Invoke(new Product { Name = "Apple", Price = 5m }));
+        Assert.False(before.Invoke(new Product { Name = "Apple", Price = 5m }));
+        Assert.True(first.Invoke(new Product { Name = "Apple", Price = 50m }));
         Assert.True(mixed.Invoke(new Product { Name = "Apple", Price = 5m }));
+        Assert.False(mixed.Invoke(new Product { Name = "Apple", Price = 50m }));
+        Assert.True(first.Invoke(new Product { Name = "Apple", Price = 50m }));
+        Assert.True(PredicateBuilder<Product>.Start().And(named).Build()
+            .Invoke(new Product { Name = "Apple" }));
     }
 
     [Fact]
@@ -69,7 +54,7 @@ public class ConditionTests
         var product = new Product { Name = "Apple", Price = 5m };
         var namedAndCheap = named.And(cheap);
         var namedAndFive = named.And(value => value.Price == 5m);
-        var namedOrFalse = named.Or(Expr<Product>.False);
+        var namedOrFalse = named.Or(PredicateBuilder<Product>.False().Build());
         var notNamed = named.Not();
 
         Assert.Equal(
@@ -88,10 +73,10 @@ public class ConditionTests
         Assert.True(namedAndFive.Invoke(product));
         Assert.True(namedOrFalse.Invoke(product));
         Assert.True(named.And(cheap).Invoke(product));
-        Assert.True(named.Or(Expr<Product>.False).Invoke(product));
+        Assert.True(named.Or(PredicateBuilder<Product>.False().Build()).Invoke(product));
         Assert.False(notNamed.Invoke(product));
         Assert.True(named.And(cheap).Invoke(product));
-        Assert.True(named.Or(Expr<Product>.False).Invoke(product));
+        Assert.True(named.Or(PredicateBuilder<Product>.False().Build()).Invoke(product));
     }
 
     [Fact]

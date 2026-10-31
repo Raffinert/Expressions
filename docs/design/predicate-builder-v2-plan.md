@@ -1,6 +1,6 @@
 # PredicateBuilder<T> implementation plan (PR #17, v2)
 
-**Status:** PLANNED — this document is an implementation checklist, not a statement that the API exists.
+**Status:** IMPLEMENTED — pending full CI verification. This document also records the implementation and acceptance checklist.
 **Target:** the current PR #17 branch, `feat/unified-composable-expressions-v2`.
 **Constraint:** retain a single canonical result type: `Expr<T, bool>` implementing `IExpr<T, bool>`. Do **not** introduce a `Condition<T>`, `Predicate<T>`, or `BoolExpr<T>` runtime wrapper.
 
@@ -193,16 +193,16 @@ Run the PR's existing Linux/Windows `dotnet format --verify-no-changes`, solutio
 
 ## 8. Definition of done / non-goals checklist
 
-- [ ] Public `PredicateBuilder<T>` API implemented and documented.
-- [ ] `Start/True/False/Not` edge semantics covered.
-- [ ] `Build()` produces an immutable, independent `Expr<T,bool>` snapshot.
-- [ ] Native, external and contravariant `IExpr` accepted without unnecessary eager expansion.
-- [ ] Default `Build()` uses balancing; `Build(balanced: false)` preserves left-associative shape.
-- [ ] Balanced and unbalanced output semantically identical, with left-to-right short-circuit order.
-- [ ] PR #15's iterative balancing scenarios ported with corrected `BinaryExpression` assertions and opaque-leaf + EF regressions; no legacy `Condition<T>` API added.
-- [ ] No `Expression.Invoke` or compiled delegate inserted into EF-facing trees.
-- [ ] Old `Expr<T>` Boolean factory and sentinel special-case removed.
-- [ ] Examples, unit/integration tests, changelog, migration/architecture/README/skills updated.
+- [x] Public `PredicateBuilder<T>` API implemented and documented.
+- [x] `Start/True/False/Not` edge semantics covered.
+- [x] `Build()` produces an immutable, independent `Expr<T,bool>` snapshot.
+- [x] Native, external and contravariant `IExpr` accepted without unnecessary eager expansion.
+- [x] Default `Build()` uses balancing; `Build(balanced: false)` preserves left-associative shape.
+- [x] Balanced and unbalanced output semantically identical, with left-to-right short-circuit order.
+- [x] PR #15's iterative balancing scenarios ported with corrected `BinaryExpression` assertions and opaque-leaf + EF regressions; no legacy `Condition<T>` API added.
+- [x] No `Expression.Invoke` or compiled delegate inserted into EF-facing trees.
+- [x] Old `Expr<T>` Boolean factory and sentinel special-case removed.
+- [x] Examples, unit/integration tests, changelog, migration/architecture/README/skills updated.
 - [ ] Entire CI suite green (including SQL Server LocalDB).
 - [ ] PR description matches implemented functionality; this planning document updated to COMPLETED.
 

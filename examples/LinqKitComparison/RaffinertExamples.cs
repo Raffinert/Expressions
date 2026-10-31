@@ -48,12 +48,12 @@ public static class RaffinertExamples
         ExampleDbContext db,
         params string[] keywords)
     {
-        var predicate = keywords
-            .Select(keyword => Expr<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(Expr<Product>.Start(), (current, next) => current.And(next));
-
-        if (keywords.Length == 0)
-            predicate = Expr<Product>.True;
+        var builder = keywords.Length == 0
+            ? PredicateBuilder<Product>.True()
+            : PredicateBuilder<Product>.Start();
+        foreach (var keyword in keywords)
+            builder.And(product => product.Description.Contains(keyword));
+        var predicate = builder.Build();
 
         return db.Products
             .Where(predicate)
@@ -65,9 +65,10 @@ public static class RaffinertExamples
         ExampleDbContext db,
         params string[] keywords)
     {
-        var predicate = keywords
-            .Select(keyword => Expr<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(Expr<Product>.Start(), (current, next) => current.Or(next));
+        var builder = PredicateBuilder<Product>.Start();
+        foreach (var keyword in keywords)
+            builder.Or(product => product.Description.Contains(keyword));
+        var predicate = builder.Build();
 
         return db.Products
             .Where(predicate)
@@ -138,10 +139,13 @@ public static class RaffinertExamples
             (entity.ValidFrom == null || entity.ValidFrom <= asOf) &&
             (entity.ValidTo == null || entity.ValidTo >= asOf));
 
-    private static Expr<Product, bool> ContainsInDescription(params string[] keywords) =>
-        keywords
-            .Select(keyword => Expr<Product>.Create(product => product.Description.Contains(keyword)))
-            .Aggregate(Expr<Product>.Start(), (current, next) => current.Or(next));
+    private static Expr<Product, bool> ContainsInDescription(params string[] keywords)
+    {
+        var builder = PredicateBuilder<Product>.Start();
+        foreach (var keyword in keywords)
+            builder.Or(product => product.Description.Contains(keyword));
+        return builder.Build();
+    }
 
     private static Expr<Product, bool> IsSelling(DateTime recentSaleCutoff) =>
         Expr<Product>.Create(product =>

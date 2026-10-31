@@ -13,9 +13,7 @@ Custom semantic wrappers can inherit `Expr<TSource,TResult>` to get native expan
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
-`Expr<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
-condition without composing a Boolean seed. An unchanged starter uses its configured result when empty,
-which defaults to `false`. Ordinary `True` and `False` conditions retain standard Boolean composition.
+`PredicateBuilder<T>` is a mutable, non-thread-safe construction helper with `Start/True/False`, `And/Or/Not` and `Build(bool balanced = true)`. It uses immutable private AST nodes and O(1) appends, then lowers once to a standalone `Expr<T,bool>` snapshot. Seed-free `Start()` omits the first Boolean seed; `True/False` are actual Boolean operands. `Build()` by default balances only builder-owned homogeneous short-circuiting operator groups without reordering operands or crossing opaque expression leaves; `Build(balanced: false)` retains left-associative shape. Ordinary `IExpr<T,bool>.And/Or/Not` remain immutable composition methods. `Expr<T>` is now solely an expression factory, with no Boolean starter or constants.
 
 ## Invocation expansion
 

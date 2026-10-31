@@ -106,22 +106,28 @@ bool matches = wanted.Invoke(product);
 
 `And`, `Or`, and `Not` build direct Boolean expression nodes with correctly rebound parameters.
 
-For a dynamic chain, `Start()` lets the first `And` or `Or` supply the condition without adding a Boolean
-seed to the expression tree:
+For dynamic Boolean composition, use the mutable `PredicateBuilder<T>`. `Start()` skips any Boolean
+seed for the first `And` or `Or`, and `Build()` produces an independent reusable `Expr<T,bool>`:
 
 ```csharp
-var condition = Expr<Product>.Start();
+var builder = PredicateBuilder<Product>.Start();
 foreach (var keyword in keywords)
-    condition = condition.Or(product => product.Name.Contains(keyword));
+    builder.Or(product => product.Name.Contains(keyword));
 
-var query = db.Products.Where(condition);
+var predicate = builder.Build(); // Balanced by default.
+var query = db.Products.Where(predicate);
 ```
 
-An unchanged starter evaluates to `false`. Use `Start(defaultWhenEmpty: true)` when an empty chain
-should evaluate to `true`.
+An empty `Start()` builds `false`; use `Start(defaultWhenEmpty: true)` for `true`.
+`PredicateBuilder<T>.True()` and `.False()` instead start with **actual Boolean operands**,
+so the first `And` or `Or` still evaluates the corresponding constant. `Not()` negates the
+entire current composition. Use `Build(balanced: false)` when the original left-associative
+tree is required. Balancing changes only builder-owned homogeneous `AndAlso`/`OrElse`
+groups, preserving operand order and short-circuiting. Builder mutations are not thread-safe
+and do not affect expressions already returned by `Build()`.
 
-Conditions remain immutable, so retain the result of each composition call. `Expr<T>.True` and
-`Expr<T>.False` remain ordinary unconditional conditions; they do not skip the first composition.
+Standalone `IExpr<T,bool>.And/Or/Not` calls continue to return new immutable expressions; they
+do not mutate the original wrappers.
 
 ## Value and object projections
 

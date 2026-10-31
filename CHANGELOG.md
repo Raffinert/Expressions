@@ -5,7 +5,7 @@
 - Replaced the separate public `Condition<T>` and `Projection<TSource,TResult>` types with one `Expr<TSource,TResult>` abstraction.
 - Added `Expr<TSource>.Create(...)` with inferred result types and `Expr<TSource,TResult>.Create(...)` for explicitly typed expressions.
 - Boolean-valued expressions now support fluent `.And(...)`, `.Or(...)`, and `.Not()`; removed the `&`, `|`, `!`, `&&` and `||` operators.
-- Moved Boolean `True`, `False` and seed-free `Start(...)` to the source-type factory.
+- Added mutable `PredicateBuilder<T>` with `Start/True/False`, `And/Or/Not` and snapshot-producing `Build(bool balanced = true)`. Uses an internal composition AST with default-on associative balancing (adapted from PR #15). Removed the Boolean `Start/True/False` factory members and starter sentinel from `Expr<T>`.
 - Unified forward composition and structural adaptation. `IExpr<TSource, out TResult>` supports Boolean combinators and `Then` directly; member-initializer merging and mapping moved into extensions with lazily allocated, weak-keyed per-expression mapping caches.
 - Renamed the condition/projection LINQ extension classes to predicate/selector names (including EF Core async predicate extensions) and their named arguments. Public LINQ method names and behavior are unchanged.
 - Updated LINQ, EF Core, QuerySyntax, docs, examples and tests for the new API; no legacy wrapper compatibility is provided. Mapping to existing objects requires a reference-type result; unsupported shapes continue to fail descriptively.

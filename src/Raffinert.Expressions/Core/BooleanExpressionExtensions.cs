@@ -11,10 +11,8 @@ public static class BooleanExpressionExtensions
     {
         if (left == null) throw new ArgumentNullException(nameof(left));
         if (right == null) throw new ArgumentNullException(nameof(right));
-        return left is BooleanStartExpression<T>
-            ? right as Expr<T, bool> ?? Expr<T, bool>.Create(ExprAdapter.GetExpandedExpression(right))
-            : Expr<T, bool>.Create(BooleanExpressionComposer.And(
-                GetComposableExpression(left), GetComposableExpression(right)));
+        return Expr<T, bool>.Create(BooleanExpressionComposer.And(
+            GetComposableExpression(left), GetComposableExpression(right)));
     }
 
     /// <summary>Combines a Boolean expression and a lambda using short-circuiting AND.</summary>
@@ -31,10 +29,8 @@ public static class BooleanExpressionExtensions
     {
         if (left == null) throw new ArgumentNullException(nameof(left));
         if (right == null) throw new ArgumentNullException(nameof(right));
-        return left is BooleanStartExpression<T>
-            ? right as Expr<T, bool> ?? Expr<T, bool>.Create(ExprAdapter.GetExpandedExpression(right))
-            : Expr<T, bool>.Create(BooleanExpressionComposer.Or(
-                GetComposableExpression(left), GetComposableExpression(right)));
+        return Expr<T, bool>.Create(BooleanExpressionComposer.Or(
+            GetComposableExpression(left), GetComposableExpression(right)));
     }
 
     /// <summary>Combines a Boolean expression and a lambda using short-circuiting OR.</summary>

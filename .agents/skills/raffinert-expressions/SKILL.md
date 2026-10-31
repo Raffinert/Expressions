@@ -16,7 +16,7 @@ Use this skill to implement **consumer code** with Raffinert.Expressions. Model 
 1. Identify the target framework, query provider (if any), EF Core version, and whether the code runs in memory or in an `IQueryable` pipeline.
 2. Select **only the package(s) needed** from the table below; inspect the installed version and adapt examples to its actual API. Do not blindly upgrade EF or add optional packages.
 3. Express reusable Boolean rules as `Expr<T, bool>` and reusable value/DTO transformations as `Expr<TSource, TResult>` (or `Expr<T>.Create(...)` with inferred result type).
-4. Compose independent rules before consumption (`And`/`Or`/`Not`, `Then`, or nested `Invoke`). Keep compositions immutable: assign the returned wrapper rather than expecting in-place mutation.
+4. Compose independent rules before consumption (`And`/`Or`/`Not`, `Then`, or nested `Invoke`). Ordinary expression composition is immutable. For dynamic predicates, use mutable `PredicateBuilder<T>` and call `Build()` to obtain a reusable immutable snapshot.
 5. Choose the correct expansion boundary for the **specific** query form. Do not leave an unexpanded Raffinert invocation for a provider to translate.
 6. Test observable results. For `IQueryable`, execute against the actual provider (SQLite/SQL Server as appropriate) and inspect SQL/parameters where material. Do not mistake passing `IEnumerable` tests for proof of database translation.
 
@@ -70,7 +70,7 @@ bool accepted = eligible.Invoke(order); // in-memory execution
 var query = db.Orders.Where(eligible); // Core direct operator expands
 ```
 
-`Expr<T>.Start()` is for dynamic `And`/`Or` folds: an unchanged starter evaluates to `false` unless `Start(defaultWhenEmpty: true)` was used; its first composition supplies the initial rule without an extra Boolean seed. `True` and `False` are ordinary conditions, not starters.
+For dynamic `And`/`Or` folds, use `PredicateBuilder<T>.Start()`, append operands, then `Build()` (balanced by default). Empty `Start()` builds `false`, or `true` with `defaultWhenEmpty: true`. `PredicateBuilder<T>.True()/False()` are actual constant operands, unlike empty `Start()`. Builders are mutable and not thread-safe; built `Expr<T,bool>` values are independent snapshots. Use `Build(balanced: false)` for original left-associative structure.
 
 ## Stop and check these traps
 
