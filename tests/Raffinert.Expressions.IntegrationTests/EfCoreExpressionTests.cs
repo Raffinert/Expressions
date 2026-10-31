@@ -1,6 +1,7 @@
 using AgileObjects.ReadableExpressions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace Raffinert.Expressions.IntegrationTests;
 
