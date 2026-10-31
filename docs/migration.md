@@ -1,86 +1,57 @@
-# Migration from Raffinert.Spec and Raffinert.Proj
+# Migration to Raffinert.Expressions 2.0
 
-## Packages and namespace
+Version 2 intentionally removes the previous public `Condition<T>` and `Projection<TSource,TResult>` wrapper types. They are both now `Expr<TSource,TResult>`. This is a **source- and binary-breaking** change and no compatibility aliases are provided.
 
-Replace references to `Raffinert.Spec` and `Raffinert.Proj` with `Raffinert.Expressions`. Change both old namespaces to:
+## Package upgrade
 
-```csharp
-using Raffinert.Expressions;
-```
+Upgrade all Raffinert packages together to `2.0.0` (Core, EntityFrameworkCore and QuerySyntax as applicable). Core continues to target `netstandard2.0`; QuerySyntax targets `netstandard2.1`, and the optional EF Core adapter targets `net10.0` with EF Core 10.
 
-The runtime remains `netstandard2.0` and has no EF Core dependency.
+## Creation and composition
 
-The optional `Raffinert.Expressions.QuerySyntax` package targets `netstandard2.1`, depends on the core package,
-and adds `AsRaffinertQuery()` plus provider-independent `ToListAsync()` and `ToArrayAsync()` instance methods in
-the same `Raffinert.Expressions` namespace.
+| In version 1 | In version 2 |
+|---|---|
+| `Condition<Order>.Create(o => o.IsActive)` | `Expr<Order>.Create(o => o.IsActive)` |
+| `Projection<Order>.Create(o => o.Total)` | `Expr<Order>.Create(o => o.Total)` |
+| `Projection<Order, decimal>.Create(...)` | `Expr<Order, decimal>.Create(...)` |
+| `Condition<Order>.True` / `False` | `Expr<Order>.Create(_ => true)` / `Expr<Order>.Create(_ => false)` |
+| `Condition<Order>.Start()` | `PredicateBuilder<Order>.Create()` (then `Build()`) |
+| `condition1 && condition2` | `condition1.And(condition2)` |
+| `condition1 || condition2` | `condition1.Or(condition2)` |
+| `!condition` | `condition.Not()` |
 
-## Renamed semantic types
-
-The aggregate package uses full names for its public semantic types:
-
-- `Spec<T>` becomes `Condition<T>`;
-- `Proj<TIn,TOut>` becomes `Projection<TSource,TResult>`;
-- `Expr<TIn,TOut>` becomes `ComposableExpression<TSource,TResult>` for custom semantic wrappers.
-
-`IComposableExpression<TSource,out TResult>` is the covariant consumption contract used by LINQ extensions.
-Continue to inherit `ComposableExpression<TSource,TResult>` when implementing a custom semantic wrapper; the base
-provides invocation expansion and caching that direct interface implementations do not provide.
-
-The aggregate package otherwise preserves the structural capabilities:
-
-- `Create`, subclassing, `GetExpression`, `True`, `False`, Boolean combinators and operators;
-- direct `Where(condition)` use;
-- projection creation, subclassing, `GetExpression`, and direct `Select(projection)` use;
-- `MergeBindings`, `MapToExisting`, and debugger expression views;
-- nested method-group forms through the canonical `Invoke` method.
-
-The old structural template types are not included. Instead, an existing condition can be adapted directly with
-`AdaptSource<TNewSource>()`. Projections provide `AdaptSource<TNewSource>()`, `AdaptResult<TNewResult>()`, and
-`Adapt<TNewSource,TNewResult>()`.
-
-## Canonical invocation API
-
-Use `Invoke` when composing either semantic type into another expression:
+Boolean-specific immutable composition remains available for `IExpr<T,bool>`. For dynamic chains, `PredicateBuilder<T>` is mutable: `Create()` provides seed-free first `And`/`Or`, and `Build(bool balanced = true)` returns a reusable immutable `Expr<T,bool>`. Use `Expr<T>.Create(_ => true/false)` for standalone constants instead of a builder. An empty `Create()` builds `false` (or `true` with `defaultWhenEmpty: true`). Builder `Not()` materializes the empty fallback before negating. Snapshot results are independent of later builder mutations; builders themselves are not thread-safe. The former `Expr<T>.True/False` static singleton behavior is not preserved; ordinary constant expressions are independently constructed unless callers cache them.
 
 ```csharp
-var amount = Projection<Invoice, decimal>.Create(invoice => invoice.Amount);
-var overdue = Condition<Invoice>.Create(invoice =>
-    amount.Invoke(invoice) > 0m && invoice.DueDate < today);
+var amount = Expr<Invoice>.Create(invoice => invoice.Amount);
+var overdue = Expr<Invoice>.Create(invoice => invoice.DueDate < today)
+    .And(invoice => amount.Invoke(invoice) > 0m);
+var query = db.Invoices.Where(overdue);
 ```
 
-The aggregate API deliberately removes the old execution aliases:
+## Shared capabilities
 
-| Previous call | Replacement |
-| --- | --- |
-| `spec.IsSatisfiedBy(value)` | `spec.Invoke(value)` |
-| `projection.Map(value)` | `projection.Invoke(value)` |
-| `projection.MapIfNotNull(value)` | `projection.InvokeOrDefault(value)` |
-| `Spec<T>.True()` | `Condition<T>.True` |
-| `Spec<T>.False()` | `Condition<T>.False` |
+`Invoke`, `InvokeOrDefault`, `GetExpression`, `GetExpandedExpression`, `AdaptSource`, `AdaptResult`, and `Adapt` are available on the unified concrete type. `Then` also accepts `IExpr` operands. `MergeBindings`, `GetMapToExistingExpression`, `GetMapToExistingAction`, and `MapToExisting` are now extension methods; their mapping state is allocated lazily. `MapToExisting` requires a reference-type destination. Member-initializer-specific features still require compatible expression shapes and throw for unsupported shapes; Boolean composition is statically limited to Boolean outputs.
 
-`InvokeOrDefault` is available on the shared expression base. A null input returns `default(TResult)`, which means `false` for a condition and values such as `0` for value-type projections.
+Subclass `Expr<TSource,TResult>` and override `GetExpression()` for custom wrappers. `IExpr<TSource,out TResult>` remains the covariant LINQ consumer interface.
 
-Use `projection.Then(nextProjection)` for `A -> B -> C` and `projection.Then(condition)` for `A -> B -> bool`.
+## LINQ extension type names
 
-## Deliberate safety changes
+The LINQ methods themselves (`Where`, `Select`, `AnyAsync`, etc.) remain unchanged. Public extension class names use the role of their `IExpr` argument instead of the former wrapper types:
 
-- `MergeBindings` removes duplicate destination bindings deterministically. The default is `UseLast`; choose `UseFirst` or `Throw` when appropriate.
-- Conditional merge branches are matched by destination member, not binding order.
-- `MapToExisting` updates existing nested destination objects in place and automatically constructs missing writable nested objects. Mutable collection members preserve their instance but are cleared and refilled, matching AutoMapper's default collection-update behavior; arrays and writable `IEnumerable<T>` members are replaced. Existing collection items are not matched by key. A missing read-only nested object or collection produces a descriptive exception.
-- Unsupported map-to-existing and merge shapes throw `NotSupportedException` instead of producing malformed trees.
-- Structural source adaptation requires compatible public property or field paths. Projection result adaptation
-  requires parameterless member initializers.
+| Version 1 | Version 2 |
+|---|---|
+| `ConditionEnumerableExtensions` | `PredicateEnumerableExtensions` |
+| `ConditionQueryableExtensions` | `PredicateQueryableExtensions` |
+| `ProjectionEnumerableExtensions` | `SelectorEnumerableExtensions` |
+| `ProjectionQueryableExtensions` | `SelectorQueryableExtensions` |
+| `ConditionEntityFrameworkQueryableExtensions` | `PredicateEntityFrameworkQueryableExtensions` |
 
-## Query behavior
+Named arguments change from `condition:` to `predicate:` and from `projection:` to `selector:` for the corresponding LINQ overloads. `keySelector` and `elementSelector` keep their existing names.
 
-`IQueryable` extensions always submit expanded expressions. `IEnumerable` extensions use the cached compiled expanded delegate. This applies to filtering and projection, condition terminal operations, ordering, grouping, and flattening. No `AsExpandable()` call or provider wrapper is needed.
+## EF Core and QuerySyntax
 
-For C# query syntax, install `Raffinert.Expressions.QuerySyntax` and opt in at the source with
-`AsRaffinertQuery()`. The returned facade expands each query clause before forwarding it to the original provider
-and supports direct `ToListAsync()` and `ToArrayAsync()` materialization. Apply provider-specific query-shaping
-methods before entering the facade, or call `AsRaffinertQuery()` again after an operation returns an ordinary
-`IQueryable<T>`.
+Existing `Where(expression)`, `Select(expression)`, `AnyAsync(expression)` and similar direct overloads consume the shared `IExpr` contract and need no special migration except for wrapper creation/type names. Nested invocations continue to expand as before. `UseRaffinertExpressions()` and `AsRaffinertQuery()` retain their behavior.
 
-.NET Framework 4.7.2 consumers remain on the core package. Use method-style calls such as
-`query.Where(condition).Select(projection)` and materialize with the provider's async extension, such as EF Core
-3.1's `ToListAsync()`.
+## Earlier Spec / Proj migrations
+
+If moving from pre-aggregate `Raffinert.Spec` or `Raffinert.Proj`, map `Spec<T>` to `Expr<T,bool>` and `Proj<TIn,TOut>` to `Expr<TIn,TOut>`. Use `Invoke` instead of legacy `IsSatisfiedBy`, `Map` or `MapIfNotNull` (the latter becomes `InvokeOrDefault`).

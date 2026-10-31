@@ -32,9 +32,9 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         var threshold = 1000;
         var condition = mode switch
         {
-            "constant" => Condition<Row>.Create(x => x.TotalCents > EF.Constant(threshold)),
-            "parameter" => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold)),
-            _ => Condition<Row>.Create(x => x.TotalCents > threshold)
+            "constant" => Expr<Row>.Create(x => x.TotalCents > EF.Constant(threshold)),
+            "parameter" => Expr<Row>.Create(x => x.TotalCents > EF.Parameter(threshold)),
+            _ => Expr<Row>.Create(x => x.TotalCents > threshold)
         };
         var control = mode switch
         {
@@ -76,8 +76,8 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     public async Task LiteralDirectiveMatchesDirectEf(bool constant)
     {
         await using var fixture = await CreateAsync();
-        var condition = constant ? Condition<Row>.Create(x => x.TotalCents > EF.Constant(1000))
-            : Condition<Row>.Create(x => x.TotalCents > EF.Parameter(1000));
+        var condition = constant ? Expr<Row>.Create(x => x.TotalCents > EF.Constant(1000))
+            : Expr<Row>.Create(x => x.TotalCents > EF.Parameter(1000));
         var control = constant ? fixture.Db.Orders.Where(x => x.TotalCents > EF.Constant(1000))
             : fixture.Db.Orders.Where(x => x.TotalCents > EF.Parameter(1000));
         var expected = await control.OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync();
@@ -101,8 +101,8 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         await using var fixture = await CreateAsync();
         var minimum = 1000;
         var maximum = 4;
-        var inner = Condition<Row>.Create(x => x.TotalCents > EF.Constant(minimum) && x.Id < EF.Parameter(maximum));
-        var outer = Condition<Row>.Create(x => inner.Invoke(x));
+        var inner = Expr<Row>.Create(x => x.TotalCents > EF.Constant(minimum) && x.Id < EF.Parameter(maximum));
+        var outer = Expr<Row>.Create(x => inner.Invoke(x));
         var query = fixture.Db.Orders.Where(x => outer.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         foreach (var value in new[] { 1000, 10000, 1000 })
         {
@@ -114,7 +114,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
             Assert.Equal(maximum, Assert.Single(command.Values));
             Assert.Single(command.Names);
         }
-        outer = Condition<Row>.Create(x => x.TotalCents < EF.Constant(minimum) && x.Id < EF.Parameter(maximum));
+        outer = Expr<Row>.Create(x => x.TotalCents < EF.Constant(minimum) && x.Id < EF.Parameter(maximum));
         Assert.Equal(new[] { 1 }, await query.ToArrayAsync());
     }
 
@@ -125,8 +125,8 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     {
         await using var fixture = await CreateAsync();
         int? customerId = 1;
-        var condition = constant ? Condition<Row>.Create(x => x.CustomerId == EF.Constant(customerId))
-            : Condition<Row>.Create(x => x.CustomerId == EF.Parameter(customerId));
+        var condition = constant ? Expr<Row>.Create(x => x.CustomerId == EF.Constant(customerId))
+            : Expr<Row>.Create(x => x.CustomerId == EF.Parameter(customerId));
         var control = constant ? fixture.Db.Orders.Where(x => x.CustomerId == EF.Constant(customerId))
             : fixture.Db.Orders.Where(x => x.CustomerId == EF.Parameter(customerId));
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
@@ -151,8 +151,8 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     {
         await using var fixture = await CreateAsync();
         var threshold = 1000;
-        var condition = constant ? Condition<Row>.Create(x => x.TotalCents > EF.Constant(threshold))
-            : Condition<Row>.Create(x => x.TotalCents > EF.Parameter(threshold));
+        var condition = constant ? Expr<Row>.Create(x => x.TotalCents > EF.Constant(threshold))
+            : Expr<Row>.Create(x => x.TotalCents > EF.Parameter(threshold));
         foreach (var value in new[] { 1000, 10000, 1000 })
         {
             threshold = value;
@@ -168,7 +168,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     {
         await using var fixture = await CreateAsync();
         var customerEmail = "synthetic-ef10-directive-private@example.invalid";
-        var condition = Condition<Row>.Create(x => x.Name == EF.Parameter(customerEmail));
+        var condition = Expr<Row>.Create(x => x.Name == EF.Parameter(customerEmail));
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         foreach (var value in new[] { customerEmail, "Desk", customerEmail })
         {
@@ -181,7 +181,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         }
         Assert.True(query.ToQueryString().Contains(customerEmail, StringComparison.Ordinal));
         var threshold = 1000;
-        var constant = Condition<Row>.Create(x => x.TotalCents > EF.Constant(threshold));
+        var constant = Expr<Row>.Create(x => x.TotalCents > EF.Constant(threshold));
         Assert.Contains("1000", fixture.Db.Orders.Where(x => constant.Invoke(x)).ToQueryString());
     }
 
@@ -194,8 +194,8 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         var control = constant ? fixture.Db.Orders.Where(x => x.Id == EF.Constant(x.TotalCents))
             : fixture.Db.Orders.Where(x => x.Id == EF.Parameter(x.TotalCents));
         await Assert.ThrowsAsync<InvalidOperationException>(() => control.ToArrayAsync());
-        var condition = constant ? Condition<Row>.Create(x => x.Id == EF.Constant(x.TotalCents))
-            : Condition<Row>.Create(x => x.Id == EF.Parameter(x.TotalCents));
+        var condition = constant ? Expr<Row>.Create(x => x.Id == EF.Constant(x.TotalCents))
+            : Expr<Row>.Create(x => x.Id == EF.Parameter(x.TotalCents));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         Assert.Null(error.InnerException);
         Assert.Empty(fixture.Commands.Executed);
@@ -212,10 +212,10 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         var threshold = 1000;
         var condition = (outerConstant, innerConstant) switch
         {
-            (true, true) => Condition<Row>.Create(x => x.TotalCents > EF.Constant(EF.Constant(threshold))),
-            (true, false) => Condition<Row>.Create(x => x.TotalCents > EF.Constant(EF.Parameter(threshold))),
-            (false, true) => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(EF.Constant(threshold))),
-            _ => Condition<Row>.Create(x => x.TotalCents > EF.Parameter(EF.Parameter(threshold)))
+            (true, true) => Expr<Row>.Create(x => x.TotalCents > EF.Constant(EF.Constant(threshold))),
+            (true, false) => Expr<Row>.Create(x => x.TotalCents > EF.Constant(EF.Parameter(threshold))),
+            (false, true) => Expr<Row>.Create(x => x.TotalCents > EF.Parameter(EF.Constant(threshold))),
+            _ => Expr<Row>.Create(x => x.TotalCents > EF.Parameter(EF.Parameter(threshold)))
         };
         var control = (outerConstant, innerConstant) switch
         {
@@ -235,7 +235,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     {
         await using var fixture = await CreateAsync();
         var holder = new Holder();
-        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(holder.Value + 1));
+        var condition = Expr<Row>.Create(x => x.TotalCents > EF.Parameter(holder.Value + 1));
         Assert.Equal(3, await fixture.Db.Orders.Where(x => condition.Invoke(x)).CountAsync());
         Assert.Equal(1, holder.Reads);
         Assert.Equal(1001, Assert.Single(fixture.Commands.Executed.Last().Values));
@@ -246,7 +246,7 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
     {
         await using var fixture = await CreateAsync();
         var holder = new Holder();
-        var condition = Condition<Row>.Create(x => x.TotalCents > EF.Parameter(holder.Value));
+        var condition = Expr<Row>.Create(x => x.TotalCents > EF.Parameter(holder.Value));
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         Assert.Equal(3, await query.CountAsync());
         Assert.Equal(3, await query.CountAsync());
@@ -269,8 +269,8 @@ public class ExplicitEfParameterizationTests(ITestOutputHelper output)
         await using var fixture = await CreateAsync();
         var threshold = 1000;
         var projection = constant
-            ? Projection<Row>.Create(x => new { x.Id, IsExpensive = x.TotalCents > EF.Constant(threshold) })
-            : Projection<Row>.Create(x => new { x.Id, IsExpensive = x.TotalCents > EF.Parameter(threshold) });
+            ? Expr<Row>.Create(x => new { x.Id, IsExpensive = x.TotalCents > EF.Constant(threshold) })
+            : Expr<Row>.Create(x => new { x.Id, IsExpensive = x.TotalCents > EF.Parameter(threshold) });
         var native = constant
             ? fixture.Db.Orders.Select(x => new { x.Id, IsExpensive = x.TotalCents > EF.Constant(threshold) }).OrderBy(x => x.Id)
             : fixture.Db.Orders.Select(x => new { x.Id, IsExpensive = x.TotalCents > EF.Parameter(threshold) }).OrderBy(x => x.Id);

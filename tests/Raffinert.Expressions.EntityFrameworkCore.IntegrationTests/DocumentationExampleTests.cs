@@ -23,7 +23,7 @@ public class DocumentationExampleTests
             new OrderRow { Id = 2, TotalCents = 20_000, Active = true });
         await db.SaveChangesAsync();
 
-        var expensive = Condition<OrderRow>.Create(x => x.TotalCents >= 10_000);
+        var expensive = Expr<OrderRow>.Create(x => x.TotalCents >= 10_000);
         bool hasExpensive = await db.Orders.AnyAsync(expensive);
         var rows = await db.Orders
             .Where(x => expensive.Invoke(x))

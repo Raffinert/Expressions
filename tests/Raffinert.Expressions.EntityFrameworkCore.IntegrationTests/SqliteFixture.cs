@@ -92,12 +92,16 @@ public sealed class OrdersContext(DbContextOptions<OrdersContext> options) : DbC
     }
 }
 
-public sealed class OrderRow
+public class OrderRowBase
+{
+    public bool Active { get; set; }
+    public string Name { get; set; } = "";
+}
+
+public sealed class OrderRow : OrderRowBase
 {
     public int Id { get; set; }
     public int TotalCents { get; set; }
-    public bool Active { get; set; }
-    public string Name { get; set; } = "";
     public int? CustomerId { get; set; }
     public CustomerRow? Customer { get; set; }
     public List<LineRow> Lines { get; set; } = [];

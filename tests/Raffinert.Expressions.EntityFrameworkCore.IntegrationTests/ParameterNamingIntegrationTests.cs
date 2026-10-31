@@ -11,7 +11,7 @@ public class ParameterNamingIntegrationTests
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableSensitiveDataLogging(false).LogTo(messages.Add));
         messages.Clear();
         var customerEmail = "synthetic-naming-private@example.invalid";
-        var condition = Condition<OrderRow>.Create(x => x.Name == customerEmail);
+        var condition = Expr<OrderRow>.Create(x => x.Name == customerEmail);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x));
         Assert.Empty(await query.ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
@@ -29,7 +29,7 @@ public class ParameterNamingIntegrationTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         var settings = new Settings();
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > settings.MinPrice);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > settings.MinPrice);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).Select(x => x.Id);
         foreach (var price in new[] { 1000, 10000, 1000 })
         {
@@ -48,7 +48,7 @@ public class ParameterNamingIntegrationTests
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var threshold = 3;
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > threshold && x.Id < threshold);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > threshold && x.Id < threshold);
         Assert.Equal(new[] { 1, 2 }, await fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id).ToArrayAsync());
         var command = Assert.Single(fixture.Commands.Executed);
         Assert.Single(command.Names);
@@ -60,7 +60,7 @@ public class ParameterNamingIntegrationTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(configure: b => b.EnableServiceProviderCaching(false));
         int? customerId = 1;
-        var condition = Condition<OrderRow>.Create(x => x.CustomerId == customerId);
+        var condition = Expr<OrderRow>.Create(x => x.CustomerId == customerId);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 1, 2 }, await query.ToArrayAsync());
         Assert.Single(fixture.Commands.Executed.Last().Names);

@@ -8,13 +8,13 @@ public class InterceptorTests
     public async Task InterfaceWrapperReassignmentUpdatesTheSameQuery()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        IComposableExpression<OrderRow, bool> condition = Condition<OrderRow>.Create(x => x.Active);
+        IExpr<OrderRow, bool> condition = Expr<OrderRow>.Create(x => x.Active);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         var original = query.Expression;
         Assert.Equal(new[] { 1, 2 }, await query.ToArrayAsync());
-        condition = Condition<OrderRow>.Create(x => !x.Active);
+        condition = Expr<OrderRow>.Create(x => !x.Active);
         Assert.Equal(new[] { 3, 4 }, await query.ToArrayAsync());
-        condition = Condition<OrderRow>.Create(x => x.Id == 4);
+        condition = Expr<OrderRow>.Create(x => x.Id == 4);
         Assert.Equal(new[] { 4 }, await query.ToArrayAsync());
         Assert.Same(original, query.Expression);
         Assert.Equal(3, fixture.Commands.Executed.Count);
@@ -25,9 +25,9 @@ public class InterceptorTests
     public async Task NestedInterfaceWrappersExpandOnTheServer()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        IComposableExpression<OrderRow, int> amount = Projection<OrderRow>.Create(x => x.TotalCents);
-        IComposableExpression<OrderRow, bool> condition = Condition<OrderRow>.Create(x => amount.Invoke(x) > 1000);
-        var composed = Condition<OrderRow>.Create(x => condition.Invoke(x) && x.Active);
+        IExpr<OrderRow, int> amount = Expr<OrderRow>.Create(x => x.TotalCents);
+        IExpr<OrderRow, bool> condition = Expr<OrderRow>.Create(x => amount.Invoke(x) > 1000);
+        var composed = Expr<OrderRow>.Create(x => condition.Invoke(x) && x.Active);
         Assert.Equal(new[] { 2 }, await fixture.Db.Orders.Where(x => composed.Invoke(x)).Select(x => x.Id).ToArrayAsync());
         Assert.Contains("WHERE", Assert.Single(fixture.Commands.Executed).Sql);
     }
@@ -36,7 +36,7 @@ public class InterceptorTests
     public async Task CapturedPredicateExecutesSql()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > 1000);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > 1000);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id);
         var rows = await query.ToListAsync();
 
@@ -49,7 +49,7 @@ public class InterceptorTests
     public async Task UnregisteredPredicateFailsTranslation()
     {
         await using var fixture = await SqliteFixture.CreateAsync(false);
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > 1000);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > 1000);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToListAsync());
         Assert.Empty(fixture.Commands.Executed);
@@ -59,14 +59,14 @@ public class InterceptorTests
     public async Task ReassigningWrapperInTheSameClosureAndQueryDoesNotLeakCachedCondition()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = Expr<OrderRow>.Create(x => x.Active);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id);
         var original = query.Expression;
 
         Assert.Equal(new[] { 1, 2 }, await query.Select(x => x.Id).ToArrayAsync());
-        condition = Condition<OrderRow>.Create(x => !x.Active);
+        condition = Expr<OrderRow>.Create(x => !x.Active);
         Assert.Equal(new[] { 3, 4 }, await query.Select(x => x.Id).ToArrayAsync());
-        condition = Condition<OrderRow>.Create(x => x.Id == 4);
+        condition = Expr<OrderRow>.Create(x => x.Id == 4);
         Assert.Equal(new[] { 4 }, await query.Select(x => x.Id).ToArrayAsync());
         Assert.Same(original, query.Expression);
         Assert.Equal(3, fixture.Commands.Executed.Count);
@@ -77,7 +77,7 @@ public class InterceptorTests
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var threshold = 1000;
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > threshold);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > threshold);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id);
 
         Assert.Equal(new[] { 2, 3, 4 }, await query.Select(x => x.Id).ToArrayAsync());
@@ -93,7 +93,7 @@ public class InterceptorTests
     public async Task OuterCapturedScalarRemainsAnEfParameter()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = Expr<OrderRow>.Create(x => x.Active);
         var threshold = 1000;
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x) && x.TotalCents > threshold);
         Assert.Equal(new[] { 2 }, await query.Select(x => x.Id).ToArrayAsync());

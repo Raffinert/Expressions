@@ -9,14 +9,14 @@ metadata:
 
 # Raffinert.Expressions — application integration
 
-Use this skill to implement **consumer code** with Raffinert.Expressions. Model conditions and projections as reusable, composable objects, not as a set of unrelated expression-tree helpers. Do not introduce the library into an application merely to replace a simple inline lambda used once.
+Use this skill to implement **consumer code** with Raffinert.Expressions. Model Boolean rules and value projections using the same reusable, composable expression type, not as a set of unrelated expression-tree helpers. Do not introduce the library into an application merely to replace a simple inline lambda used once.
 
 ## Workflow
 
 1. Identify the target framework, query provider (if any), EF Core version, and whether the code runs in memory or in an `IQueryable` pipeline.
 2. Select **only the package(s) needed** from the table below; inspect the installed version and adapt examples to its actual API. Do not blindly upgrade EF or add optional packages.
-3. Express reusable Boolean rules as `Condition<T>` and reusable value/DTO transformations as `Projection<TSource, TResult>` (or `Projection<T>.Create(...)` with inferred result type).
-4. Compose independent rules before consumption (`And`/`Or`/`Not`, `&`/`|`/`!`, `Then`, or nested `Invoke`). Keep compositions immutable: assign the returned wrapper rather than expecting in-place mutation.
+3. Express reusable Boolean rules as `Expr<T, bool>` and reusable value/DTO transformations as `Expr<TSource, TResult>` (or `Expr<T>.Create(...)` with inferred result type).
+4. Compose independent rules before consumption (`And`/`Or`/`Not`, `Then`, or nested `Invoke`). Ordinary expression composition is immutable. For dynamic predicates, use mutable `PredicateBuilder<T>` and call `Build()` to obtain a reusable immutable snapshot.
 5. Choose the correct expansion boundary for the **specific** query form. Do not leave an unexpanded Raffinert invocation for a provider to translate.
 6. Test observable results. For `IQueryable`, execute against the actual provider (SQLite/SQL Server as appropriate) and inspect SQL/parameters where material. Do not mistake passing `IEnumerable` tests for proof of database translation.
 
@@ -28,7 +28,7 @@ Use this skill to implement **consumer code** with Raffinert.Expressions. Model 
 | EF Core 10 query lambdas, ordinary C# `from` syntax, or async condition overloads | `Raffinert.Expressions.EntityFrameworkCore` (`net10.0`) | Configure `UseRaffinertExpressions()` after the EF provider for invocation inside **ordinary EF-facing lambdas**. The adapter brings Core transitively and does **not** need QuerySyntax. Direct wrapper operators and adapter async condition overloads do not need registration. |
 | Provider-independent C# query-syntax facade without the EF adapter | `Raffinert.Expressions.QuerySyntax` (`netstandard2.1`) | Opt in explicitly with `source.AsRaffinertQuery()`. Simply referencing the package does nothing. The package brings Core transitively. |
 
-EF adapter compatibility for the documented 1.2.0 release: .NET 10 and EF Core/EF Core Relational `>= 10.0.11` and `< 11.0.0`. Check the installed package's dependency range rather than assuming support for EF Core 7–9 or 11.
+EF adapter compatibility for the documented 2.0.0 release: .NET 10 and EF Core/EF Core Relational `>= 10.0.11` and `< 11.0.0`. Check the installed package's dependency range rather than assuming support for EF Core 7–9 or 11.
 
 Read [the usage patterns](references/patterns.md) for composition and structural mapping. Read [EF Core boundaries](references/ef-core.md) for database integration, parameterization, and tests. Do not load extra references for tasks that do not need them.
 
@@ -39,13 +39,13 @@ Read [the usage patterns](references/patterns.md) for composition and structural
 ```csharp
 using Raffinert.Expressions;
 
-var total = Projection<Order>.Create(o =>
+var total = Expr<Order>.Create(o =>
     o.Lines.Sum(l => l.Price * l.Quantity));
 
-var expensive = Condition<Order>.Create(o =>
+var expensive = Expr<Order>.Create(o =>
     total.Invoke(o) > 1000m);
 
-var summary = Projection<Order>.Create(o => new OrderDto
+var summary = Expr<Order>.Create(o => new OrderDto
 {
     Id = o.Id,
     Total = total.Invoke(o)
@@ -61,16 +61,16 @@ var rows = await db.Orders.Where(expensive).Select(summary).ToListAsync();
 `condition.Invoke(entity)` and `projection.Invoke(entity)` **execute** a lazily compiled, per-wrapper cached delegate in ordinary code. Inside a Raffinert expression being expanded, those same `Invoke` calls are composition markers whose bodies are substituted. They are not arbitrary EF-translatable CLR methods.
 
 ```csharp
-var active = Condition<Order>.Create(o => o.IsActive);
-var expensive = Condition<Order>.Create(o => o.Total > 1000m);
-var urgent = Condition<Order>.Create(o => o.IsUrgent);
-var eligible = (active & expensive) | urgent;
+var active = Expr<Order>.Create(o => o.IsActive);
+var expensive = Expr<Order>.Create(o => o.Total > 1000m);
+var urgent = Expr<Order>.Create(o => o.IsUrgent);
+var eligible = active.And(expensive).Or(urgent);
 
 bool accepted = eligible.Invoke(order); // in-memory execution
 var query = db.Orders.Where(eligible); // Core direct operator expands
 ```
 
-`Condition<T>.Start()` is for dynamic `And`/`Or` folds: an unchanged starter evaluates to `false` unless `Start(defaultWhenEmpty: true)` was used; its first composition supplies the initial rule without an extra Boolean seed. `True` and `False` are ordinary conditions, not starters.
+For dynamic `And`/`Or` folds, use `PredicateBuilder<T>.Create()`, append operands, then `Build()` (balanced by default). Empty `Create()` builds `false`, or `true` with `defaultWhenEmpty: true`. For standalone constant predicates, use `Expr<T>.Create(_ => true/false)`; the builder intentionally has no `True()/False()` factories. Builders are mutable and not thread-safe; built `Expr<T,bool>` values are independent snapshots. Use `Build(balanced: false)` for original left-associative structure.
 
 ## Stop and check these traps
 

@@ -2,20 +2,18 @@
 
 ## Shared expression abstraction
 
-`IComposableExpression<TSource,out TResult>` is the covariant public consumption contract used by the LINQ
-extensions. `ComposableExpression<TSource,TResult>` is the supported public implementation base for custom semantic
-wrappers and owns expansion and compiled-delegate caching. `Condition<T>` and `Projection<TSource,TResult>` add domain
-vocabulary while sharing that implementation and the internal `IExpressionExpansionSource` contract.
+`IExpr<TSource,out TResult>` is the covariant public consumption contract used by the LINQ extensions.
+`Expr<TSource,TResult>` is the **single public representation** for reusable predicates and value/result expressions.
+It owns expansion and compiled-delegate caching. Forward composition and Boolean combinators accept the covariant `IExpr<TSource,out TResult>` contract; source/result structural adaptation remains on the concrete type, while member-initializer binding and mapping operations live in `MemberInitializationExtensions`.
+`Expr<TSource>.Create(...)` infers the result type; `Expr<TSource,TResult>.Create(...)` is explicitly typed.
+Boolean composition (`And`, `Or`, `Not`) is exposed for `IExpr<TSource,bool>` through extensions.
+Mapping-only caches are attached on demand through a `ConditionalWeakTable`, so ordinary predicates do not allocate mapping state. The mapping APIs require a reference-type destination; other expression-shape requirements (such as member-initializer roots for merging or result adaptation) are checked at runtime. The engine continues to use the internal `IExpressionExpansionSource` contract.
 
-Custom semantic wrappers should inherit `ComposableExpression<TSource,TResult>` rather than implementing
-`IComposableExpression<TSource,TResult>` directly. This preserves invocation-marker expansion, cycle detection, and
-per-instance caching while allowing consumer APIs to benefit from result covariance.
+Custom semantic wrappers can inherit `Expr<TSource,TResult>` to get native expansion and compiled-delegate caching. External `IExpr<TSource,TResult>` implementations also support nested `Invoke` markers and method-group expansion through the non-generic `IExpr` expansion contract. They must supply a compatible, single-parameter lambda from `GetExpandedLambdaExpression()`; cycles are rejected. External implementations manage their own persistent caching, if needed.
 
 Implementations of `GetExpression()` are assumed stable for the lifetime of a wrapper after its first expansion or compilation request.
 
-`Condition<T>.Start()` returns an immutable starting condition. Its first `And` or `Or` returns the supplied
-condition without composing a Boolean seed. An unchanged starter uses its configured result when empty,
-which defaults to `false`. Ordinary `True` and `False` conditions retain standard Boolean composition.
+`PredicateBuilder<T>` is a mutable, non-thread-safe construction helper with `Create(bool defaultWhenEmpty = false)`, `And/Or/Not` and `Build(bool balanced = true)`. It uses immutable private AST nodes and O(1) appends, then lowers once to a standalone `Expr<T,bool>` snapshot. Seed-free `Create()` omits the first Boolean seed, with an empty-chain fallback of `false` or the configured value. Use `Expr<T>.Create(_ => true/false)` for standalone constants. `Build()` by default balances only builder-owned homogeneous short-circuiting operator groups without reordering operands or crossing opaque expression leaves; `Build(balanced: false)` retains left-associative shape. Ordinary `IExpr<T,bool>.And/Or/Not` remain immutable composition methods. `Expr<T>` is now solely an expression factory, with no Boolean starter or constants.
 
 ## Invocation expansion
 
@@ -37,7 +35,7 @@ The engine never introduces `Expression.Invoke`.
 
 Because all semantic wrappers implement the same internal contract, nested expansion does not distinguish between conditions and projections. A Boolean output can be inserted into a member initializer, and a scalar/object projection can be inserted into a condition.
 
-`Then` composes already-expanded typed lambdas with direct substitution. `Projection<A,B>.Then(Projection<B,C>)` yields `Projection<A,C>`; `Projection<A,B>.Then(Condition<B>)` yields `Condition<A>`.
+`Then` composes already-expanded typed lambdas with direct substitution. `Expr<A,B>.Then(Expr<B,C>)` yields `Expr<A,C>`; `Expr<A,B>.Then(Expr<B, bool>)` yields `Expr<A, bool>`.
 
 ## Null-safe invocation
 

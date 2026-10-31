@@ -15,8 +15,8 @@ public class ServiceCompositionTests
         await using var second = new OrdersContext(fixture.Options);
         var firstThreshold = 1000;
         var secondThreshold = 10000;
-        IComposableExpression<OrderRow, bool> first = Condition<OrderRow>.Create(x => x.TotalCents > firstThreshold);
-        IComposableExpression<OrderRow, bool> other = Condition<OrderRow>.Create(x => x.TotalCents > secondThreshold);
+        IExpr<OrderRow, bool> first = Expr<OrderRow>.Create(x => x.TotalCents > firstThreshold);
+        IExpr<OrderRow, bool> other = Expr<OrderRow>.Create(x => x.TotalCents > secondThreshold);
         var firstQuery = fixture.Db.Orders.Where(x => first.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         var secondQuery = second.Orders.Where(x => other.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 2, 3, 4 }, await firstQuery.ToArrayAsync());
@@ -35,10 +35,10 @@ public class ServiceCompositionTests
     public async Task FailedTranslationDoesNotPoisonTheNextQuery()
     {
         await using var fixture = await SqliteFixture.CreateAsync();
-        var invalid = Condition<OrderRow>.Create(x => Unsupported(x.Name));
+        var invalid = Expr<OrderRow>.Create(x => Unsupported(x.Name));
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.Where(x => invalid.Invoke(x)).ToArrayAsync());
         Assert.Empty(fixture.Commands.Executed);
-        var valid = Condition<OrderRow>.Create(x => x.Id == 4);
+        var valid = Expr<OrderRow>.Create(x => x.Id == 4);
         Assert.Equal(new[] { 4 }, await fixture.Db.Orders.Where(x => valid.Invoke(x)).Select(x => x.Id).ToArrayAsync());
         Assert.Contains("WHERE", Assert.Single(fixture.Commands.Executed).Sql);
     }
@@ -48,7 +48,7 @@ public class ServiceCompositionTests
     {
         await using var fixture = await SqliteFixture.CreateAsync(false,
             b => b.AddInterceptors(RaffinertExpressionInterceptor.Instance));
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = Expr<OrderRow>.Create(x => x.Active);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             fixture.Db.Orders.Where(x => condition.Invoke(x)).ToArrayAsync());
         Assert.Contains("Unable to resolve expression instance", error.Message);
@@ -73,10 +73,10 @@ public class ServiceCompositionTests
             builder.UseRaffinertExpressions();
         });
         counters.Contexts = counters.Keys = 0;
-        var condition = Condition<OrderRow>.Create(x => x.Active);
+        var condition = Expr<OrderRow>.Create(x => x.Active);
         var query = fixture.Db.Orders.Where(x => condition.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
         Assert.Equal(new[] { 1, 2 }, await query.ToArrayAsync());
-        condition = Condition<OrderRow>.Create(x => !x.Active);
+        condition = Expr<OrderRow>.Create(x => !x.Active);
         Assert.Equal(new[] { 3, 4 }, await query.ToArrayAsync());
         Assert.Equal(2, counters.Contexts);
         Assert.Equal(2, counters.Keys);

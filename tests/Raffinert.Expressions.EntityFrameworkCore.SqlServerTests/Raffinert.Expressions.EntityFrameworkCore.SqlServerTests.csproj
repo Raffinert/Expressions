@@ -9,6 +9,8 @@
     <Compile Include="../Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/NativeExtractionAcceptanceTests.cs" Link="NativeExtractionAcceptanceTests.cs" />
     <Compile Include="../Raffinert.Expressions.EntityFrameworkCore.IntegrationTests/ExplicitEfParameterizationTests.cs" Link="ExplicitEfParameterizationTests.cs" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+    <!-- Override a vulnerable transitive dependency brought in by the SQL Server test stack. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" PrivateAssets="all" />

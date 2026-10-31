@@ -2,9 +2,9 @@
 
 # Stop duplicating query logic. Start composing it.
 
-**Raffinert.Expressions** turns reusable conditions and projections into first-class, composable building blocks. Define business logic once, combine it independently of LINQ, execute it in memory, or pass the resulting expression tree to your LINQ provider.
+**Raffinert.Expressions** turns reusable expression trees into first-class, composable building blocks. Define business logic once, combine it independently of LINQ, execute it in memory, or pass the resulting expression tree to your LINQ provider.
 
-The same `Condition` and `Projection` objects support composition, nested reuse, in-memory execution, LINQ consumption and expression expansion.
+A single `Expr<TSource, TResult>` represents reusable expressions of any result type—from Boolean predicates to scalar selectors and object projections. It supports composition, nested reuse, in-memory execution, LINQ integration, and expression-tree expansion.
 
 It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec) and [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj) around one expression-expansion engine. The runtime package targets `netstandard2.0`, has no EF Core dependency, and requires neither a custom `IQueryProvider` nor `AsExpandable()`.
 
@@ -20,7 +20,7 @@ It combines the focused APIs of [Raffinert.Spec](https://github.com/Raffinert/Ra
 
 | Package | Purpose |
 |---|---|
-| [Raffinert.Expressions](https://www.nuget.org/packages/Raffinert.Expressions) | Core conditions, projections, composition, expansion and direct LINQ operators. |
+| [Raffinert.Expressions](https://www.nuget.org/packages/Raffinert.Expressions) | Unified Boolean/value expressions, composition, expansion and direct LINQ operators. |
 | [Raffinert.Expressions.EntityFrameworkCore](https://www.nuget.org/packages/Raffinert.Expressions.EntityFrameworkCore) | EF Core 10 async condition operators and opt-in expansion throughout ordinary EF queries. |
 | [Raffinert.Expressions.QuerySyntax](https://www.nuget.org/packages/Raffinert.Expressions.QuerySyntax) | Independent query-syntax facade via the explicit `AsRaffinertQuery()` call. |
 
@@ -43,7 +43,7 @@ dotnet add package Raffinert.Expressions.QuerySyntax
 For EF Core async condition overloads and optional expansion in ordinary LINQ lambdas, add:
 
 ```shell
-dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
+dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 2.0.0
 ```
 
 This adapter requires **.NET 10**, EF Core and Relational **`[10.0.11,11.0.0)`**, depends on core,
@@ -55,13 +55,13 @@ All three packages expose their public API in the `Raffinert.Expressions` namesp
 ```csharp
 using Raffinert.Expressions;
 
-var total = Projection<Order>.Create(order =>
+var total = Expr<Order>.Create(order =>
     order.Lines.Sum(line => line.Price * line.Quantity));
 
-var expensive = Condition<Order>.Create(order =>
+var expensive = Expr<Order>.Create(order =>
     total.Invoke(order) > 1000m);
 
-var summary = Projection<Order>.Create(order => new OrderDto
+var summary = Expr<Order>.Create(order => new OrderDto
 {
     Id = order.Id,
     Total = total.Invoke(order)
@@ -77,59 +77,65 @@ var rows = await db.Orders
 
 These examples use illustrative models. Async database materialization uses your provider's extension methods (for EF Core, `using Microsoft.EntityFrameworkCore;`). Every expanded expression must still be supported by that provider.
 
-## Conditions
+## Boolean expressions
 
 Conditions form an independent algebra, outside LINQ:
 
 ```csharp
-var active = Condition<Order>.Create(o => o.IsActive);
-var expensive = Condition<Order>.Create(o => o.Total > 1000m);
-var urgent = Condition<Order>.Create(o => o.IsUrgent);
+var active = Expr<Order>.Create(o => o.IsActive);
+var expensive = Expr<Order>.Create(o => o.Total > 1000m);
+var urgent = Expr<Order>.Create(o => o.IsUrgent);
 
-var eligible = (active && expensive) || urgent;
+var eligible = active.And(expensive).Or(urgent);
 
 bool accepted = eligible.Invoke(order);
 var query = db.Orders.Where(eligible);
 ```
 
-`eligible` remains the same composable object whether it evaluates an in-memory order or filters a database query.
+The same composable object can evaluate an in-memory order or filter a database query.
 
-Create a condition inline or subclass `Condition<T>` and override `GetExpression()`:
+Create a Boolean expression inline or subclass `Expr<T, bool>` and override `GetExpression()`:
 
 ```csharp
-var inStock = Condition<Product>.Create(product => product.Stock > 0);
+var inStock = Expr<Product>.Create(product => product.Stock > 0);
 var visible = inStock.And(product => !product.IsHidden);
-var wanted = visible && !Condition<Product>.Create(product => product.IsDiscontinued);
+var wanted = visible.And(Expr<Product>.Create(product => product.IsDiscontinued).Not());
 
 bool matches = wanted.Invoke(product);
 ```
 
-`And`, `Or`, `Not`, `&`, `|`, `!`, `&&`, and `||` build direct Boolean expression nodes with correctly rebound parameters.
+`And`, `Or`, and `Not` build direct Boolean expression nodes with correctly rebound parameters.
 
-For a dynamic chain, `Start()` lets the first `And` or `Or` supply the condition without adding a Boolean
-seed to the expression tree:
+For dynamic Boolean composition, use the mutable `PredicateBuilder<T>`. `Create()` skips any Boolean
+seed for the first `And` or `Or`, and `Build()` produces an independent reusable `Expr<T,bool>`:
 
 ```csharp
-var condition = Condition<Product>.Start();
+var builder = PredicateBuilder<Product>.Create();
 foreach (var keyword in keywords)
-    condition = condition.Or(product => product.Name.Contains(keyword));
+    builder.Or(product => product.Name.Contains(keyword));
 
-var query = db.Products.Where(condition);
+var predicate = builder.Build(); // Balanced by default.
+var query = db.Products.Where(predicate);
 ```
 
-An unchanged starter evaluates to `false`. Use `Start(defaultWhenEmpty: true)` when an empty chain
-should evaluate to `true`.
+An empty `Create()` builds `false`; use `Create(defaultWhenEmpty: true)` for `true`.
+To create a standalone constant predicate, use `Expr<T>.Create(_ => true)` or
+`Expr<T>.Create(_ => false)` directly, without a builder. `Not()` negates the
+entire current builder composition. Use `Build(balanced: false)` when the original left-associative
+tree is required. Balancing changes only builder-owned homogeneous `AndAlso`/`OrElse`
+groups, preserving operand order and short-circuiting. Builder mutations are not thread-safe
+and do not affect expressions already returned by `Build()`.
 
-Conditions remain immutable, so retain the result of each composition call. `Condition<T>.True` and
-`Condition<T>.False` remain ordinary unconditional conditions; they do not skip the first composition.
+Standalone `IExpr<T,bool>.And/Or/Not` calls continue to return new immutable expressions; they
+do not mutate the original wrappers.
 
-## Projections
+## Value and object projections
 
 When the result is an anonymous type, specify only the source type; the result type is inferred from the
 lambda:
 
 ```csharp
-var summary = Projection<Product>.Create(product => new
+var summary = Expr<Product>.Create(product => new
 {
     product.Name,
     Total = product.Price * 2
@@ -137,7 +143,7 @@ var summary = Projection<Product>.Create(product => new
 ```
 
 ```csharp
-var summary = Projection<Product, ProductSummary>.Create(product => new ProductSummary
+var summary = Expr<Product, ProductSummary>.Create(product => new ProductSummary
 {
     Id = product.Id,
     Name = product.Name
@@ -146,7 +152,7 @@ var summary = Projection<Product, ProductSummary>.Create(product => new ProductS
 ProductSummary one = summary.Invoke(product);
 ```
 
-Both wrappers work directly with in-memory and queryable sequences:
+The same expression abstraction works directly with in-memory and queryable sequences:
 
 ```csharp
 var memoryRows = products.Where(inStock).Select(summary).ToArray();
@@ -155,24 +161,24 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 
 ## Cross-composition with `Invoke`
 
-`Invoke` is the common composition marker. A `Condition` can be embedded in a `Projection`, a `Projection` can be embedded in a `Condition`, and mixed chains can be nested to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
+`Invoke` is the common composition marker. Boolean and value-valued composable expressions can be embedded in one another to any practical depth. `GetExpandedExpression()` recursively substitutes the referenced lambda body at the call site.
 
-`Invoke` is the only execution and composition primitive. Method groups such as `items.Any(condition.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
+`Invoke` is the shared invocation and inlining primitive. Method groups such as `items.Any(condition.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
 
 ## `Then` composition
 
 Forward composition is available from projections:
 
 ```csharp
-Projection<Order, Customer> customer = ...;
-Projection<Customer, string> customerName = ...;
-Condition<Customer> active = ...;
+Expr<Order, Customer> customer = ...;
+Expr<Customer, string> customerName = ...;
+Expr<Customer, bool> active = ...;
 
-Projection<Order, string> orderCustomerName = customer.Then(customerName);
-Condition<Order> activeCustomerOrder = customer.Then(active);
+Expr<Order, string> orderCustomerName = customer.Then(customerName);
+Expr<Order, bool> activeCustomerOrder = customer.Then(active);
 ```
 
-`Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes.
+`Then` performs parameter substitution immediately; it does not introduce delegate invocation nodes. Boolean combinators and forward composition also accept interface-typed `IExpr<TSource, TResult>` operands, including custom implementations that supply an expanded lambda. Custom `IExpr` implementations are also supported as nested `Invoke` targets; they must return a compatible one-parameter lambda from `GetExpandedLambdaExpression()`.
 
 ## Structural adaptation
 
@@ -180,9 +186,9 @@ An existing condition or projection can be adapted to types with compatible publ
 template object is required:
 
 ```csharp
-Condition<InventoryItem> inventoryFilter = productFilter.AdaptSource<InventoryItem>();
+Expr<InventoryItem, bool> inventoryFilter = productFilter.AdaptSource<InventoryItem>();
 
-Projection<InventoryItem, InventoryDto> inventoryProjection =
+Expr<InventoryItem, InventoryDto> inventoryProjection =
     productProjection.Adapt<InventoryItem, InventoryDto>();
 ```
 
@@ -196,8 +202,8 @@ ambiguous, inaccessible, and incompatible members fail descriptively when adapta
 Use `InvokeOrDefault` only where a null input should produce `default(TOut)`:
 
 ```csharp
-var category = Projection<Category>.Create(value => new CategoryDto { Name = value.Name });
-var product = Projection<Product>.Create(value => new ProductDto
+var category = Expr<Category>.Create(value => new CategoryDto { Name = value.Name });
+var product = Expr<Product>.Create(value => new ProductDto
 {
     Category = category.InvokeOrDefault(value.Category)
 });
@@ -205,54 +211,9 @@ var product = Projection<Product>.Create(value => new ProductDto
 
 Expansion produces a normal conditional expression. Ordinary `Invoke` does not add an implicit null check. For value-type outputs the default is a value such as `0` or `false`, not null.
 
-## Configurable Order Export
+## Merging member-initializer projections
 
-`MergeBindings` overlays compatible member-initializer projections. Duplicate members use `BindingConflictBehavior.UseLast` by default; `UseFirst` and `Throw` are available explicitly. Conditional branch bindings are matched by member identity rather than position.
-
-An order export always includes the order number and customer name. Depending on the export configuration, it may also include the net or gross total. `MergeBindings()` adds the optional calculation without duplicating the base projection:
-
-<p align="right"><a href="https://dotnetfiddle.net/iucjOg">Run .NET fiddle</a></p>
-
-```csharp
-var netAmount = Projection<OrderLine>.Create(l =>
-    l.Quantity * l.UnitPrice);
-
-var grossAmount = Projection<OrderLine>.Create(l =>
-    netAmount.Invoke(l) * (1m + l.VatRate));
-
-var export = Projection<Order>.Create(o => new OrderExportRow
-{
-    Number = o.Number,
-    Customer = o.Customer.Name
-});
-
-if (includeAmounts)
-{
-    var lineAmount = includeVat ? grossAmount : netAmount;
-    var total = Projection<Order>.Create(o =>
-        o.Lines.Sum(l => lineAmount.Invoke(l)));
-
-    export = export.MergeBindings(
-        Projection<Order>.Create(o => new OrderExportRow
-        {
-            Total = total.Invoke(o)
-        }));
-}
-
-var rows = await db.Orders.Select(export).ToListAsync();
-```
-
-The line calculation is defined once in `netAmount` and reused by `grossAmount`. The selected line projection feeds a single order-level sum, so VAT remains specific to each line.
-
-Here `Order.Lines` contains `OrderLine` objects, `OrderExportRow` has a parameterless constructor and a `decimal? Total` property, and `VatRate` is a decimal fraction such as `0.25m` for 25%.
-
-| Configuration | Projection |
-|---|---|
-| `includeAmounts = false` | Common export fields only |
-| `includeAmounts = true`, `includeVat = false` | Common fields + net total |
-| `includeAmounts = true`, `includeVat = true` | Common fields + gross total |
-
-When `includeAmounts` is false, the `Total` member assignment is absent from the final expanded projection. This is structurally different from assigning `null` or `0`, or inserting a row-level conditional expression. The destination property retains its default value.
+`MergeBindings` combines compatible object projections, with configurable duplicate-member handling (`UseLast`, `UseFirst`, or `Throw`). For an end-to-end example, see [Configurable Order Export](#configurable-order-export).
 
 ## EF Core and provider compatibility
 
@@ -300,7 +261,7 @@ a key selector or key and element selectors. Each is available for both `IQuerya
 See the [core architecture](docs/architecture.md) for the shared consumption contract, result covariance and custom wrapper guidance.
 
 Operators requiring binary or indexed expressions, such as join result selectors and indexed predicates, are not
-represented by the unary `IComposableExpression<TSource, TResult>` contract. Pass ordinary expressions to those
+represented by the unary `IExpr<TSource, TResult>` contract. Pass ordinary expressions to those
 operators and expand wrapper arguments explicitly where needed. Numeric aggregates can be expressed without extra
 overloads by selecting first:
 
@@ -330,7 +291,7 @@ Invocation inside a condition or projection remains supported because the wrappe
 expanded before it is passed to the provider:
 
 ```csharp
-var row = Projection<Product>.Create(product => new ProductRow
+var row = Expr<Product>.Create(product => new ProductRow
 {
     Name = product.Name,
     IsVisible = condition.Invoke(product)
@@ -341,12 +302,12 @@ var query = db.Products.Select(row);
 
 ### Optional EF Core integration
 
-`Raffinert.Expressions.EntityFrameworkCore` 1.2.0 adds async composable-condition
+`Raffinert.Expressions.EntityFrameworkCore` 2.0.0 adds async composable-condition
 operators and opt-in invocation expansion for ordinary EF LINQ queries. It requires
 **.NET 10**, EF Core and Relational **`[10.0.11,11.0.0)`**.
 
 ```shell
-dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 1.2.0
+dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 2.0.0
 ```
 
 For an application with an `OrdersContext` exposing an `Orders` set:
@@ -361,7 +322,7 @@ var options = new DbContextOptionsBuilder<OrdersContext>()
     .Options;
 
 await using var db = new OrdersContext(options);
-var expensive = Condition<Order>.Create(x => x.TotalCents >= 10_000);
+var expensive = Expr<Order>.Create(x => x.TotalCents >= 10_000);
 var rows = await db.Orders.Where(x => expensive.Invoke(x)).ToListAsync();
 ```
 
@@ -378,8 +339,8 @@ Standard C# query syntax compiles into ordinary LINQ operator calls. With regist
 
 ```csharp
 // DbContext is configured with UseRaffinertExpressions().
-var active = Condition<Order>.Create(o => o.IsActive);
-var total = Projection<Order>.Create(o => o.Total);
+var active = Expr<Order>.Create(o => o.IsActive);
+var total = Expr<Order>.Create(o => o.Total);
 
 var query =
     from order in db.Orders
@@ -454,7 +415,7 @@ LINQ provider needs to translate the expression.
 
 ### Relationship to LINQKit
 
-LINQKit already supports `PredicateBuilder`, `Invoke`, expansion and reusable expressions. Raffinert's distinction is its unified programming model: `Condition` and `Projection` are independently composable objects with consistent execution, expansion and LINQ consumption capabilities. Core expands at direct operator boundaries, QuerySyntax expands facade clauses, and the registered EF adapter expands ordinary EF queries.
+LINQKit already supports `PredicateBuilder`, `Invoke`, expansion and reusable expressions. Raffinert's distinction is its unified programming model: Boolean and result-valued expressions are independently composable objects with consistent execution, expansion and LINQ consumption capabilities. Core expands at direct operator boundaries, QuerySyntax expands facade clauses, and the registered EF adapter expands ordinary EF queries.
 
 Expansion only performs expression composition. Every node remaining in the expanded expression must still be
 supported by the selected LINQ provider.
@@ -465,7 +426,7 @@ adaptation, null-safe mapping, and merged member initializers.
 
 ## Runtime execution
 
-`Invoke` and `InvokeOrDefault` execute a lazily compiled expanded expression. Expanded expressions, compiled delegates, and map-to-existing actions are cached per immutable wrapper instance. `GetExpression()` implementations are expected to remain stable after expansion or compilation is first requested.
+`Invoke` and `InvokeOrDefault` execute a lazily compiled expanded expression. Expanded expressions and compiled delegates are cached per immutable wrapper instance. Map-to-existing expressions and actions are cached separately, on demand, using weak keys; plain predicates allocate no mapping cache. Member-initializer operations are extensions and validate supported expression shapes at runtime. `GetExpression()` implementations are expected to remain stable after expansion or compilation is first requested.
 
 Use `MapToExisting` to apply a member-initializer projection to an existing destination:
 
@@ -478,7 +439,7 @@ Existing nested destinations are updated in place; missing writable destinations
 
 ## Migration
 
-The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Rename `Spec<T>` to `Condition<T>`, `Proj<TIn,TOut>` to `Projection<TSource,TResult>`, and the public `Expr<TIn,TOut>` base to `ComposableExpression<TSource,TResult>`.
+Version 2 removes `Condition<T>` and `Projection<TSource,TResult>` in favor of a single `Expr<TSource,TResult>` type, with `Expr<TSource>.Create(...)` inferring the result type. Replace condition operators with `.And()`, `.Or()` and `.Not()`. The aggregate package deliberately uses one canonical invocation vocabulary. Replace `IsSatisfiedBy` and `Map` with `Invoke`, and replace `MapIfNotNull` with `InvokeOrDefault`. Use the single `Expr<TSource,TResult>` type for both predicates (`TResult = bool`) and projections; the `Expr<TSource>.Create(...)` factory infers the result type.
 
 See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blob/main/docs/migration.md) for details.
 
@@ -486,6 +447,55 @@ See the [migration guide](https://github.com/Raffinert/Raffinert.Expressions/blo
 
 - [LINQKit comparison](examples/LinqKitComparison/README.md) — the LINQKit README scenarios implemented three
   ways in a .NET 10 / EF Core 10 console app: plain EF Core lambdas, LINQKit, and Raffinert.Expressions.
+
+### Configurable Order Export
+
+`MergeBindings` overlays compatible member-initializer projections. Duplicate members use `BindingConflictBehavior.UseLast` by default; `UseFirst` and `Throw` are available explicitly. Conditional branch bindings are matched by member identity rather than position.
+
+An order export always includes the order number and customer name. Depending on the export configuration, it may also include the net or gross total. `MergeBindings()` adds the optional calculation without duplicating the base projection:
+
+<p align="right"><a href="https://dotnetfiddle.net/iucjOg">Run .NET fiddle</a></p>
+
+```csharp
+var netAmount = Expr<OrderLine>.Create(l =>
+    l.Quantity * l.UnitPrice);
+
+var grossAmount = Expr<OrderLine>.Create(l =>
+    netAmount.Invoke(l) * (1m + l.VatRate));
+
+var export = Expr<Order>.Create(o => new OrderExportRow
+{
+    Number = o.Number,
+    Customer = o.Customer.Name
+});
+
+if (includeAmounts)
+{
+    var lineAmount = includeVat ? grossAmount : netAmount;
+    var total = Expr<Order>.Create(o =>
+        o.Lines.Sum(l => lineAmount.Invoke(l)));
+
+    export = export.MergeBindings(
+        Expr<Order>.Create(o => new OrderExportRow
+        {
+            Total = total.Invoke(o)
+        }));
+}
+
+var rows = await db.Orders.Select(export).ToListAsync();
+```
+
+The line calculation is defined once in `netAmount` and reused by `grossAmount`. The selected line projection feeds a single order-level sum, so VAT remains specific to each line.
+
+Here `Order.Lines` contains `OrderLine` objects, `OrderExportRow` has a parameterless constructor and a `decimal? Total` property, and `VatRate` is a decimal fraction such as `0.25m` for 25%.
+
+| Configuration | Projection |
+|---|---|
+| `includeAmounts = false` | Common export fields only |
+| `includeAmounts = true`, `includeVat = false` | Common fields + net total |
+| `includeAmounts = true`, `includeVat = true` | Common fields + gross total |
+
+When `includeAmounts` is false, the `Total` member assignment is absent from the final expanded projection. This is structurally different from assigning `null` or `0`, or inserting a row-level conditional expression. The destination property retains its default value.
 
 ## AI Agent Skill
 
@@ -495,7 +505,7 @@ Use Raffinert.Expressions in your own project with a portable [Agent Skill](http
 npx skills add Raffinert/Expressions
 ```
 
-The `raffinert-expressions` skill teaches coding agents package selection, reusable `Condition`/`Projection` composition, LINQ and EF Core expansion boundaries, query syntax without unnecessary packages, and common mistakes. It is stored in [`.agents/skills/raffinert-expressions/`](.agents/skills/raffinert-expressions/) and can also be read directly as a `SKILL.md` file. This skill helps **consumers** of the library; it does not require AI to participate in your build or runtime.
+The `raffinert-expressions` skill teaches coding agents package selection, reusable `Expr<TSource, TResult>` composition, LINQ and EF Core expansion boundaries, query syntax without unnecessary packages, and common mistakes. It is stored in [`.agents/skills/raffinert-expressions/`](.agents/skills/raffinert-expressions/) and can also be read directly as a `SKILL.md` file. This skill helps **consumers** of the library; it does not require AI to participate in your build or runtime.
 
 ## Useful reading
 

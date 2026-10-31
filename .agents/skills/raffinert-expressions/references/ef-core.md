@@ -1,14 +1,14 @@
 # EF Core integration boundaries
 
-For documented Raffinert 1.2.0, the optional adapter targets .NET 10 and requires EF Core/Relational versions in `[10.0.11,11.0.0)`. Core is transitive; QuerySyntax is **not** required for the EF adapter.
+For documented Raffinert 2.0.0, the optional adapter targets .NET 10 and requires EF Core/Relational versions in `[10.0.11,11.0.0)`. Core is transitive; QuerySyntax is **not** required for the EF adapter.
 
 ## Direct wrappers versus ordinary lambdas
 
 Core (no adapter registration needed for the direct overloads):
 
 ```csharp
-var active = Condition<Order>.Create(o => o.IsActive);
-var summary = Projection<Order>.Create(o => new OrderDto { Id = o.Id });
+var active = Expr<Order>.Create(o => o.IsActive);
+var summary = Expr<Order>.Create(o => new OrderDto { Id = o.Id });
 var rows = await db.Orders.Where(active).Select(summary).ToListAsync();
 ```
 
@@ -27,8 +27,8 @@ var options = new DbContextOptionsBuilder<OrdersContext>()
 Then ordinary method syntax and ordinary C# query syntax work:
 
 ```csharp
-var active = Condition<Order>.Create(o => o.IsActive);
-var name = Projection<Order>.Create(o => o.Name);
+var active = Expr<Order>.Create(o => o.IsActive);
+var name = Expr<Order>.Create(o => o.Name);
 
 var query =
     from order in db.Orders

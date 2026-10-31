@@ -7,7 +7,7 @@ public class StructuralAdaptationTests
     [Fact]
     public void ConditionAdaptsSourcePropertiesFieldsAndNestedPaths()
     {
-        var condition = Condition<StructuralProduct>.Create(product =>
+        var condition = Expr<StructuralProduct>.Create(product =>
             product.Price > 10m &&
             product.Category != null &&
             product.Category.Name == "Tools");
@@ -32,7 +32,7 @@ public class StructuralAdaptationTests
     [Fact]
     public void ProjectionAdaptsSourceAndNestedResultMembers()
     {
-        var projection = Projection<StructuralProduct>.Create(product =>
+        var projection = Expr<StructuralProduct>.Create(product =>
             new StructuralProductDto
             {
                 Id = product.Id,
@@ -75,8 +75,8 @@ public class StructuralAdaptationTests
     [Fact]
     public void ProjectionCanAdaptOnlyItsSourceOrResult()
     {
-        var name = Projection<StructuralProduct>.Create(product => product.Name);
-        var dto = Projection<StructuralProduct>.Create(product =>
+        var name = Expr<StructuralProduct>.Create(product => product.Name);
+        var dto = Expr<StructuralProduct>.Create(product =>
             new StructuralProductDto { Id = product.Id, Name = product.Name });
 
         var adaptedName = name.AdaptSource<StructuralInventoryItem>();
@@ -98,8 +98,8 @@ public class StructuralAdaptationTests
     [Fact]
     public void SourceAdaptationRejectsMissingIncompatibleAndDirectSourceUsage()
     {
-        var condition = Condition<StructuralProduct>.Create(product => product.Price > 10m);
-        var identity = Projection<StructuralProduct>.Create(product => product);
+        var condition = Expr<StructuralProduct>.Create(product => product.Price > 10m);
+        var identity = Expr<StructuralProduct>.Create(product => product);
 
         var missing = Assert.Throws<InvalidOperationException>(
             condition.AdaptSource<StructuralMissingPriceItem>);
@@ -116,9 +116,9 @@ public class StructuralAdaptationTests
     [Fact]
     public void ResultAdaptationRejectsMissingMembersAndConstructorProjections()
     {
-        var memberInit = Projection<StructuralProduct>.Create(product =>
+        var memberInit = Expr<StructuralProduct>.Create(product =>
             new StructuralProductDto { Id = product.Id, Name = product.Name });
-        var constructor = Projection<StructuralProduct>.Create(product =>
+        var constructor = Expr<StructuralProduct>.Create(product =>
             new StructuralConstructorDto(product.Name));
 
         var missing = Assert.Throws<InvalidOperationException>(

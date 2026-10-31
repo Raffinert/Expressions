@@ -33,7 +33,7 @@ internal static class ExpressionExpander
     {
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            if (!IsInvocationMarker(node.Method) || node.Object == null)
+            if (node.Object == null || !IsInvocationMarker(node.Method, node.Object.Type))
             {
                 // Resolve delegate-typed arguments to preserve callback expansion.
                 if (node.Arguments.Any(argument => typeof(Delegate).IsAssignableFrom(argument.Type)))
@@ -48,11 +48,9 @@ internal static class ExpressionExpander
                     "Only constant, closure-rooted member, static member, and direct constructor targets can be expanded.");
             }
 
-            if (value is not IExpressionExpansionSource expansionSource)
+            if (value is not IExpr expansionSource)
             {
-                throw new NotSupportedException(
-                    "Invocation marker expansion requires a wrapper derived from ComposableExpression<TSource, TResult>. " +
-                    "For external IComposableExpression implementations, pass the wrapper directly to an operator.");
+                throw new NotSupportedException("Invocation marker target must implement IExpr.");
             }
 
             if (node.Arguments.Count != 1)
@@ -63,21 +61,30 @@ internal static class ExpressionExpander
 
             var argument = Visit(node.Arguments[0])!;
             var inner = ExpandNested(expansionSource);
-            if (inner.Parameters.Count != 1)
+            if (inner.Parameters.Count != 1 ||
+                !inner.Parameters[0].Type.IsAssignableFrom(argument.Type) ||
+                !node.Type.IsAssignableFrom(inner.ReturnType))
             {
                 throw new InvalidOperationException(
-                    $"Expression instance '{value.GetType().FullName}' must expose a one-parameter lambda.");
+                    $"Expression instance '{value.GetType().FullName}' returned an incompatible lambda for " +
+                    $"the '{node.Method.Name}' invocation marker.");
             }
 
-            var body = new ReplaceExpressionVisitor(inner.Parameters[0], argument).Visit(inner.Body)!;
+            var boundArgument = inner.Parameters[0].Type == argument.Type
+                ? argument
+                : Expression.Convert(argument, inner.Parameters[0].Type);
+            var body = new ReplaceExpressionVisitor(inner.Parameters[0], boundArgument).Visit(inner.Body)!;
 
-            if (node.Method.Name == nameof(ComposableExpression<,>.InvokeOrDefault) && CanBeNull(argument.Type))
+            if (node.Method.Name == nameof(Expr<,>.InvokeOrDefault) && CanBeNull(argument.Type))
             {
                 body = Expression.Condition(
                     Expression.Equal(argument, Expression.Default(argument.Type)),
                     Expression.Default(body.Type),
                     body);
             }
+
+            if (body.Type != node.Type)
+                body = Expression.Convert(body, node.Type);
 
             return Visit(body)!;
         }
@@ -88,8 +95,8 @@ internal static class ExpressionExpander
                 node.Operand is MethodCallExpression call &&
                 call.Method.Name == nameof(Delegate.CreateDelegate) &&
                 call.Arguments.Count >= 2 &&
-                call.Object is ConstantExpression { Value: MethodInfo method } && IsInvocationMarker(method) &&
-                TryResolveMethodGroup(call.Arguments[1], out var lambda))
+                call.Object is ConstantExpression { Value: MethodInfo method } &&
+                TryResolveMethodGroup(call.Arguments[1], method, node.Type, out var lambda))
             {
                 return lambda;
             }
@@ -99,14 +106,14 @@ internal static class ExpressionExpander
 
         protected override Expression VisitConstant(ConstantExpression node)
         {
-            return TryExpandDelegate(node.Value, out var expression) ? expression : base.VisitConstant(node);
+            return TryExpandDelegate(node.Value, node.Type, out var expression) ? expression : base.VisitConstant(node);
         }
 
         protected override Expression VisitMember(MemberExpression node)
         {
             // A final field can still have a getter/constructor in its receiver chain.
             if (IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
-                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
+                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, node.Type, out var expression))
             {
                 return expression;
             }
@@ -122,7 +129,7 @@ internal static class ExpressionExpander
             // Opaque receiver chains must be read to identify a marker only when used as callbacks.
             // Merely carrying one leaves its evaluation to the eventual execution provider.
             if (node is MemberExpression && !IsFieldOnlyAccess(node) && typeof(Delegate).IsAssignableFrom(node.Type) &&
-                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, out var expression))
+                SafeValueEvaluator.TryEvaluate(node, out var value) && TryExpandDelegate(value, node.Type, out var expression))
                 return expression;
             return Visit(node)!;
         }
@@ -136,11 +143,20 @@ internal static class ExpressionExpander
             _ => false
         };
 
-        private bool TryResolveMethodGroup(Expression targetExpression, out LambdaExpression expression)
+        private bool TryResolveMethodGroup(
+            Expression targetExpression, MethodInfo method, Type delegateType, out LambdaExpression expression)
         {
-            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpressionExpansionSource expansionSource)
+            // Identify the marker from static types BEFORE evaluating the receiver.
+            // Ordinary method-group receivers may contain getters with side effects.
+            if (!IsInvocationMarker(method, targetExpression.Type))
             {
-                expression = ExpandNested(expansionSource);
+                expression = null!;
+                return false;
+            }
+
+            if (SafeValueEvaluator.TryEvaluate(targetExpression, out var target) && target is IExpr expansionSource)
+            {
+                expression = ExprAdapter.AdaptToDelegate(ExpandNested(expansionSource), delegateType);
                 return true;
             }
 
@@ -148,13 +164,14 @@ internal static class ExpressionExpander
             return false;
         }
 
-        private bool TryExpandDelegate(object? value, out LambdaExpression expression)
+        private bool TryExpandDelegate(object? value, Type delegateType, out LambdaExpression expression)
         {
             if (value is Delegate @delegate &&
-                @delegate.Target is IExpressionExpansionSource expansionSource &&
-                IsInvocationMarker(@delegate.Method))
+                @delegate.Target is IExpr expansionSource &&
+                (IsInvocationMarker(@delegate.Method) ||
+                 ImplementsInvocationMarker(@delegate.Method, expansionSource.GetType())))
             {
-                expression = ExpandNested(expansionSource);
+                expression = ExprAdapter.AdaptToDelegate(ExpandNested(expansionSource), delegateType);
                 return true;
             }
 
@@ -162,36 +179,80 @@ internal static class ExpressionExpander
             return false;
         }
 
-        private LambdaExpression ExpandNested(IExpressionExpansionSource expansionSource)
+        private LambdaExpression ExpandNested(IExpr expression)
         {
-            var cached = expansionSource.GetCachedExpandedExpression();
+            // Native wrappers own their expanded-tree cache. External implementations expose
+            // an expanded lambda via IExpr but still need visiting and cycle detection.
+            var native = expression as IExpressionExpansionSource;
+            var cached = native?.GetCachedExpandedExpression();
             if (cached != null) return cached;
 
-            if (!expansionStack.Add(expansionSource))
+            if (!expansionStack.Add(expression))
             {
                 throw new InvalidOperationException(
-                    $"Expression composition cycle detected while expanding '{expansionSource.GetType().FullName}'.");
+                    $"Expression composition cycle detected while expanding '{expression.GetType().FullName}'.");
             }
 
             try
             {
-                var expanded = (LambdaExpression)Visit(expansionSource.GetExpression())!;
-                return expansionSource.CacheExpandedExpression(expanded);
+                var source = native is not null
+                    ? native.GetExpression()
+                    : expression.GetExpandedLambdaExpression();
+                if (source is null)
+                {
+                    throw new InvalidOperationException(
+                        $"Expression instance '{expression.GetType().FullName}' returned a null lambda.");
+                }
+
+                var expanded = (LambdaExpression)Visit(source)!;
+                return native?.CacheExpandedExpression(expanded) ?? expanded;
             }
             finally
             {
-                expansionStack.Remove(expansionSource);
+                expansionStack.Remove(expression);
             }
         }
+
+        // Captured method groups can point to the concrete external implementation
+        // rather than IExpr<TSource, TResult>.Invoke. Only expand methods actually
+        // mapped to that interface; unrelated delegates on the same object stay intact.
+        private static bool ImplementsInvocationMarker(MethodInfo method, Type implementationType)
+        {
+            foreach (var contract in implementationType.GetInterfaces())
+            {
+                if (!contract.IsGenericType ||
+                    contract.GetGenericTypeDefinition() != typeof(IExpr<,>))
+                    continue;
+
+                var mapping = implementationType.GetInterfaceMap(contract);
+                for (var i = 0; i < mapping.InterfaceMethods.Length; i++)
+                {
+                    if (IsInvocationMarker(mapping.InterfaceMethods[i]) &&
+                        mapping.TargetMethods[i].GetBaseDefinition() == method.GetBaseDefinition())
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Recognize concrete implementations without evaluating the receiver:
+        // non-marker methods (including ordinary Invoke methods) must retain their
+        // usual side effects and evaluation timing.
+        private static bool IsInvocationMarker(MethodInfo method, Type receiverType) =>
+            IsInvocationMarker(method) ||
+            (!receiverType.IsInterface &&
+             typeof(IExpr).IsAssignableFrom(receiverType) &&
+             ImplementsInvocationMarker(method, receiverType));
 
         private static bool IsInvocationMarker(MethodInfo method)
         {
             var declaringType = method.DeclaringType;
             if (declaringType == null || !declaringType.IsGenericType) return false;
             var contract = declaringType.GetGenericTypeDefinition();
-            return (contract == typeof(ComposableExpression<,>) || contract == typeof(IComposableExpression<,>)) &&
-                (method.Name == nameof(ComposableExpression<,>.Invoke) ||
-                 method.Name == nameof(ComposableExpression<,>.InvokeOrDefault)) &&
+            return (contract == typeof(Expr<,>) || contract == typeof(IExpr<,>)) &&
+                (method.Name == nameof(Expr<,>.Invoke) ||
+                 method.Name == nameof(Expr<,>.InvokeOrDefault)) &&
                 method == declaringType.GetMethod(method.Name);
         }
 

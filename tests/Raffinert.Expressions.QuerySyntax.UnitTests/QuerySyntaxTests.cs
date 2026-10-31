@@ -19,9 +19,9 @@ public sealed class QuerySyntaxTests
     public void QuerySyntaxExpandsWhereOrderingAndSelectWithoutReplacingProvider()
     {
         var source = Products.AsQueryable();
-        var minimumPrice = Condition<Product>.Create(product => product.Price >= 3);
-        var price = Projection<Product>.Create(product => product.Price);
-        var name = Projection<Product>.Create(product => product.Name);
+        var minimumPrice = Expr<Product>.Create(product => product.Price >= 3);
+        var price = Expr<Product>.Create(product => product.Price);
+        var name = Expr<Product>.Create(product => product.Name);
 
         var query =
             from product in source.AsRaffinertQuery()
@@ -38,8 +38,8 @@ public sealed class QuerySyntaxTests
     public void QuerySyntaxExpandsLetMultipleFromAndContinuation()
     {
         var source = Products.AsQueryable();
-        var name = Projection<Product>.Create(product => product.Name);
-        var tags = Projection<Product>.Create(product => product.Tags.AsEnumerable());
+        var name = Expr<Product>.Create(product => product.Name);
+        var tags = Expr<Product>.Create(product => product.Tags.AsEnumerable());
 
         var query =
             from product in source.AsRaffinertQuery()
@@ -62,9 +62,9 @@ public sealed class QuerySyntaxTests
     {
         var source = Products.AsQueryable();
         var categories = Categories.AsQueryable();
-        var productCategory = Projection<Product>.Create(product => product.Category);
-        var categoryName = Projection<Category>.Create(category => category.Name);
-        var categoryLabel = Projection<Category>.Create(category => category.Label);
+        var productCategory = Expr<Product>.Create(product => product.Category);
+        var categoryName = Expr<Category>.Create(category => category.Name);
+        var categoryLabel = Expr<Category>.Create(category => category.Label);
 
         var joined =
             from product in source.AsRaffinertQuery()
@@ -91,7 +91,7 @@ public sealed class QuerySyntaxTests
     public void ExplicitRangeTypeUsesFacadeCast()
     {
         IQueryable<object> source = Products.Cast<object>().AsQueryable();
-        var name = Projection<Product>.Create(product => product.Name);
+        var name = Expr<Product>.Create(product => product.Name);
 
         var query =
             from Product product in source.AsRaffinertQuery()

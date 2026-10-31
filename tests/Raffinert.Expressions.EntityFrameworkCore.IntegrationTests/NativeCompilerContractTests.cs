@@ -81,7 +81,7 @@ public class NativeCompilerContractTests
         Assert.Same(inner.Precompiled, method.Invoke(compiler, [query, true]));
         Assert.Same(query, inner.Query);
         Assert.True(inner.IsAsync);
-        var condition = Condition<OrderRow>.True;
+        var condition = Expr<OrderRow>.Create(_ => true);
         Expression<Func<OrderRow, bool>> marker = row => condition.Invoke(row);
         var failure = Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(compiler, [marker, false]));
         Assert.IsType<NotSupportedException>(failure.InnerException);
@@ -108,7 +108,7 @@ public class NativeCompilerContractTests
         });
         calls.Count = 0;
         var threshold = 1000;
-        var condition = Condition<OrderRow>.Create(x => x.TotalCents > threshold);
+        var condition = Expr<OrderRow>.Create(x => x.TotalCents > threshold);
         Assert.Equal(3, await f.Db.Orders.Where(x => condition.Invoke(x)).CountAsync());
         threshold = 10000;
         Assert.Equal(1, f.Db.Orders.Count(x => condition.Invoke(x)));

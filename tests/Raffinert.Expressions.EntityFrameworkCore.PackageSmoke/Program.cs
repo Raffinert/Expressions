@@ -17,8 +17,8 @@ await db.Database.EnsureCreatedAsync();
 db.Rows.AddRange(new SmokeRow { Id = 1, Value = 200 }, new SmokeRow { Id = 2, Value = 20000 });
 await db.SaveChangesAsync();
 
-var highValue = Condition<SmokeRow>.Create(x => x.Value > 1000);
-var id = Projection<SmokeRow>.Create(x => x.Id);
+var highValue = Expr<SmokeRow>.Create(x => x.Value > 1000);
+var id = Expr<SmokeRow>.Create(x => x.Id);
 var plainQuery =
     from row in db.Rows
     where highValue.Invoke(row)
@@ -28,7 +28,7 @@ var plainQuery =
 Check((await plainQuery.ToArrayAsync()).SequenceEqual(new[] { 2 }),
     "plain C# query syntax without QuerySyntax package");
 
-IComposableExpression<SmokeRow, bool> condition = Condition<SmokeRow>.Create(x => x.Value > 1000);
+IExpr<SmokeRow, bool> condition = Expr<SmokeRow>.Create(x => x.Value > 1000);
 Check(await db.Rows.AnyAsync(condition), "condition overload");
 Check(await db.Rows.AnyAsync(x => x.Value > 1000), "lambda overload");
 Check(await db.Rows.AnyAsync(), "no-predicate overload");
@@ -41,11 +41,11 @@ catch (ArgumentNullException error) when (error.ParamName == "predicate") { }
 
 var query = db.Rows.Where(x => condition.Invoke(x)).Select(x => x.Id);
 Check((await query.ToArrayAsync()).SequenceEqual(new[] { 2 }), "interface marker");
-condition = Condition<SmokeRow>.Create(x => x.Value < 1000);
+condition = Expr<SmokeRow>.Create(x => x.Value < 1000);
 Check((await query.ToArrayAsync()).SequenceEqual(new[] { 1 }), "interface reassignment");
 
 var threshold = 1000;
-var captured = Condition<SmokeRow>.Create(x => x.Value > threshold);
+var captured = Expr<SmokeRow>.Create(x => x.Value > threshold);
 Check(await db.Rows.CountAsync(captured) == 1, "direct capture");
 threshold = 100;
 Check(await db.Rows.CountAsync(captured) == 2, "changed direct capture");
@@ -76,8 +76,8 @@ foreach (var next in new[] { 1000, 30000, 1000 })
 foreach (var constant in new[] { false, true })
 {
     commands.Executed.Clear();
-    var forced = constant ? Condition<SmokeRow>.Create(x => x.Value > EF.Constant(threshold))
-        : Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(threshold));
+    var forced = constant ? Expr<SmokeRow>.Create(x => x.Value > EF.Constant(threshold))
+        : Expr<SmokeRow>.Create(x => x.Value > EF.Parameter(threshold));
     var forcedQuery = db.Rows.Where(x => forced.Invoke(x));
     foreach (var next in new[] { 1000, 30000, 1000 })
     {
@@ -94,17 +94,17 @@ foreach (var constant in new[] { false, true })
     }
 }
 commands.Executed.Clear();
-var literalParameter = Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(1000));
+var literalParameter = Expr<SmokeRow>.Create(x => x.Value > EF.Parameter(1000));
 Check(await db.Rows.CountAsync(x => literalParameter.Invoke(x)) == 1, "literal EF.Parameter");
 Check(commands.Executed.Last().Names.Length == 1, "literal native parameter");
 Check(Equals(commands.Executed.Last().Values.Single(), 1000), "literal forced binding");
-var literalConstant = Condition<SmokeRow>.Create(x => x.Value > EF.Constant(1000));
+var literalConstant = Expr<SmokeRow>.Create(x => x.Value > EF.Constant(1000));
 Check(await db.Rows.CountAsync(x => literalConstant.Invoke(x)) == 1, "literal EF.Constant");
 Check(commands.Executed.Last().Values.Length == 0, "literal forced constant");
 
 commands.Executed.Clear();
 var marker = "synthetic-smoke-private@example.invalid";
-var privateCondition = Condition<SmokeRow>.Create(x => x.Name == marker);
+var privateCondition = Expr<SmokeRow>.Create(x => x.Name == marker);
 var privateQuery = db.Rows.Where(x => privateCondition.Invoke(x));
 Check((await privateQuery.ToArrayAsync()).Length == 0, "private query result");
 var privateCommand = commands.Executed.Single();
@@ -113,12 +113,12 @@ Check(privateCommand.Values.Contains(marker), "private capture bound as DbParame
 Check(privateQuery.ToQueryString().Contains(marker, StringComparison.Ordinal), "native ToQueryString includes parameter value");
 
 commands.Executed.Clear();
-var explicitPrivate = Condition<SmokeRow>.Create(x => x.Name == EF.Parameter(marker));
+var explicitPrivate = Expr<SmokeRow>.Create(x => x.Name == EF.Parameter(marker));
 Check((await db.Rows.Where(x => explicitPrivate.Invoke(x)).ToArrayAsync()).Length == 0, "private explicit parameter result");
 Check(commands.Executed.Single().Values.Contains(marker), "private explicit parameter binding");
 Check(!commands.Executed.Single().Sql.Contains(marker, StringComparison.Ordinal), "private explicit parameter absent from SQL");
 
-var computed = Condition<SmokeRow>.Create(x => x.Value > EF.Parameter(threshold + 100));
+var computed = Expr<SmokeRow>.Create(x => x.Value > EF.Parameter(threshold + 100));
 var computedQuery = db.Rows.Where(x => computed.Invoke(x));
 foreach (var next in new[] { 1000, 30000, 1000 })
 {
@@ -135,7 +135,7 @@ foreach (var mode in new[] { "parameter", "multiple", "constant" })
         "multiple" => x => Enumerable.Contains(EF.MultipleParameters(ids), x.Id),
         _ => x => Enumerable.Contains(EF.Parameter(ids), x.Id)
     };
-    var collection = Condition<SmokeRow>.Create(predicate);
+    var collection = Expr<SmokeRow>.Create(predicate);
     var collectionQuery = db.Rows.Where(x => collection.Invoke(x)).OrderBy(x => x.Id).Select(x => x.Id);
     foreach (var next in new int[][] { [1], [2], [], [1, 1, 2], [1] })
     {
@@ -148,7 +148,7 @@ foreach (var mode in new[] { "parameter", "multiple", "constant" })
     }
 }
 var pattern = "D%";
-var like = Condition<SmokeRow>.Create(x => EF.Functions.Like(x.Name, pattern));
+var like = Expr<SmokeRow>.Create(x => EF.Functions.Like(x.Name, pattern));
 Check(await db.Rows.CountAsync(x => like.Invoke(x)) == await db.Rows.CountAsync(x => EF.Functions.Like(x.Name, pattern)), "native Like function");
 
 var ordinary = new SmokeCallbackHolder();
@@ -164,7 +164,7 @@ foreach (var offset in new[] { 10, 20, 10 })
     Check(methodGroups.All(callback => callback(1) == offset + 1), "ordinary method group current result");
     Check(ordinary.Reads == 1, "ordinary method group native getter count");
 }
-var positive = Condition<SmokeRow>.Create(x => x.Value > threshold);
+var positive = Expr<SmokeRow>.Create(x => x.Value > threshold);
 Func<SmokeRow, bool> delegated = positive.Invoke;
 foreach (var next in new[] { 1000, 30000, 1000 })
 {
@@ -205,7 +205,7 @@ public sealed class SmokeCommands : DbCommandInterceptor
     }
 }
 
-public sealed class ExternalCondition : IComposableExpression<SmokeRow, bool>
+public sealed class ExternalCondition : IExpr<SmokeRow, bool>
 {
     public bool Invoke(SmokeRow value) => value.Value > 1000;
     public LambdaExpression GetExpandedLambdaExpression() => (Expression<Func<SmokeRow, bool>>)(x => x.Value > 1000);
