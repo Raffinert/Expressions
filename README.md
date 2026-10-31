@@ -106,11 +106,11 @@ bool matches = wanted.Invoke(product);
 
 `And`, `Or`, and `Not` build direct Boolean expression nodes with correctly rebound parameters.
 
-For dynamic Boolean composition, use the mutable `PredicateBuilder<T>`. `Start()` skips any Boolean
+For dynamic Boolean composition, use the mutable `PredicateBuilder<T>`. `Create()` skips any Boolean
 seed for the first `And` or `Or`, and `Build()` produces an independent reusable `Expr<T,bool>`:
 
 ```csharp
-var builder = PredicateBuilder<Product>.Start();
+var builder = PredicateBuilder<Product>.Create();
 foreach (var keyword in keywords)
     builder.Or(product => product.Name.Contains(keyword));
 
@@ -118,7 +118,7 @@ var predicate = builder.Build(); // Balanced by default.
 var query = db.Products.Where(predicate);
 ```
 
-An empty `Start()` builds `false`; use `Start(defaultWhenEmpty: true)` for `true`.
+An empty `Create()` builds `false`; use `Create(defaultWhenEmpty: true)` for `true`.
 To create a standalone constant predicate, use `Expr<T>.Create(_ => true)` or
 `Expr<T>.Create(_ => false)` directly, without a builder. `Not()` negates the
 entire current builder composition. Use `Build(balanced: false)` when the original left-associative

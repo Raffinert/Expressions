@@ -23,8 +23,8 @@ public class ConditionTests
     public void EmptyBuilderDefaultsToFalseOrConfiguredTrue()
     {
         var product = new Product();
-        Assert.False(PredicateBuilder<Product>.Start().Build().Invoke(product));
-        Assert.True(PredicateBuilder<Product>.Start(defaultWhenEmpty: true).Build().Invoke(product));
+        Assert.False(PredicateBuilder<Product>.Create().Build().Invoke(product));
+        Assert.True(PredicateBuilder<Product>.Create(defaultWhenEmpty: true).Build().Invoke(product));
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class ConditionTests
     {
         var named = Expr<Product>.Create(product => product.Name == "Apple");
         var cheap = Expr<Product>.Create(product => product.Price < 10m);
-        var builder = PredicateBuilder<Product>.Start();
+        var builder = PredicateBuilder<Product>.Create();
         var before = builder.Build();
         var first = builder.Or(named).Build();
         var mixed = builder.And(cheap).Build();
@@ -42,7 +42,7 @@ public class ConditionTests
         Assert.True(mixed.Invoke(new Product { Name = "Apple", Price = 5m }));
         Assert.False(mixed.Invoke(new Product { Name = "Apple", Price = 50m }));
         Assert.True(first.Invoke(new Product { Name = "Apple", Price = 50m }));
-        Assert.True(PredicateBuilder<Product>.Start().And(named).Build()
+        Assert.True(PredicateBuilder<Product>.Create().And(named).Build()
             .Invoke(new Product { Name = "Apple" }));
     }
 

@@ -5,13 +5,13 @@ namespace Raffinert.Expressions.UnitTests;
 public class PredicateBuilderTests
 {
     [Fact]
-    public void EmptyStartUsesItsFallbackAndDoesNotSeedItsFirstOperand()
+    public void EmptyBuilderUsesItsFallbackAndDoesNotSeedItsFirstOperand()
     {
-        Assert.False(PredicateBuilder<int>.Start().Build().Invoke(1));
-        Assert.True(PredicateBuilder<int>.Start(true).Build().Invoke(1));
+        Assert.False(PredicateBuilder<int>.Create().Build().Invoke(1));
+        Assert.True(PredicateBuilder<int>.Create(true).Build().Invoke(1));
 
-        var and = PredicateBuilder<int>.Start().And(x => x > 10).Build();
-        var or = PredicateBuilder<int>.Start(true).Or(x => x > 10).Build();
+        var and = PredicateBuilder<int>.Create().And(x => x > 10).Build();
+        var or = PredicateBuilder<int>.Create(true).Or(x => x > 10).Build();
 
         Assert.False(and.Invoke(10));
         Assert.True(and.Invoke(11));
@@ -26,8 +26,8 @@ public class PredicateBuilderTests
     [InlineData(true)]
     public void FirstAndOrNeverIncludeTheEmptyFallback(bool defaultWhenEmpty)
     {
-        var and = PredicateBuilder<int>.Start(defaultWhenEmpty).And(x => x > 0).Build();
-        var or = PredicateBuilder<int>.Start(defaultWhenEmpty).Or(x => x > 0).Build();
+        var and = PredicateBuilder<int>.Create(defaultWhenEmpty).And(x => x > 0).Build();
+        var or = PredicateBuilder<int>.Create(defaultWhenEmpty).Or(x => x > 0).Build();
 
         Assert.Equal(ExpressionType.GreaterThan, and.GetExpression().Body.NodeType);
         Assert.Equal(ExpressionType.GreaterThan, or.GetExpression().Body.NodeType);
@@ -40,13 +40,13 @@ public class PredicateBuilderTests
     [Fact]
     public void EmptyNotMaterializesFallbackAndSubsequentAndDoesNotSkipIt()
     {
-        var invertFalse = PredicateBuilder<int>.Start().Not().Build();
-        var invertTrue = PredicateBuilder<int>.Start(true).Not().Build();
+        var invertFalse = PredicateBuilder<int>.Create().Not().Build();
+        var invertTrue = PredicateBuilder<int>.Create(true).Not().Build();
 
         Assert.True(invertFalse.Invoke(0));
         Assert.False(invertTrue.Invoke(0));
 
-        var chain = PredicateBuilder<int>.Start().Not().And(x => x > 0).Build();
+        var chain = PredicateBuilder<int>.Create().Not().And(x => x > 0).Build();
         Assert.Equal(ExpressionType.AndAlso, chain.GetExpression().Body.NodeType);
         Assert.True(chain.Invoke(1));
         Assert.False(chain.Invoke(-1));
@@ -55,7 +55,7 @@ public class PredicateBuilderTests
     [Fact]
     public void FluentMethodsMutateBuilderAndBuildCreatesIndependentSnapshots()
     {
-        var builder = PredicateBuilder<int>.Start();
+        var builder = PredicateBuilder<int>.Create();
         Assert.Same(builder, builder.And(x => x > 0));
         var before = builder.Build();
 
@@ -75,14 +75,14 @@ public class PredicateBuilderTests
     [Fact]
     public void MixedOperatorsComposeInCallOrderAndNotWrapsWholeChain()
     {
-        var a = PredicateBuilder<int>.Start().And(x => x > 0).Or(x => x == -1)
+        var a = PredicateBuilder<int>.Create().And(x => x > 0).Or(x => x == -1)
             .And(x => x != 2).Build();
         Assert.Equal(ExpressionType.AndAlso, a.GetExpression().Body.NodeType);
         Assert.True(a.Invoke(-1));
         Assert.False(a.Invoke(2));
         Assert.False(a.Invoke(0));
 
-        var inverted = PredicateBuilder<int>.Start().Or(x => x == 7).Or(x => x == 8).Not().Build();
+        var inverted = PredicateBuilder<int>.Create().Or(x => x == 7).Or(x => x == 8).Not().Build();
         Assert.False(inverted.Invoke(7));
         Assert.False(inverted.Invoke(8));
         Assert.True(inverted.Invoke(9));
@@ -94,7 +94,7 @@ public class PredicateBuilderTests
     {
         foreach (var useOr in new[] { false, true })
         {
-            var builder = PredicateBuilder<int>.Start();
+            var builder = PredicateBuilder<int>.Create();
             for (var i = 0; i < 4096; i++)
             {
                 if (useOr) builder.Or(x => x == 7);
@@ -116,7 +116,7 @@ public class PredicateBuilderTests
     [Fact]
     public void MixedAndNotGroupsAreBalancedWithoutCrossingBoundaries()
     {
-        var builder = PredicateBuilder<int>.Start();
+        var builder = PredicateBuilder<int>.Create();
         for (var i = 0; i < 128; i++) builder.And(x => x > 0);
         builder.Not();
         for (var i = 0; i < 128; i++) builder.Or(x => x < 0);
@@ -131,7 +131,7 @@ public class PredicateBuilderTests
     [Fact]
     public void DeepAlternatingOperatorsCanBeBuiltWithoutRecursiveTraversal()
     {
-        var builder = PredicateBuilder<int>.Start();
+        var builder = PredicateBuilder<int>.Create();
         for (var i = 0; i < 2048; i++)
         {
             if ((i & 1) == 0) builder.And(x => x >= 0);
@@ -146,7 +146,7 @@ public class PredicateBuilderTests
     public void BalancingPreservesLeftToRightShortCircuitOrder()
     {
         var calls = new List<int>();
-        var conjunction = PredicateBuilder<int>.Start()
+        var conjunction = PredicateBuilder<int>.Create()
             .And(x => Record(calls, 1, true))
             .And(x => Record(calls, 2, false))
             .And(x => Record(calls, 3, true))
@@ -157,7 +157,7 @@ public class PredicateBuilderTests
         Assert.Equal([1, 2], calls);
         calls.Clear();
 
-        var disjunction = PredicateBuilder<int>.Start()
+        var disjunction = PredicateBuilder<int>.Create()
             .Or(x => Record(calls, 1, false))
             .Or(x => Record(calls, 2, true))
             .Or(x => Record(calls, 3, true))
@@ -172,7 +172,7 @@ public class PredicateBuilderTests
     public void OpaqueNativeLeavesRemainUnbalancedInternally()
     {
         var leaf = Expr<int>.Create(x => x > 0 && x < 100 && x != 7 && x != 8);
-        var predicate = PredicateBuilder<int>.Start()
+        var predicate = PredicateBuilder<int>.Create()
             .And(leaf)
             .And(x => x != 3)
             .And(x => x != 4)
@@ -188,7 +188,7 @@ public class PredicateBuilderTests
     {
         var nested = new CountingExpression();
         var wrapper = Expr<int>.Create(x => nested.Invoke(x));
-        var builder = PredicateBuilder<int>.Start().And(wrapper).And(x => x > 1);
+        var builder = PredicateBuilder<int>.Create().And(wrapper).And(x => x > 1);
 
         var built = builder.Build();
         Assert.Equal(0, nested.Requests);
@@ -202,7 +202,7 @@ public class PredicateBuilderTests
         IExpr<Animal, bool> native = Expr<Animal>.Create(x => x.IsActive);
         IExpr<Dog, bool> dogRule = native;
         IExpr<Dog, bool> external = new ExternalDogExpression();
-        var builder = PredicateBuilder<Dog>.Start().And(dogRule).And(external);
+        var builder = PredicateBuilder<Dog>.Create().And(dogRule).And(external);
 
         var predicate = builder.Build();
         Assert.True(predicate.Invoke(new Dog { IsActive = true, Name = "Ada" }));
@@ -213,7 +213,7 @@ public class PredicateBuilderTests
     [Fact]
     public void NullOperandsAreRejectedAtAppendTime()
     {
-        var builder = PredicateBuilder<int>.Start();
+        var builder = PredicateBuilder<int>.Create();
         Assert.Equal("predicate", Assert.Throws<ArgumentNullException>(
             () => builder.And((IExpr<int, bool>)null!)).ParamName);
         Assert.Equal("predicate", Assert.Throws<ArgumentNullException>(

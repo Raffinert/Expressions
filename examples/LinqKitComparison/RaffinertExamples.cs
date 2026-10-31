@@ -48,7 +48,7 @@ public static class RaffinertExamples
         ExampleDbContext db,
         params string[] keywords)
     {
-        var builder = PredicateBuilder<Product>.Start(defaultWhenEmpty: true);
+        var builder = PredicateBuilder<Product>.Create(defaultWhenEmpty: true);
         foreach (var keyword in keywords)
             builder.And(product => product.Description.Contains(keyword));
         var predicate = builder.Build();
@@ -63,7 +63,7 @@ public static class RaffinertExamples
         ExampleDbContext db,
         params string[] keywords)
     {
-        var builder = PredicateBuilder<Product>.Start();
+        var builder = PredicateBuilder<Product>.Create();
         foreach (var keyword in keywords)
             builder.Or(product => product.Description.Contains(keyword));
         var predicate = builder.Build();
@@ -139,7 +139,7 @@ public static class RaffinertExamples
 
     private static Expr<Product, bool> ContainsInDescription(params string[] keywords)
     {
-        var builder = PredicateBuilder<Product>.Start();
+        var builder = PredicateBuilder<Product>.Create();
         foreach (var keyword in keywords)
             builder.Or(product => product.Description.Contains(keyword));
         return builder.Build();

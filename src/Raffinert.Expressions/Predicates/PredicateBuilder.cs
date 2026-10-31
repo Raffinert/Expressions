@@ -18,9 +18,9 @@ public sealed class PredicateBuilder<T>
         _defaultWhenEmpty = defaultWhenEmpty;
     }
 
-    /// <summary>Starts an empty chain. The first AND or OR supplies its initial operand.</summary>
+    /// <summary>Creates an empty predicate builder. The first AND or OR supplies its initial operand.</summary>
     /// <param name="defaultWhenEmpty">The result of an unchanged empty builder.</param>
-    public static PredicateBuilder<T> Start(bool defaultWhenEmpty = false) => new(defaultWhenEmpty);
+    public static PredicateBuilder<T> Create(bool defaultWhenEmpty = false) => new(defaultWhenEmpty);
 
     /// <summary>Appends a short-circuiting AND operand and returns this builder.</summary>
     public PredicateBuilder<T> And(IExpr<T, bool> predicate)

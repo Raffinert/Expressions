@@ -10,7 +10,7 @@ Replace the special Boolean "starter" on `Expr<T>` with an explicitly mutable, s
 
 ```csharp
 var predicate = PredicateBuilder<Order>
-    .Start()
+    .Create()
     .And(o => o.IsActive)
     .And(o => o.Total > 1000m)
     .Or(o => o.IsPriority)
@@ -34,7 +34,7 @@ Create `src/Raffinert.Expressions/Predicates/PredicateBuilder.cs` in namespace `
 ```csharp
 public sealed class PredicateBuilder<T>
 {
-    public static PredicateBuilder<T> Start(bool defaultWhenEmpty = false);
+    public static PredicateBuilder<T> Create(bool defaultWhenEmpty = false);
     public PredicateBuilder<T> And(IExpr<T, bool> predicate);
     public PredicateBuilder<T> And(Expression<Func<T, bool>> predicate);
     public PredicateBuilder<T> Or(IExpr<T, bool> predicate);
@@ -51,22 +51,22 @@ No implicit conversion to `Expr`, `Build` on `IExpr`, or generic builder base cl
 
 ## 3. State and Boolean semantics — write tests before implementation
 
-A builder has (a) a current composition tree and (b) an empty fallback value. `Start()` means **empty**, not a `false` operand. For standalone constant predicates, use `Expr<T>.Create(_ => true/false)` without the builder.
+A builder has (a) a current composition tree and (b) an empty fallback value. `Create()` means **empty**, not a `false` operand. For standalone constant predicates, use `Expr<T>.Create(_ => true/false)` without the builder.
 
 | Sequence | Expected expression / semantics |
 |---|---|
-| `Start().Build()` | Constant `false` |
-| `Start(true).Build()` | Constant `true` |
-| `Start().And(A).Build()` | `A`, no Boolean seed |
-| `Start().Or(A).Build()` | `A`, no Boolean seed |
-| `Start(true).Or(A).Build()` | `A`, despite empty fallback `true` |
-| `Start().Not().Build()` | `!false`, i.e. `true` |
-| `Start(true).Not().Build()` | `!true`, i.e. `false` |
-| `Start().And(A).Or(B).And(D).Build()` | `(A || B) && D` (left-to-right fluent composition) |
+| `Create().Build()` | Constant `false` |
+| `Create(true).Build()` | Constant `true` |
+| `Create().And(A).Build()` | `A`, no Boolean seed |
+| `Create().Or(A).Build()` | `A`, no Boolean seed |
+| `Create(true).Or(A).Build()` | `A`, despite empty fallback `true` |
+| `Create().Not().Build()` | `!false`, i.e. `true` |
+| `Create(true).Not().Build()` | `!true`, i.e. `false` |
+| `Create().And(A).Or(B).And(D).Build()` | `(A || B) && D` (left-to-right fluent composition) |
 
 Fluent calls are composed in call order; the builder does not reinterpret `And` and `Or` according to C# operator precedence.
 
-`Not()` on an empty starter **materializes the configured fallback** as a constant, negates it, and makes the builder non-empty; subsequent `And/Or` must no longer skip the new left operand. `Not()` on a non-empty tree wraps the entire current tree, not only its last condition.
+`Not()` on an empty builder **materializes the configured fallback** as a constant, negates it, and makes the builder non-empty; subsequent `And/Or` must no longer skip the new left operand. `Not()` on a non-empty tree wraps the entire current tree, not only its last condition.
 
 Null `IExpr` and null lambda operands throw `ArgumentNullException` at the corresponding `And/Or` call (not deferred until `Build`). `Build()` never changes builder state. Later `And/Or/Not` calls must not change previously built `Expr` instances. Repeated `Build` calls are allowed; **no reference-identity or builder-level caching guarantee** in v2.
 

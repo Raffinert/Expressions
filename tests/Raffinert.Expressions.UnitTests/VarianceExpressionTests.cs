@@ -37,8 +37,8 @@ public class VarianceExpressionTests
         Assert.True(either.Invoke(new Dog { Active = true, Name = "Bob" }));
         Assert.False(either.Invoke(new Dog { Active = false, Name = "Bob" }));
 
-        var starter = PredicateBuilder<Dog>.Start().And(shared).Build();
-        Assert.True(starter.Invoke(new Dog { Active = true }));
+        var predicate = PredicateBuilder<Dog>.Create().And(shared).Build();
+        Assert.True(predicate.Invoke(new Dog { Active = true }));
         Assert.False(starter.Invoke(new Dog { Active = false }));
     }
 

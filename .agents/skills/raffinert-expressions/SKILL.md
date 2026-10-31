@@ -70,7 +70,7 @@ bool accepted = eligible.Invoke(order); // in-memory execution
 var query = db.Orders.Where(eligible); // Core direct operator expands
 ```
 
-For dynamic `And`/`Or` folds, use `PredicateBuilder<T>.Start()`, append operands, then `Build()` (balanced by default). Empty `Start()` builds `false`, or `true` with `defaultWhenEmpty: true`. For standalone constant predicates, use `Expr<T>.Create(_ => true/false)`; the builder intentionally has no `True()/False()` factories. Builders are mutable and not thread-safe; built `Expr<T,bool>` values are independent snapshots. Use `Build(balanced: false)` for original left-associative structure.
+For dynamic `And`/`Or` folds, use `PredicateBuilder<T>.Create()`, append operands, then `Build()` (balanced by default). Empty `Create()` builds `false`, or `true` with `defaultWhenEmpty: true`. For standalone constant predicates, use `Expr<T>.Create(_ => true/false)`; the builder intentionally has no `True()/False()` factories. Builders are mutable and not thread-safe; built `Expr<T,bool>` values are independent snapshots. Use `Build(balanced: false)` for original left-associative structure.
 
 ## Stop and check these traps
 

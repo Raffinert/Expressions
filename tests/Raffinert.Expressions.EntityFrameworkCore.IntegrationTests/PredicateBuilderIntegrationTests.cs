@@ -11,7 +11,7 @@ public class PredicateBuilderIntegrationTests
     public async Task DirectSqliteWhereSupportsBalancedAndUnbalancedBuilder(bool balanced)
     {
         await using var fixture = await SqliteFixture.CreateAsync(intercept: false);
-        var builder = PredicateBuilder<OrderRow>.Start()
+        var builder = PredicateBuilder<OrderRow>.Create()
             .And(row => row.Active)
             .And(row => row.TotalCents > 1000)
             .And(row => row.Name.Length > 0)
@@ -31,7 +31,7 @@ public class PredicateBuilderIntegrationTests
     {
         await using var fixture = await SqliteFixture.CreateAsync();
         var threshold = 1000;
-        var predicate = PredicateBuilder<OrderRow>.Start()
+        var predicate = PredicateBuilder<OrderRow>.Create()
             .And(row => row.Active)
             .And(row => row.TotalCents > threshold)
             .And(row => row.Name != "")
@@ -60,7 +60,7 @@ public class PredicateBuilderIntegrationTests
         IExpr<OrderRow, bool> shared = sharedBase;
         IExpr<OrderRow, bool> external = new ExternalPredicate();
 
-        var predicate = PredicateBuilder<OrderRow>.Start()
+        var predicate = PredicateBuilder<OrderRow>.Create()
             .And(shared)
             .And(external)
             .Build();

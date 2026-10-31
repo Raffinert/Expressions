@@ -36,15 +36,15 @@ public class UnifiedExpressionTests
     }
 
     [Fact]
-    public void EmptyStartAndOrdinaryTrueExpressionHaveDifferentFirstCompositionSemantics()
+    public void EmptyBuilderAndOrdinaryTrueExpressionHaveDifferentFirstCompositionSemantics()
     {
         var p = Expr<Product>.Create(x => x.Price > 10m);
-        var startAnd = PredicateBuilder<Product>.Start().And(p).Build();
-        var startOr = PredicateBuilder<Product>.Start().Or(p).Build();
+        var fromEmptyAnd = PredicateBuilder<Product>.Create().And(p).Build();
+        var fromEmptyOr = PredicateBuilder<Product>.Create().Or(p).Build();
         var trueAnd = Expr<Product>.Create(_ => true).And(p);
 
-        Assert.Equal(p.Invoke(new Product { Price = 12m }), startAnd.Invoke(new Product { Price = 12m }));
-        Assert.Equal(p.Invoke(new Product { Price = 12m }), startOr.Invoke(new Product { Price = 12m }));
+        Assert.Equal(p.Invoke(new Product { Price = 12m }), fromEmptyAnd.Invoke(new Product { Price = 12m }));
+        Assert.Equal(p.Invoke(new Product { Price = 12m }), fromEmptyOr.Invoke(new Product { Price = 12m }));
         Assert.Equal(ExpressionType.AndAlso, trueAnd.GetExpression().Body.NodeType);
     }
 
@@ -79,7 +79,7 @@ public class UnifiedExpressionTests
     public void BooleanStarterPreservesInterfaceOperands()
     {
         IExpr<Product, bool> custom = new ExternalExpr<Product, bool>(p => p.Price > 10m);
-        var predicate = PredicateBuilder<Product>.Start().And(custom).Build();
+        var predicate = PredicateBuilder<Product>.Create().And(custom).Build();
         Assert.True(predicate.Invoke(new Product { Price = 11m }));
         Assert.False(predicate.Invoke(new Product { Price = 9m }));
     }
@@ -89,7 +89,7 @@ public class UnifiedExpressionTests
     [InlineData(1024)]
     public void LongBooleanChainsRemainComposableAndExecutable(int count)
     {
-        var builder = PredicateBuilder<Product>.Start(defaultWhenEmpty: true);
+        var builder = PredicateBuilder<Product>.Create(defaultWhenEmpty: true);
         for (var index = 0; index < count; index++)
             builder.And(product => product.Price >= 0m);
 

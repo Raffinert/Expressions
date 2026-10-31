@@ -76,7 +76,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
             Expr<DbProduct>.Create(product => product.Name != "Hidden")
         ];
 
-        var builder = PredicateBuilder<DbProduct>.Start();
+        var builder = PredicateBuilder<DbProduct>.Create();
         foreach (var filter in filters)
         {
             builder.And(filter);
