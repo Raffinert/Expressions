@@ -34,6 +34,20 @@ var query = db.Invoices.Where(overdue);
 
 Subclass `Expr<TSource,TResult>` and override `GetExpression()` for custom wrappers. `IExpr<TSource,out TResult>` remains the covariant LINQ consumer interface.
 
+## LINQ extension type names
+
+The LINQ methods themselves (`Where`, `Select`, `AnyAsync`, etc.) remain unchanged. Public extension class names use the role of their `IExpr` argument instead of the former wrapper types:
+
+| Version 1 | Version 2 |
+|---|---|
+| `ConditionEnumerableExtensions` | `PredicateEnumerableExtensions` |
+| `ConditionQueryableExtensions` | `PredicateQueryableExtensions` |
+| `ProjectionEnumerableExtensions` | `SelectorEnumerableExtensions` |
+| `ProjectionQueryableExtensions` | `SelectorQueryableExtensions` |
+| `ConditionEntityFrameworkQueryableExtensions` | `PredicateEntityFrameworkQueryableExtensions` |
+
+Named arguments change from `condition:` to `predicate:` and from `projection:` to `selector:` for the corresponding LINQ overloads. `keySelector` and `elementSelector` keep their existing names.
+
 ## EF Core and QuerySyntax
 
 Existing `Where(expression)`, `Select(expression)`, `AnyAsync(expression)` and similar direct overloads consume the shared `IExpr` contract and need no special migration except for wrapper creation/type names. Nested invocations continue to expand as before. `UseRaffinertExpressions()` and `AsRaffinertQuery()` retain their behavior.

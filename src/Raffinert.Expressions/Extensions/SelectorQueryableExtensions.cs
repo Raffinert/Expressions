@@ -1,34 +1,34 @@
 namespace Raffinert.Expressions;
 
-/// <summary>Provides projection-based LINQ operations for queryable sequences.</summary>
-public static class ProjectionQueryableExtensions
+/// <summary>Provides selector-based LINQ operations for queryable sequences.</summary>
+public static class SelectorQueryableExtensions
 {
     /// <summary>Projects each element of a query using an expanded composable expression.</summary>
     /// <typeparam name="TSource">The type of elements in <paramref name="source"/>.</typeparam>
     /// <typeparam name="TResult">The type of value produced for each element.</typeparam>
     /// <param name="source">The query whose elements are projected.</param>
-    /// <param name="projection">The expression used to project each element.</param>
-    /// <returns>A query whose elements are the results of applying <paramref name="projection"/>.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="projection"/> is null.</exception>
+    /// <param name="selector">The expression used to project each element.</param>
+    /// <returns>A query whose elements are the results of applying <paramref name="selector"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="selector"/> is null.</exception>
     public static IQueryable<TResult> Select<TSource, TResult>(
         this IQueryable<TSource> source,
-        IExpr<TSource, TResult> projection)
+        IExpr<TSource, TResult> selector)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
-        if (projection == null) throw new ArgumentNullException(nameof(projection));
+        if (selector == null) throw new ArgumentNullException(nameof(selector));
 
-        return source.Select(ExprAdapter.GetExpandedExpression(projection));
+        return source.Select(ExprAdapter.GetExpandedExpression(selector));
     }
 
     /// <summary>Projects each query element to a sequence and flattens the resulting sequences.</summary>
     public static IQueryable<TResult> SelectMany<TSource, TResult>(
         this IQueryable<TSource> source,
-        IExpr<TSource, IEnumerable<TResult>> projection)
+        IExpr<TSource, IEnumerable<TResult>> selector)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
-        if (projection == null) throw new ArgumentNullException(nameof(projection));
+        if (selector == null) throw new ArgumentNullException(nameof(selector));
 
-        return source.SelectMany(ExprAdapter.GetExpandedExpression(projection));
+        return source.SelectMany(ExprAdapter.GetExpandedExpression(selector));
     }
 
     /// <summary>Sorts query elements in ascending order using an expanded composable key selector.</summary>
