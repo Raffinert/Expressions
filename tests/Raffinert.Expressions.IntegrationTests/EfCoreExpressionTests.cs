@@ -276,7 +276,7 @@ public sealed class EfCoreExpressionTests : IAsyncLifetime
         Assert.Equal(3, _db.Products.Count(expensive));
         Assert.Equal(3L, _db.Products.LongCount(expensive));
         Assert.True(_db.Products.OrderBy(product => product.Id).First(expensive).PriceCents > 1000);
-        Assert.Null(_db.Products.FirstOrDefault(PredicateBuilder<DbProduct>.False().Build()));
+        Assert.Null(_db.Products.FirstOrDefault(Expr<DbProduct>.Create(_ => false)));
     }
 
     [Fact]

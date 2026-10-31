@@ -13,13 +13,13 @@ Upgrade all Raffinert packages together to `2.0.0` (Core, EntityFrameworkCore an
 | `Condition<Order>.Create(o => o.IsActive)` | `Expr<Order>.Create(o => o.IsActive)` |
 | `Projection<Order>.Create(o => o.Total)` | `Expr<Order>.Create(o => o.Total)` |
 | `Projection<Order, decimal>.Create(...)` | `Expr<Order, decimal>.Create(...)` |
-| `Condition<Order>.True` / `False` | `PredicateBuilder<Order>.True().Build()` / `.False().Build()` |
+| `Condition<Order>.True` / `False` | `Expr<Order>.Create(_ => true)` / `Expr<Order>.Create(_ => false)` |
 | `Condition<Order>.Start()` | `PredicateBuilder<Order>.Start()` (then `Build()`) |
 | `condition1 && condition2` | `condition1.And(condition2)` |
 | `condition1 || condition2` | `condition1.Or(condition2)` |
 | `!condition` | `condition.Not()` |
 
-Boolean-specific immutable composition remains available for `IExpr<T,bool>`. For dynamic chains, `PredicateBuilder<T>` is mutable: `Start()` provides seed-free first `And`/`Or`, `True()/False()` provide ordinary constant operands, and `Build(bool balanced = true)` returns a reusable immutable `Expr<T,bool>`. An empty `Start()` builds `false` (or `true` with `defaultWhenEmpty: true`). Builder `Not()` materializes the empty fallback before negating. Snapshot results are independent of later builder mutations; builders themselves are not thread-safe. The old singleton identity of `Expr<T>.True/False` is not preserved.
+Boolean-specific immutable composition remains available for `IExpr<T,bool>`. For dynamic chains, `PredicateBuilder<T>` is mutable: `Start()` provides seed-free first `And`/`Or`, and `Build(bool balanced = true)` returns a reusable immutable `Expr<T,bool>`. Use `Expr<T>.Create(_ => true/false)` for standalone constants instead of a builder. An empty `Start()` builds `false` (or `true` with `defaultWhenEmpty: true`). Builder `Not()` materializes the empty fallback before negating. Snapshot results are independent of later builder mutations; builders themselves are not thread-safe. The former `Expr<T>.True/False` static singleton behavior is not preserved; ordinary constant expressions are independently constructed unless callers cache them.
 
 ```csharp
 var amount = Expr<Invoice>.Create(invoice => invoice.Amount);

@@ -81,7 +81,7 @@ public class NativeCompilerContractTests
         Assert.Same(inner.Precompiled, method.Invoke(compiler, [query, true]));
         Assert.Same(query, inner.Query);
         Assert.True(inner.IsAsync);
-        var condition = PredicateBuilder<OrderRow>.True().Build();
+        var condition = Expr<OrderRow>.Create(_ => true);
         Expression<Func<OrderRow, bool>> marker = row => condition.Invoke(row);
         var failure = Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(compiler, [marker, false]));
         Assert.IsType<NotSupportedException>(failure.InnerException);

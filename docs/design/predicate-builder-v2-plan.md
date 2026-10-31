@@ -16,18 +16,18 @@ var predicate = PredicateBuilder<Order>
     .Or(o => o.IsPriority)
     .Build(); // Balanced by default
 
-Expr<Order, bool> alwaysTrue = PredicateBuilder<Order>.True().Build();
-Expr<Order, bool> alwaysFalse = PredicateBuilder<Order>.False().Build();
+Expr<Order, bool> alwaysTrue = Expr<Order>.Create(_ => true);
+Expr<Order, bool> alwaysFalse = Expr<Order>.Create(_ => false);
 
 var direct = Expr<Order>.Create(o => o.IsActive)
     .And(o => o.Total > 1000m); // This existing fluent API stays.
 ```
 
-**In scope:** builder factory and fluent API, defined empty-state semantics, default-enabled associative balancing with an explicit opt-out, interoperability with native/external/variant `IExpr`, tests and migration docs, retiring `Expr<T>.Start/True/False` and the old `BooleanStartExpression<T>` special case.
+**In scope:** builder factory and fluent API, defined empty-state semantics, default-enabled associative balancing with an explicit opt-out, interoperability with native/external/variant `IExpr`, tests and migration docs, retiring `Expr<T>.Start/True/False` and the old `BooleanStartExpression<T>` special case; do not reintroduce Boolean constant factories on the builder.
 
 **Out of scope:** changing `Expr<TSource,TResult>`, introducing structural global caches or new concurrency machinery, automatically balancing existing `IExpr.And/Or` calls, broad expression optimizers (EF-specific or otherwise), or changes to `MapToExisting`.
 
-## 2. Public API — implement exactly this minimal surface first
+## 2. Public API — minimal v2 surface
 
 Create `src/Raffinert.Expressions/Predicates/PredicateBuilder.cs` in namespace `Raffinert.Expressions`:
 
@@ -35,9 +35,6 @@ Create `src/Raffinert.Expressions/Predicates/PredicateBuilder.cs` in namespace `
 public sealed class PredicateBuilder<T>
 {
     public static PredicateBuilder<T> Start(bool defaultWhenEmpty = false);
-    public static PredicateBuilder<T> True();
-    public static PredicateBuilder<T> False();
-
     public PredicateBuilder<T> And(IExpr<T, bool> predicate);
     public PredicateBuilder<T> And(Expression<Func<T, bool>> predicate);
     public PredicateBuilder<T> Or(IExpr<T, bool> predicate);
@@ -54,7 +51,7 @@ No implicit conversion to `Expr`, `Build` on `IExpr`, or generic builder base cl
 
 ## 3. State and Boolean semantics — write tests before implementation
 
-A builder has (a) a current composition tree and (b) an empty fallback value. `Start()` means **empty**, not a `false` operand. `True()` and `False()` mean **non-empty constant operands**.
+A builder has (a) a current composition tree and (b) an empty fallback value. `Start()` means **empty**, not a `false` operand. For standalone constant predicates, use `Expr<T>.Create(_ => true/false)` without the builder.
 
 | Sequence | Expected expression / semantics |
 |---|---|
@@ -63,10 +60,6 @@ A builder has (a) a current composition tree and (b) an empty fallback value. `S
 | `Start().And(A).Build()` | `A`, no Boolean seed |
 | `Start().Or(A).Build()` | `A`, no Boolean seed |
 | `Start(true).Or(A).Build()` | `A`, despite empty fallback `true` |
-| `True().Build()` | Constant `true` |
-| `False().Build()` | Constant `false` |
-| `True().And(A).Build()` | `true && A` (ordinary `AndAlso`) |
-| `False().Or(A).Build()` | `false || A` (ordinary `OrElse`) |
 | `Start().Not().Build()` | `!false`, i.e. `true` |
 | `Start(true).Not().Build()` | `!true`, i.e. `false` |
 | `Start().And(A).Or(B).And(D).Build()` | `(A || B) && D` (left-to-right fluent composition) |
@@ -152,7 +145,7 @@ For a homogeneous chain with N leaves, aim for output depth O(log N) with balanc
 - `PredicateBuilder<T>` accepts native `Expr`, external `IExpr`, and contravariant `IExpr<Base,bool>` viewed as `IExpr<Derived,bool>`. The emitted tree must type-check and be consumable by `Enumerable`, `Queryable` and the EF Core adapter.
 - Keep the single result type: `Build()` returns `Expr<T,bool>`, which can be passed to `Where`, `AnyAsync`, `Then`, nested `Invoke`, etc.
 - Remove the Boolean-specific `Start/True/False` members from `src/Raffinert.Expressions/Core/ExprFactory.cs` and delete the internal `BooleanStartExpression<T>`. Remove its special branches in `BooleanExpressionExtensions.And/Or`; after migration, every `Expr<T,bool>` is an ordinary Boolean operand. `Expr<T>.Create` remains a general expression factory.
-- Migrating `Expr<T>.True` to `PredicateBuilder<T>.True().Build()` produces a new wrapper per call unless the caller stores it. **Do not promise singleton identity**; document the behavior change.
+- Migrate former `Expr<T>.True/False` singletons to explicit `Expr<T>.Create(_ => true/false)` constants. These create new wrappers per call unless cached by consumers. `PredicateBuilder<T>` deliberately exposes no `True/False` factories.
 - No source compatibility shims: this PR is already a breaking v2.0 API. Do not touch the historical design documents except their explicit current-API notices.
 
 ## 7. Implementation sequence (small commits on the same PR branch)
@@ -194,7 +187,7 @@ Run the PR's existing Linux/Windows `dotnet format --verify-no-changes`, solutio
 ## 8. Definition of done / non-goals checklist
 
 - [x] Public `PredicateBuilder<T>` API implemented and documented.
-- [x] `Start/True/False/Not` edge semantics covered.
+- [x] `Start/Not` and both empty fallback values covered; standalone `true/false` expressions use `Expr<T>.Create`.
 - [x] `Build()` produces an immutable, independent `Expr<T,bool>` snapshot.
 - [x] Native, external and contravariant `IExpr` accepted without unnecessary eager expansion.
 - [x] Default `Build()` uses balancing; `Build(balanced: false)` preserves left-associative shape.

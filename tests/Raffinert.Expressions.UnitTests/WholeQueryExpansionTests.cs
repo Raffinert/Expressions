@@ -416,7 +416,7 @@ public class WholeQueryExpansionTests
         public Expr<Row, bool> Create()
         {
             Calls++;
-            return PredicateBuilder<Row>.True().Build();
+            return Expr<Row>.Create(_ => true);
         }
     }
 
@@ -436,7 +436,7 @@ public class WholeQueryExpansionTests
             {
                 Reads++;
                 if (Throw) throw new ApplicationException("getter failure");
-                return PredicateBuilder<Row>.True().Build();
+                return Expr<Row>.Create(_ => true);
             }
         }
     }

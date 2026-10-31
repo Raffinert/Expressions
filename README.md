@@ -119,9 +119,9 @@ var query = db.Products.Where(predicate);
 ```
 
 An empty `Start()` builds `false`; use `Start(defaultWhenEmpty: true)` for `true`.
-`PredicateBuilder<T>.True()` and `.False()` instead start with **actual Boolean operands**,
-so the first `And` or `Or` still evaluates the corresponding constant. `Not()` negates the
-entire current composition. Use `Build(balanced: false)` when the original left-associative
+To create a standalone constant predicate, use `Expr<T>.Create(_ => true)` or
+`Expr<T>.Create(_ => false)` directly, without a builder. `Not()` negates the
+entire current builder composition. Use `Build(balanced: false)` when the original left-associative
 tree is required. Balancing changes only builder-owned homogeneous `AndAlso`/`OrElse`
 groups, preserving operand order and short-circuiting. Builder mutations are not thread-safe
 and do not affect expressions already returned by `Build()`.

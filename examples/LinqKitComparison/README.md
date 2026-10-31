@@ -30,8 +30,8 @@ dotnet run --project examples/LinqKitComparison -- --sql
 | Predicate in a navigation collection | Inline the purchase predicate | `AsExpandable()` + `Compile()` | Nested the unified expression's `Invoke` method group, expanded before `Where` |
 | Expression variable in a correlated subquery | Inline the predicate | `AsExpandable()` + an expression passed to subquery `Any` | `AsRaffinertQuery()` + the unified expression's `Invoke` |
 | Combining expressions | Write the combined lambda inline | `Invoke()` + `Expand()` | A condition containing another condition's `Invoke()` |
-| Dynamic all-keyword predicate | Chain ordinary `Where` calls | `PredicateBuilder.And` | Fold conditions from `Expr<T>.Start()` with `And`; use `Expr<T>.True` when empty |
-| Dynamic any-keyword predicate | Spell out the OR terms (two in this example) | `PredicateBuilder.Or` | Fold conditions from `Expr<T>.Start()` with `Or` |
+| Dynamic all-keyword predicate | Chain ordinary `Where` calls | `PredicateBuilder.And` | Use `PredicateBuilder<T>.Start(defaultWhenEmpty: true)`, append `And`, then `Build()` |
+| Dynamic any-keyword predicate | Spell out the OR terms (two in this example) | `PredicateBuilder.Or` | Use `PredicateBuilder<T>.Start()`, append `Or`, then `Build()` |
 | Nested predicates | Write the parenthesized lambda inline | Nested `PredicateBuilder` instances | Compose inner and outer Boolean-valued `Expr` instances |
 | Reusable predicate library | Duplicate the complete rule inline | Reusable expressions composed with `And`/`Or` | Reusable conditions composed with `And`/`Or` |
 | Generic validity predicate | Duplicate the validity clauses in the provider lambda | Generic expression + `And` | Generic `Expr<TEntity, bool>` + `And` |

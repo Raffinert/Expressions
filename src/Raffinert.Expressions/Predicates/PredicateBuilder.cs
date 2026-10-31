@@ -13,21 +13,14 @@ public sealed class PredicateBuilder<T>
     private readonly bool _defaultWhenEmpty;
     private Node? _root;
 
-    private PredicateBuilder(bool defaultWhenEmpty, Node? root = null)
+    private PredicateBuilder(bool defaultWhenEmpty)
     {
         _defaultWhenEmpty = defaultWhenEmpty;
-        _root = root;
     }
 
     /// <summary>Starts an empty chain. The first AND or OR supplies its initial operand.</summary>
     /// <param name="defaultWhenEmpty">The result of an unchanged empty builder.</param>
     public static PredicateBuilder<T> Start(bool defaultWhenEmpty = false) => new(defaultWhenEmpty);
-
-    /// <summary>Starts a chain whose first operand is the Boolean constant true.</summary>
-    public static PredicateBuilder<T> True() => new(false, new ConstantNode(true));
-
-    /// <summary>Starts a chain whose first operand is the Boolean constant false.</summary>
-    public static PredicateBuilder<T> False() => new(false, new ConstantNode(false));
 
     /// <summary>Appends a short-circuiting AND operand and returns this builder.</summary>
     public PredicateBuilder<T> And(IExpr<T, bool> predicate)

@@ -6,17 +6,17 @@ namespace Raffinert.Expressions.UnitTests;
 public class ConditionTests
 {
     [Fact]
-    public void BooleanConstantsAreExecutableAndBuilderFactoriesAreIndependent()
+    public void BooleanConstantsAreOrdinaryReusableExpressions()
     {
         var product = new Product();
-        var yes = PredicateBuilder<Product>.True().Build();
-        var no = PredicateBuilder<Product>.False().Build();
+        var yes = Expr<Product>.Create(value => true);
+        var no = Expr<Product>.Create(value => false);
 
         Assert.True(yes.Invoke(product));
         Assert.False(no.Invoke(product));
         Assert.Equal("value => true", yes.GetExpandedExpression().ToReadableString());
         Assert.Equal("value => false", no.GetExpandedExpression().ToReadableString());
-        Assert.NotSame(yes, PredicateBuilder<Product>.True().Build());
+        Assert.NotSame(yes, Expr<Product>.Create(value => true));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class ConditionTests
         var product = new Product { Name = "Apple", Price = 5m };
         var namedAndCheap = named.And(cheap);
         var namedAndFive = named.And(value => value.Price == 5m);
-        var namedOrFalse = named.Or(PredicateBuilder<Product>.False().Build());
+        var namedOrFalse = named.Or(Expr<Product>.Create(value => false));
         var notNamed = named.Not();
 
         Assert.Equal(
@@ -73,10 +73,10 @@ public class ConditionTests
         Assert.True(namedAndFive.Invoke(product));
         Assert.True(namedOrFalse.Invoke(product));
         Assert.True(named.And(cheap).Invoke(product));
-        Assert.True(named.Or(PredicateBuilder<Product>.False().Build()).Invoke(product));
+        Assert.True(named.Or(Expr<Product>.Create(value => false)).Invoke(product));
         Assert.False(notNamed.Invoke(product));
         Assert.True(named.And(cheap).Invoke(product));
-        Assert.True(named.Or(PredicateBuilder<Product>.False().Build()).Invoke(product));
+        Assert.True(named.Or(Expr<Product>.Create(value => false)).Invoke(product));
     }
 
     [Fact]

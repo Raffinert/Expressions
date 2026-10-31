@@ -21,20 +21,20 @@ public class PredicateBuilderTests
         Assert.Equal(ExpressionType.GreaterThan, and.GetExpression().Body.NodeType);
     }
 
-    [Fact]
-    public void TrueAndFalseAreActualBooleanOperands()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FirstAndOrNeverIncludeTheEmptyFallback(bool defaultWhenEmpty)
     {
-        var yes = PredicateBuilder<int>.True().And(x => x > 0).Build();
-        var no = PredicateBuilder<int>.False().Or(x => x > 0).Build();
+        var and = PredicateBuilder<int>.Start(defaultWhenEmpty).And(x => x > 0).Build();
+        var or = PredicateBuilder<int>.Start(defaultWhenEmpty).Or(x => x > 0).Build();
 
-        Assert.Equal(ExpressionType.AndAlso, yes.GetExpression().Body.NodeType);
-        Assert.Equal(ExpressionType.OrElse, no.GetExpression().Body.NodeType);
-        Assert.True(yes.Invoke(1));
-        Assert.False(yes.Invoke(-1));
-        Assert.True(no.Invoke(1));
-        Assert.False(no.Invoke(-1));
-        Assert.True(PredicateBuilder<int>.True().Build().Invoke(0));
-        Assert.False(PredicateBuilder<int>.False().Build().Invoke(0));
+        Assert.Equal(ExpressionType.GreaterThan, and.GetExpression().Body.NodeType);
+        Assert.Equal(ExpressionType.GreaterThan, or.GetExpression().Body.NodeType);
+        Assert.True(and.Invoke(1));
+        Assert.False(and.Invoke(-1));
+        Assert.True(or.Invoke(1));
+        Assert.False(or.Invoke(-1));
     }
 
     [Fact]

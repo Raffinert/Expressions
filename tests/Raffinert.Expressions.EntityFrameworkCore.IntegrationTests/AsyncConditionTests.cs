@@ -22,7 +22,7 @@ public class AsyncConditionTests
         Assert.True(await fixture.Db.Orders.AnyAsync(interfaceCondition));
         Assert.False(await fixture.Db.Orders.AnyAsync(empty));
         Assert.False(await fixture.Db.Orders.AllAsync(active));
-        Assert.True(await fixture.Db.Orders.AllAsync(PredicateBuilder<OrderRow>.True().Build()));
+        Assert.True(await fixture.Db.Orders.AllAsync(Expr<OrderRow>.Create(_ => true)));
         Assert.True(await fixture.Db.Orders.Where(x => x.Id < 0).AllAsync(active));
         Assert.Equal(2, await fixture.Db.Orders.CountAsync(active));
         Assert.Equal(2L, await fixture.Db.Orders.LongCountAsync(active));
@@ -76,7 +76,7 @@ public class AsyncConditionTests
             Assert.Null(await ExecuteAsync(operation, fixture.Db.Orders, empty));
         else
             await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(operation, fixture.Db.Orders, empty));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(operation, fixture.Db.Orders, PredicateBuilder<OrderRow>.True().Build()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ExecuteAsync(operation, fixture.Db.Orders, Expr<OrderRow>.Create(_ => true)));
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class AsyncConditionTests
     public async Task NullArgumentsAreRejectedExplicitly(string operation)
     {
         var source = Array.Empty<OrderRow>().AsQueryable();
-        var sourceError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, null!, PredicateBuilder<OrderRow>.True().Build()));
+        var sourceError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, null!, Expr<OrderRow>.Create(_ => true)));
         Assert.Equal("source", sourceError.ParamName);
         var predicateError = await Assert.ThrowsAsync<ArgumentNullException>(() => ExecuteAsync(operation, source, null!));
         Assert.Equal("predicate", predicateError.ParamName);
@@ -156,7 +156,7 @@ public class AsyncConditionTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.Orders.AnyAsync(unsupported));
         Assert.Empty(fixture.Commands.Executed);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            Array.Empty<OrderRow>().AsQueryable().AnyAsync(PredicateBuilder<OrderRow>.True().Build()));
+            Array.Empty<OrderRow>().AsQueryable().AnyAsync(Expr<OrderRow>.Create(_ => true)));
     }
 
     private static bool CustomPredicate(string value) => value.Length > 1;

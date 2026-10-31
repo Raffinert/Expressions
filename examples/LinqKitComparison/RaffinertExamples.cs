@@ -48,9 +48,7 @@ public static class RaffinertExamples
         ExampleDbContext db,
         params string[] keywords)
     {
-        var builder = keywords.Length == 0
-            ? PredicateBuilder<Product>.True()
-            : PredicateBuilder<Product>.Start();
+        var builder = PredicateBuilder<Product>.Start(defaultWhenEmpty: true);
         foreach (var keyword in keywords)
             builder.And(product => product.Description.Contains(keyword));
         var predicate = builder.Build();

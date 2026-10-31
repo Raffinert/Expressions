@@ -36,12 +36,12 @@ public class UnifiedExpressionTests
     }
 
     [Fact]
-    public void StartAndTrueHaveDifferentFirstCompositionSemantics()
+    public void EmptyStartAndOrdinaryTrueExpressionHaveDifferentFirstCompositionSemantics()
     {
         var p = Expr<Product>.Create(x => x.Price > 10m);
         var startAnd = PredicateBuilder<Product>.Start().And(p).Build();
         var startOr = PredicateBuilder<Product>.Start().Or(p).Build();
-        var trueAnd = PredicateBuilder<Product>.True().And(p).Build();
+        var trueAnd = Expr<Product>.Create(_ => true).And(p);
 
         Assert.Equal(p.Invoke(new Product { Price = 12m }), startAnd.Invoke(new Product { Price = 12m }));
         Assert.Equal(p.Invoke(new Product { Price = 12m }), startOr.Invoke(new Product { Price = 12m }));
