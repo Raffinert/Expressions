@@ -121,7 +121,7 @@ public sealed class PredicateBuilder<T>
                 for (var i = operands.Count - 1; i >= 0; i--)
                     pending.Push((operands[i], false));
             }
-            else if (node is NotNode not)
+            else if (node is NotNode negation)
             {
                 pending.Push((node, true));
                 pending.Push((negation.Operand, false));
@@ -190,7 +190,7 @@ public sealed class PredicateBuilder<T>
                         ? Expression.AndAlso(left, right)
                         : Expression.OrElse(left, right);
                 }
-                else if (node is NotNode not)
+                else if (node is NotNode negation)
                 {
                     results[node] = Expression.Not(results[negation.Operand]);
                 }
