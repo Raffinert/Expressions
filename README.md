@@ -165,6 +165,71 @@ var databaseRows = await db.Products.Where(inStock).Select(summary).ToArrayAsync
 
 `Invoke` is the shared invocation and inlining primitive. Method groups such as `items.Any(condition.Invoke)` and `items.Select(projection.Invoke)` are expanded too.
 
+### Filtering nested collections
+
+Suppose an order has several lines, but only active lines above a configurable price
+threshold should be returned. We also want to exclude orders that have no matching
+lines. Define the line rule **once** and reuse it in both places:
+
+```csharp
+var activeLine = Expr<OrderLine>.Create(line =>
+    !line.IsCancelled && line.Quantity > 0);
+
+int minimumPriceCents = 10_000;
+var matchingLine = activeLine.And(line =>
+    line.UnitPriceCents >= minimumPriceCents);
+
+// Filter the parent orders.
+var hasMatchingLines = Expr<Order>.Create(order =>
+    order.Lines.Any(line => matchingLine.Invoke(line)));
+
+// Reuse a child projection.
+var lineDto = Expr<OrderLine>.Create(line => new OrderLineDto
+{
+    Id = line.Id,
+    Product = line.Product,
+    Quantity = line.Quantity,
+    UnitPriceCents = line.UnitPriceCents
+});
+
+// Include only matching children in the result.
+var orderDto = Expr<Order>.Create(order => new OrderDto
+{
+    Id = order.Id,
+    Lines = order.Lines
+        .Where(line => matchingLine.Invoke(line))
+        .OrderBy(line => line.Id)
+        .Select(line => lineDto.Invoke(line))
+        .ToList()
+});
+
+var results = await db.Orders
+    .Where(hasMatchingLines)
+    .Select(orderDto)
+    .ToListAsync();
+```
+
+Here `Order.Lines` is an EF Core collection navigation, `OrderDto.Lines` is a
+`List<OrderLineDto>`, and the line types expose the properties shown above.
+If an order has three lines but only one meets the rule, it is returned with
+**only that line**. Orders with no qualifying lines are excluded by `Any()`.
+
+Raffinert recursively inlines the nested `Invoke()` calls, including those inside
+`Any`, `Where` and `Select`. EF Core receives ordinary translatable LINQ
+expressions instead of compiled delegates. Because the outer wrappers are passed
+directly to Raffinert's `Where` and `Select` overloads, this works with the
+**core package alone**: no `Compile()`, `AsExpandable()` or
+`UseRaffinertExpressions()` registration is needed.
+
+Method-group syntax is supported too: nested `.Where(matchingLine.Invoke)`
+and `.Select(lineDto.Invoke)` are expanded in the same way. When using ordinary
+EF lambdas without outer wrappers, configure `UseRaffinertExpressions()` as
+described [below](#optional-ef-core-integration).
+
+This projects filtered child DTOs; it does not partially load or modify
+the tracked `Order.Lines` navigation. No `Include()` is necessary.
+SQL shape and query-splitting behavior remain provider-dependent.
+
 ## `Then` composition
 
 Forward composition is available from projections:
