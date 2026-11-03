@@ -345,7 +345,7 @@ internal static class StructuralExpressionAdapter
     }
 
     private static bool IsNullOrDefault(Expression expression) =>
-        expression is DefaultExpression || expression is ConstantExpression { Value: null };
+        expression is DefaultExpression or ConstantExpression { Value: null };
 
     private static bool CanBeNull(Type type) =>
         !type.IsValueType || Nullable.GetUnderlyingType(type) != null;

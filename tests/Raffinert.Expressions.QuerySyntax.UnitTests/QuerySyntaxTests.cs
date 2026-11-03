@@ -54,7 +54,7 @@ public sealed class QuerySyntaxTests
         Assert.Equal(
             ["fresh", "large", "small", "wood"],
             (IEnumerable<string>)query.Select(row => row.Tag));
-        Assert.All(Enumerable.ToArray(query), row => Assert.Equal(1, row.Count));
+        Assert.All(query.ToArray(), row => Assert.Equal(1, row.Count));
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class QuerySyntaxTests
     [Fact]
     public void ExplicitRangeTypeUsesFacadeCast()
     {
-        IQueryable<object> source = Products.Cast<object>().AsQueryable();
+        var source = Products.Cast<object>().AsQueryable();
         var name = Expr<Product>.Create(product => product.Name);
 
         var query =
