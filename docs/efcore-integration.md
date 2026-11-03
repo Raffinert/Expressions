@@ -1,6 +1,6 @@
 # EF Core integration
 
-User guide for `Raffinert.Expressions.EntityFrameworkCore` **1.2.0**.
+User guide for `Raffinert.Expressions.EntityFrameworkCore` **2.0.0**.
 The optional adapter provides async composable-condition operators and invocation expansion for ordinary EF LINQ queries.
 
 ## 1. Installation and compatibility
@@ -16,7 +16,7 @@ dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.11
 | --- | --- |
 | Application | .NET 10 (`net10.0`) |
 | EF Core and EF Core Relational | `>= 10.0.11` and `< 11.0.0` (`[10.0.11,11.0.0)`) |
-| Core dependency | `Raffinert.Expressions` 1.2.0 |
+| Core dependency | `Raffinert.Expressions` 2.0.0 |
 | Public namespace | `Raffinert.Expressions` |
 
 EF Core 7, 8, 9 and 11 are outside the adapter's range. Install the appropriate provider for your database. QuerySyntax is optional; Core (`netstandard2.0`) and QuerySyntax (`netstandard2.1`) are independent of EF.

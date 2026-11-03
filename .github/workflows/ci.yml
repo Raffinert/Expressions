@@ -88,6 +88,11 @@ jobs:
       - name: Restore
         run: dotnet restore Raffinert.Expressions.slnx
 
+      - name: Check documentation package versions
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: ./eng/verify-documentation-versions.ps1
+
       - name: Check formatting
         if: runner.os == 'Linux'
         run: dotnet format Raffinert.Expressions.slnx --no-restore --verify-no-changes
