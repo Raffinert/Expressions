@@ -1,7 +1,5 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Raffinert.Expressions;
-using Xunit;
 
 namespace Raffinert.Expressions.IntegrationTests;
 

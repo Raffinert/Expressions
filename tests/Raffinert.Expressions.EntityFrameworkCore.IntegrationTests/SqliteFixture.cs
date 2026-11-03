@@ -23,7 +23,7 @@ public sealed class SqliteFixture : IAsyncDisposable
             var builder = new DbContextOptionsBuilder<OrdersContext>()
                 .UseSqlite(fixture._connection)
                 .AddInterceptors(fixture.Commands)
-                .LogTo(_ => fixture.QueryCompilations++, new[] { CoreEventId.QueryCompilationStarting });
+                .LogTo(_ => fixture.QueryCompilations++, [CoreEventId.QueryCompilationStarting]);
             if (intercept) builder.UseRaffinertExpressions();
             configure?.Invoke(builder);
             fixture.Options = builder.Options;
