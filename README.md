@@ -65,14 +65,10 @@ For named, parameterized business rules, inherit `Expr<TSource, TResult>` and ov
 using System.Linq.Expressions;
 using Raffinert.Expressions;
 
-public sealed class ProductNameExpression : Expr<Product, bool>
+public sealed class ProductNameExpression(string name) : Expr<Product, bool>
 {
-    private readonly string _name;
-
-    public ProductNameExpression(string name) => _name = name;
-
     public override Expression<Func<Product, bool>> GetExpression()
-        => product => product.Name == _name;
+        => product => product.Name == name;
 }
 
 public sealed class ProductSummaryExpression : Expr<Product, ProductDto>
