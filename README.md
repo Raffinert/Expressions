@@ -97,7 +97,7 @@ Class-based expressions and inline expressions have the same composition, expans
 - **`And` / `Or` / `Not`:** combine Boolean expressions without changing the originals.
 - **`Invoke`:** reuse conditions, calculations, or projections inside other expressions.
 - **`Then`:** compose one projection with the next.
-- **`PredicateBuilder<T>`:** build dynamic Boolean conditions.
+- **`PredicateBuilder<T>`:** dynamically build predicates with **balanced `And`/`Or` expression trees by default**, unlike ordinary `And`/`Or` chaining.
 - **`InvokeOrDefault`:** return the default result for a null input.
 - **`AdaptSource` / `AdaptResult` / `Adapt`:** adapt expressions to compatible source/result types.
 - **`MergeBindings` / `MapToExisting`:** combine object initializers or update existing destination objects.
@@ -110,8 +110,11 @@ var builder = PredicateBuilder<Product>.Create();
 foreach (var term in searchTerms)
     builder.Or(p => p.Name.Contains(term));
 
-var query = db.Products.Where(builder.Build());
+var predicate = builder.Build(); // Balances the OR tree by default.
+var query = db.Products.Where(predicate);
 ```
+
+`Build()` balances homogeneous, builder-owned `And`/`Or` groups instead of producing a deeply left-nested tree for long dynamic chains. It preserves operand order and short-circuit behavior, and does not rebalance inside existing expressions passed to the builder. Use `Build(balanced: false)` if you need the original left-associative tree.
 
 ## Reuse expressions in nested collections
 
