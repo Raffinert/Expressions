@@ -193,3 +193,7 @@ The skill lives in [`.agents/skills/raffinert-expressions/`](.agents/skills/raff
 - [Migration guide](docs/migration.md)
 
 Questions or ideas? [Open an issue](https://github.com/Raffinert/Expressions/issues).
+
+## Project lineage
+
+Raffinert.Expressions is the successor to [Raffinert.Spec](https://github.com/Raffinert/Raffinert.Spec) and [Raffinert.Proj](https://github.com/Raffinert/Raffinert.Proj), unifying reusable predicates and projections in a single expression-composition library.
