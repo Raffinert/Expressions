@@ -25,10 +25,10 @@ Use this skill to implement **consumer code** with Raffinert.Expressions. Model 
 | Need | Choose | Invocation rules |
 |---|---|---|
 | Independent composition; in-memory use; direct `Where(condition)` / `Select(projection)` | `Raffinert.Expressions` (Core, `netstandard2.0`) | Core's direct LINQ overloads expand their wrapper arguments. Nested `Invoke` inside an **outer Raffinert wrapper** is recursively expanded when that wrapper is consumed. |
-| EF Core 10 query lambdas, ordinary C# `from` syntax, or async condition overloads | `Raffinert.Expressions.EntityFrameworkCore` (`net10.0`) | Configure `UseRaffinertExpressions()` after the EF provider for invocation inside **ordinary EF-facing lambdas**. The adapter brings Core transitively and does **not** need QuerySyntax. Direct wrapper operators and adapter async condition overloads do not need registration. |
+| EF Core 10/11 query lambdas, ordinary C# `from` syntax, or async condition overloads | `Raffinert.Expressions.EntityFrameworkCore` (`net10.0`, `net11.0`) | Configure `UseRaffinertExpressions()` after the EF provider for invocation inside **ordinary EF-facing lambdas**. The adapter brings Core transitively and does **not** need QuerySyntax. Direct wrapper operators and adapter async condition overloads do not need registration. |
 | Provider-independent C# query-syntax facade without the EF adapter | `Raffinert.Expressions.QuerySyntax` (`netstandard2.1`) | Opt in explicitly with `source.AsRaffinertQuery()`. Simply referencing the package does nothing. The package brings Core transitively. |
 
-EF adapter compatibility for the documented 2.0.0 release: .NET 10 and EF Core/EF Core Relational `>= 10.0.11` and `< 11.0.0`. Check the installed package's dependency range rather than assuming support for EF Core 7–9 or 11.
+EF adapter compatibility for the documented 2.1.0 release: .NET 10 with EF Core/EF Core Relational `>= 10.0.11` and `< 11.0.0`, or .NET 11 with EF Core/EF Core Relational `>= 11.0.0` and `< 12.0.0`. Adapter 2.0.0 supports only EF Core 10. Check the installed package's dependency range rather than assuming support for EF Core 7–9 or 12.
 
 Read [the usage patterns](references/patterns.md) for composition and structural mapping. Read [EF Core boundaries](references/ef-core.md) for database integration, parameterization, and tests. Do not load extra references for tasks that do not need them.
 

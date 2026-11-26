@@ -1,6 +1,6 @@
 # EF Core adapter architecture
 
-Internal technical reference for `Raffinert.Expressions.EntityFrameworkCore` 2.0.0.
+Internal technical reference for `Raffinert.Expressions.EntityFrameworkCore` 2.1.0.
 Consumer setup and supported behavior are documented in the
 [EF integration guide](../efcore-integration.md).
 
@@ -8,8 +8,8 @@ Consumer setup and supported behavior are documented in the
 
 Raffinert owns expression composition and expansion. EF owns evaluation, native
 parameter extraction, names, bindings, cache keys, compilation and SQL translation.
-The adapter targets `net10.0` with EF Core/Relational `[10.0.11,11.0.0)`; Core and
-QuerySyntax have no EF dependency.
+The adapter targets `net10.0` with EF Core/Relational `[10.0.11,11.0.0)` and `net11.0`
+with EF Core/Relational `[11.0.0,12.0.0)`; Core and QuerySyntax have no EF dependency.
 
 Ordinary execution follows this sequence:
 
@@ -128,17 +128,20 @@ not a general privacy guarantee for SQL, EF exceptions or arbitrary user telemet
 
 ## Internal API dependency and warning policy
 
-`IQueryCompiler` is an EF10 internal contract. Its method surface, service-registration
-shape and extraction/interception ordering can change across patches. The bounded
+`IQueryCompiler` is an EF internal contract. Its method surface is identical in EF10 and
+EF11, but it, the service-registration shape and extraction/interception ordering can
+change across patches and major versions. Each supported EF major version has its own
+target framework, compiled against that EF version. The bounded
 dependency range is not evidence that every patch is validated. Patch upgrades require
 provider, cache/binding, DI/disposal, compiled-query and packed-consumer checks.
 
 Local `EF1001` pragmas cover the compiler boundary and its contract tests only.
-`EF9100` is confined to implementations forwarding `PrecompileQuery`, whose EF10
+`EF9100` is confined to implementations forwarding `PrecompileQuery`, whose EF10 and EF11
 interface member is experimental. These exceptions allow the complete compiler
 contract without changing `TreatWarningsAsErrors` or adding global `NoWarn` entries.
 No other diagnostics are suppressed. The experimental annotation is documented in
-[EF10 IQueryCompiler source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/Internal/IQueryCompiler.cs).
+[EF10 IQueryCompiler source](https://github.com/dotnet/efcore/blob/v10.0.11/src/EFCore/Query/Internal/IQueryCompiler.cs)
+and [EF11 IQueryCompiler source](https://github.com/dotnet/efcore/blob/v11.0.0/src/EFCore/Query/Internal/IQueryCompiler.cs).
 
 ## Compatibility evidence and engineering records
 

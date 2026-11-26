@@ -1,6 +1,6 @@
 # EF Core integration
 
-User guide for `Raffinert.Expressions.EntityFrameworkCore` **2.0.0**.
+User guide for `Raffinert.Expressions.EntityFrameworkCore` **2.1.0**.
 The optional adapter provides async composable-condition operators and invocation expansion for ordinary EF LINQ queries.
 
 ## 1. Installation and compatibility
@@ -8,18 +8,18 @@ The optional adapter provides async composable-condition operators and invocatio
 Install the adapter and your database provider:
 
 ```shell
-dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 2.0.0
-dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 10.0.11
+dotnet add package Raffinert.Expressions.EntityFrameworkCore --version 2.1.0
+dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 11.0.0
 ```
 
 | Requirement | Supported contract |
 | --- | --- |
-| Application | .NET 10 (`net10.0`) |
-| EF Core and EF Core Relational | `>= 10.0.11` and `< 11.0.0` (`[10.0.11,11.0.0)`) |
+| EF Core and EF Core Relational on .NET 10 (`net10.0`) | `>= 10.0.11` and `< 11.0.0` (`[10.0.11,11.0.0)`) |
+| EF Core and EF Core Relational on .NET 11 (`net11.0`) | `>= 11.0.0` and `< 12.0.0` (`[11.0.0,12.0.0)`) |
 | Core dependency | `Raffinert.Expressions` 2.0.0 |
 | Public namespace | `Raffinert.Expressions` |
 
-EF Core 7, 8, 9 and 11 are outside the adapter's range. Install the appropriate provider for your database. QuerySyntax is optional; Core (`netstandard2.0`) and QuerySyntax (`netstandard2.1`) are independent of EF.
+EF Core 7, 8, 9 and 12 are outside the adapter's range. EF Core 11 requires .NET 11, so .NET 10 applications stay on EF Core 10 and install a 10.0.11 or later provider instead of the 11.0.0 shown above. Install the appropriate provider for your database. QuerySyntax is optional; Core (`netstandard2.0`) and QuerySyntax (`netstandard2.1`) are independent of EF.
 
 ## 2. Quick start
 
@@ -192,8 +192,8 @@ Parameterized values are bound separately from executed SQL text but are accessi
 
 | Provider | Tested boundary |
 | --- | --- |
-| `Microsoft.EntityFrameworkCore.Sqlite` 10.0.11 | .NET 10 on Windows and Linux; execution and isolated package consumers |
-| `Microsoft.EntityFrameworkCore.SqlServer` 10.0.11 | .NET 10 on Windows; real SQL Server 2025 LocalDB, RTM-CU3 17.0.4025.3 |
+| `Microsoft.EntityFrameworkCore.Sqlite` 10.0.11 and 11.0.0 | .NET 10 and .NET 11 on Windows and Linux; execution and isolated package consumers |
+| `Microsoft.EntityFrameworkCore.SqlServer` 10.0.11 and 11.0.0 | .NET 10 and .NET 11 on Windows; real SQL Server 2025 LocalDB, RTM-CU3 17.0.4025.3 |
 
 Coverage includes expansion, directives, current captures, cache reuse, nullability, cancellation/recovery, compiled-query scope and pooled contexts/context factories. The dependency range does not certify every EF patch; revalidate upgrades in your application. Other providers, Azure SQL, other SQL Server versions/collations, custom mapped functions and NativeAOT are not certified.
 

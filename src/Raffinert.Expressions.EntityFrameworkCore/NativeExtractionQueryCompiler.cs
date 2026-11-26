@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Raffinert.Expressions;
 
-// EF10 compiler boundary: Raffinert expands; the original compiler owns all extraction and execution.
+// EF10/EF11 compiler boundary: Raffinert expands; the original compiler owns all extraction and execution.
 #pragma warning disable EF1001 // Implement and forward the provider's scoped IQueryCompiler.
 internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQueryCompiler
 {
@@ -36,7 +36,7 @@ internal sealed class NativeExtractionQueryCompiler(IQueryCompiler inner) : IQue
     public Func<QueryContext, TResult> CreateCompiledAsyncQuery<TResult>(Expression query) =>
         inner.CreateCompiledAsyncQuery<TResult>(query);
 
-#pragma warning disable EF9100 // Owner-authorized: forward EF10's experimental precompiled-query API only.
+#pragma warning disable EF9100 // Owner-authorized: forward EF's experimental precompiled-query API only.
     public Expression<Func<QueryContext, TResult>> PrecompileQuery<TResult>(Expression query, bool async) =>
         !ReferenceEquals(query, Expand(query))
             ? throw new NotSupportedException("Precompiled queries containing Raffinert wrappers are unsupported. Use ordinary LINQ or supported EF compiled queries.")

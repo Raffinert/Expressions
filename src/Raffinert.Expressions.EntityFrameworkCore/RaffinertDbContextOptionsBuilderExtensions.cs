@@ -8,12 +8,12 @@ public static class RaffinertDbContextOptionsBuilderExtensions
 {
     /// <summary>Enables invocation expansion and cache-safe wrapper resolution for this context.</summary>
     /// <remarks>
-    /// Requires .NET 10 and EF Core 10.x. Call after configuring the database provider.
+    /// Requires .NET 10 with EF Core 10.x, or .NET 11 with EF Core 11.x. Call after configuring the database provider.
     /// Repeated calls are harmless. Raffinert expands wrappers before EF's native extraction;
     /// EF owns parameter evaluation, naming, binding, caching and SQL translation, including directives and collections.
     /// ToQueryString follows native EF behavior and may include parameter values even with sensitive-data logging disabled.
     /// Compiled wrappers with runtime captures and Raffinert precompiled queries are unsupported.
-    /// Uses a narrowly scoped EF10 internal IQueryCompiler contract; revalidate EF patch upgrades.
+    /// Uses a narrowly scoped EF internal IQueryCompiler contract; revalidate EF patch and major upgrades.
     /// </remarks>
     /// <param name="optionsBuilder">The context options to configure.</param>
     /// <returns>The same options builder.</returns>

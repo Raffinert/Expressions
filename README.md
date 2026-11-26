@@ -155,7 +155,7 @@ Nested `Invoke` calls are inlined before query translation. The query excludes o
 | Package | Use it for |
 | --- | --- |
 | [Raffinert.Expressions](https://www.nuget.org/packages/Raffinert.Expressions) | Core composition and direct LINQ overloads; targets `netstandard2.0`. |
-| [Raffinert.Expressions.EntityFrameworkCore](https://www.nuget.org/packages/Raffinert.Expressions.EntityFrameworkCore) | EF Core 10 async predicate operators and expansion inside ordinary query lambdas; requires .NET 10. |
+| [Raffinert.Expressions.EntityFrameworkCore](https://www.nuget.org/packages/Raffinert.Expressions.EntityFrameworkCore) | EF Core 10 and 11 async predicate operators and expansion inside ordinary query lambdas; targets `net10.0` (EF Core 10) and `net11.0` (EF Core 11). |
 | [Raffinert.Expressions.QuerySyntax](https://www.nuget.org/packages/Raffinert.Expressions.QuerySyntax) | Provider-independent C# query-syntax expansion via `AsRaffinertQuery()`; targets `netstandard2.1`. |
 
 With the core package, pass an expression directly: `db.Products.Where(filter)` or `db.Products.Select(projection)`. No special registration is necessary.
