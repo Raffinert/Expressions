@@ -1,12 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <!-- A private cache prevents a previously restored package masking local changes. -->
-    <RestorePackagesPath>$(MSBuildProjectDirectory)/obj/packages/ef10</RestorePackagesPath>
+    <RestorePackagesPath>$(MSBuildProjectDirectory)/obj/packages/smoke</RestorePackagesPath>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Raffinert.Expressions.EntityFrameworkCore" Version="2.0.0" />
+    <PackageReference Include="Raffinert.Expressions.EntityFrameworkCore" Version="2.1.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="11.0.0" />
   </ItemGroup>
 </Project>

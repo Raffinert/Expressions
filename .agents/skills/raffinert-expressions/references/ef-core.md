@@ -1,6 +1,6 @@
 # EF Core integration boundaries
 
-For documented Raffinert 2.0.0, the optional adapter targets .NET 10 and requires EF Core/Relational versions in `[10.0.11,11.0.0)`. Core is transitive; QuerySyntax is **not** required for the EF adapter.
+For the documented adapter 2.1.0, the optional adapter targets .NET 10 with EF Core/Relational `[10.0.11,11.0.0)` and .NET 11 with EF Core/Relational `[11.0.0,12.0.0)` (adapter 2.0.0 supports only EF Core 10). Core is transitive; QuerySyntax is **not** required for the EF adapter.
 
 ## Direct wrappers versus ordinary lambdas
 
@@ -48,7 +48,7 @@ The adapter also provides condition-taking async overloads such as `AnyAsync(act
 - Raffinert expands marker calls before EF's native parameter extraction; EF owns extraction, parameter naming/binding, query caching, and SQL translation. Captured scalar values in ordinary queries are observed at execution, including cache hits.
 - Native EF directives `EF.Parameter`, `EF.Constant`, and `EF.MultipleParameters` remain native EF directives when used in supported expressions. Collection/cardinality/provider behavior follows native EF.
 - EF compiled queries support stable **closed** Raffinert wrappers and scalar compiled-delegate parameters within the documented integration. Runtime captures inside compiled wrapper bodies, wrappers passed as compiled-delegate parameters, and Raffinert invocation expansion in EF precompiled-query infrastructure are unsupported.
-- EF10 internal `IQueryCompiler` integration requires revalidation across EF patch upgrades. Tested providers in the repository include SQLite and SQL Server; do not claim every third-party provider is certified.
+- EF internal `IQueryCompiler` integration requires revalidation across EF patch and major upgrades. Tested providers in the repository include SQLite and SQL Server; do not claim every third-party provider is certified.
 - `ToQueryString()` can include captured parameter values even when sensitive-data logging is disabled. Treat query strings, exceptions, logs, and telemetry as potentially sensitive.
 - The original provider-facing `query.Expression` need not be mutated by the EF adapter; expansion occurs during query compilation. Assert **executed results and SQL** instead of requiring `query.Expression.ToString()` to contain no `Invoke`.
 

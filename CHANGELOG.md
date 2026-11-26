@@ -1,5 +1,11 @@
 # Changelog
 
+## Raffinert.Expressions.EntityFrameworkCore 2.1.0
+
+- Added EF Core 11 support: the adapter now also targets `net11.0` with EF Core/Relational >= 11.0.0 and < 12.0.0. The `net10.0` target keeps EF Core/Relational >= 10.0.11 and < 11.0.0.
+- The internal `IQueryCompiler` contract that the adapter decorates is unchanged in EF Core 11. The SQLite, SQL Server LocalDB and isolated package-consumer suites run against both EF Core 10 and 11.
+- The repository now builds with the .NET 11 SDK. Core and QuerySyntax are unchanged and stay at 2.0.0.
+
 ## 2.0.0 (breaking)
 
 - Replaced the separate public `Condition<T>` and `Projection<TSource,TResult>` types with one `Expr<TSource,TResult>` abstraction.

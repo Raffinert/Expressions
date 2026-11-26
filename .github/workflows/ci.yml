@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   sqlserver-localdb:
-    name: SQL Server LocalDB (EF Core 10)
+    name: SQL Server LocalDB (EF Core 10 and 11)
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -118,12 +118,13 @@ jobs:
           if-no-files-found: error
 
   package-smoke:
-    name: EF10 isolated package smoke (${{ matrix.os }})
+    name: EF isolated package smoke (${{ matrix.os }}, ${{ matrix.framework }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+        framework: [net10.0, net11.0]
 
     steps:
       - name: Check out repository
@@ -141,7 +142,7 @@ jobs:
           dotnet pack src/Raffinert.Expressions.EntityFrameworkCore/Raffinert.Expressions.EntityFrameworkCore.csproj -c Release --output artifacts/local-feed
 
       - name: Restore isolated package consumer
-        run: dotnet restore tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj -p:RestorePackagesPath=${{ runner.temp }}/raffinert-ef10-packages
+        run: dotnet restore tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj -p:RestorePackagesPath=${{ runner.temp }}/raffinert-ef-packages
 
       - name: Run isolated package consumer
-        run: dotnet run --project tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj -c Release --no-restore -p:RestorePackagesPath=${{ runner.temp }}/raffinert-ef10-packages
+        run: dotnet run --project tests/Raffinert.Expressions.EntityFrameworkCore.PackageSmoke/PackageSmoke.csproj -c Release -f ${{ matrix.framework }} --no-restore -p:RestorePackagesPath=${{ runner.temp }}/raffinert-ef-packages
